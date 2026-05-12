@@ -1,0 +1,40 @@
+# Python bytecode / packaging
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Generated run artifacts
+outputs/
+*.log
+
+# Datasets / large local data (supply via --data; uncomment to track small ones)
+# data/
+
+# Caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Editors / IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.env
