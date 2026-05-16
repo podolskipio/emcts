@@ -52,14 +52,14 @@ def rollout_one(game, system, planner, max_turns, scenario):
 	# turn 0: the only valid move at the start is the greeting -> realize it
 	valid0 = np.asarray(planner.get_valid_moves(state), dtype=float)
 	greeting_idx = int(np.nonzero(valid0)[0][0]) if valid0.sum() > 0 else 0
-	state, _agent_state, _ = game.get_next_state(state, greeting_idx, agent_state=[])
+	state, _ = game.get_next_state(state, greeting_idx)
 	# then plan turn by turn until the game ends or we hit the limit
 	while game.get_dialog_ended(state) == 0.0 and len(state) < max_turns:
 		valid = np.asarray(planner.get_valid_moves(state), dtype=float)
 		prior, _v = planner.predict(state)
 		masked = np.asarray(prior, dtype=float) * valid
 		action = int(np.argmax(masked)) if masked.sum() > 0 else int(np.argmax(valid))
-		state, _agent_state, _ = game.get_next_state(state, action, agent_state=[])
+		state, _ = game.get_next_state(state, action)
 	return state
 
 

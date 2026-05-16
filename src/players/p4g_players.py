@@ -82,7 +82,7 @@ class P4GSystemPlanner(DialogPlanner):
 				pred_da.append(found_da)
 		return pred_da
 
-	def predict(self, state:DialogSession, policy=None, ent_bound=None, agent_state=None) -> "Tuple[np.ndarray, float]":
+	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
 		# test k times and compute prob. See num_return_sequences in the API
 		# the value would be our objective function
 		if len(state) == 0:
@@ -288,7 +288,7 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 				pred_da.append(found_da)
 		return pred_da
 
-	def predict(self, state:DialogSession, policy=None, ent_bound=None, agent_state=None) -> "Tuple[np.ndarray, float]":
+	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
 		# test k times and compute prob. See num_return_sequences in the API
 		# the value would be our objective function
 		messages = [

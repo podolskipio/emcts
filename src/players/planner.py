@@ -8,8 +8,8 @@ class DialogPlanner(ABC):
         pass
 
     @abstractmethod
-    def predict(self, state, policy=None, ent_bound=None, agent_state=None):
+    def predict(self, state, policy=None, ent_bound=None):
         # returns (prob, value): a prior distribution over dialog acts and a scalar value estimate.
-        # policy / ent_bound / agent_state are optional and only used by chat planners that
-        # support a learned policy prior; they are ignored otherwise.
+        # policy / ent_bound are optional and only used by chat planners that support a learned
+        # policy prior; chat-formatted history is derived from `state.to_chat_messages()` on demand.
         pass

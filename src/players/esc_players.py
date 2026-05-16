@@ -89,7 +89,7 @@ class ESCSystemPlanner(DialogPlanner):
                 pred_da.append(found_da)
         return pred_da
 
-    def predict(self, state: DialogSession, policy=None, ent_bound=None, agent_state=None) -> "Tuple[np.ndarray, float]":
+    def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
         # test k times and compute prob. See num_return_sequences in the API
         # the value would be our objective function
         if len(state) == 0:
@@ -325,13 +325,13 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
             #         break
         return pred_da
 
-    def predict(self, state: DialogSession, policy=None, ent_bound=None, agent_state=None) -> "Tuple[np.ndarray, float]":
+    def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
         # test k times and compute prob. See num_return_sequences in the API
         # the value would be our objective function
         if self.use_policy_prior and policy is not None:
             logger.info('Apply policy model to calculate prior')
             with torch.no_grad():
-                agent_dist, _ = policy.apply_policy(agent_state)
+                agent_dist, _ = policy.apply_policy(state.to_chat_messages())
             # agent_dist = torch.ones(len(self.dialog_acts)).to(policy.device) / len(self.dialog_acts)
             logger.info('Apply the policy network (Roberta-large) to predict prior distribution.')
             if len(agent_dist.shape) > 1:

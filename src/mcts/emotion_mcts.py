@@ -73,7 +73,7 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 			return self._sample_realization(prefetch_state)
 
 		# otherwise, generate a new realization
-		next_state = self.game.get_next_state(state, best_action)
+		next_state, _ = self.game.get_next_state(state, best_action)
 		return next_state
 
 	def _update_realizations_Vs(self, state: EmotionAwareDialogSession, v: float):

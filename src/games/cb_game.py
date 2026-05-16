@@ -77,14 +77,12 @@ class CBGame(DialogGame):
 		return CBDialogSession(self.SYS, self.USR, item_name, buyer_item_description, buyer_price,
                          seller_item_description, seller_price)
 
-	def get_next_state(self, state:DialogSession, action, agent_state: list = None, mode: str = 'train') -> "Tuple[DialogSession, list, float]":
+	def get_next_state(self, state:DialogSession, action, mode: str = 'train') -> "Tuple[DialogSession, float]":
 		next_state = state.copy()
-		next_agent_state = agent_state.copy()
 
 		sys_utt = self.system_agent.get_utterance(next_state, action)  # action is DA
 		sys_da = self.system_agent.dialog_acts[action]
 		next_state.add_single(state.SYS, sys_da, sys_utt)
-		next_agent_state.append({'role': state.SYS, 'content': sys_utt})
 
 		# state in user's perspective
 		if not self.zero_shot:
@@ -94,14 +92,7 @@ class CBGame(DialogGame):
 		else:
 			user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
 			next_state.add_single(state.USR, None, user_resp)
-			# v, sampled_das = 0.1, ["No, better"] * 10
-			# if len(state) == 8:
-			# 	v = 0.19
-			# 	sampled_das[-1] = "Yes, Solved"
 			v, sampled_das = self.planner.heuristic(next_state)
-			# if v > 0:
-			# 	v = 0.2
 			user_da = self.map_user_action(v, sampled_das)
 			next_state[-1][1] = user_da
-		next_agent_state.append({'role': state.USR, 'content': user_resp})
-		return next_state, next_agent_state, v
+		return next_state, v

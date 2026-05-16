@@ -83,8 +83,8 @@ class MCTS:
 				best_uct = uct
 				best_action = a
 		# transition
-		next_state = self.game.get_next_state(state, best_action)
-		
+		next_state, _ = self.game.get_next_state(state, best_action)
+
 		# 1. if not leaf, continue traversing, and state=s will get the value from the leaf node
 		# 2. if leaf, we will expand it and return the value for backpropagation
 		v = self.search(next_state)
@@ -149,7 +149,7 @@ class OpenLoopMCTS(MCTS):
 
 		prior, v = self.player.predict(state)
 		self.Vs[st := state.to_string_rep(keep_sys_da=True, keep_user_da=True)] = v  # for debugging
-		print(f"State: {st}\n\n")
+		logger.debug(f"State: {st}\n\n")
 		self.P[hashable_state] = prior * allowed_actions
 		# renormalize
 		if np.sum(self.P[hashable_state]) == 0:
@@ -184,9 +184,9 @@ class OpenLoopMCTS(MCTS):
 			return self._sample_realization(prefetch_state)
 		
 		# otherwise, generate a new realization
-		next_state = self.game.get_next_state(state, best_action)
+		next_state, _ = self.game.get_next_state(state, best_action)
 		return next_state
-	
+
 	def _update_realizations_Vs(self, state: DialogSession, v: float):
 		hashable_state = self._to_string_rep(state)
 		if hashable_state not in self.realizations_Vs:

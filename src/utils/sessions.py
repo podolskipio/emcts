@@ -57,6 +57,9 @@ class DialogSession:
         else:
             return self.history[turn * 2 + 1][-1]
 
+    def to_chat_messages(self) -> list:
+        return [{'role': role, 'content': utt} for role, _da, utt in self.history]
+
     def __iter__(self):
         return iter(self.history)
 
@@ -169,6 +172,9 @@ class EmotionAwareDialogSession:
 			return self.history[turn * 2][-1]
 		else:
 			return self.history[turn * 2 + 1][-1]
+
+	def to_chat_messages(self) -> list:
+		return [{'role': rec.role, 'content': rec.utt} for rec in self.history]
 
 	def __iter__(self):
 		return iter(self.history)

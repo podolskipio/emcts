@@ -44,7 +44,8 @@ src/
                 rollout.py  self-play episodes -> episode records for metrics;
                 _common.py  shared task registry + dataset readers + eval loop
   metrics/      dialog_metrics.py  SR / AT / SL implementations; run_metrics.py  CLI
-  evaluators/   resp_ranker.py + {p4g,esc,cb}_evaluator.py  pairwise LLM response rankers
+  evaluators/   resp_ranker.py + {p4g,esc,cb}_evaluator.py  pairwise LLM response rankers;
+                run_judge.py  CLI: judge two runner outputs (vs. human or head-to-head)
 ```
 
 The three `*Game` / `*SystemPlanner` / `*Model` families expose a common API, so a
@@ -167,7 +168,7 @@ later scoring. All four runners take `--game {p4g,esc,cb}` and `--data <path>`:
 ```bash
 cd src
 python runners/raw_prompting.py --game p4g --data data/p4g/300_dialog_turn_based.pkl --num_dialogs 20
-python runners/raw_prompting.py --game esc --data data/esc/esc-valid.json
+python runners/raw_prompting.py --game esc --data data/esc/esc-valid.txt
 python runners/raw_prompting.py --game cb  --data data/cb/cb-valid.txt --llm ollama --ollama_model llama3.1
 python runners/gdpzero.py       --game p4g --data data/p4g/300_dialog_turn_based.pkl --num_mcts_sims 20
 ```
@@ -175,10 +176,29 @@ python runners/gdpzero.py       --game p4g --data data/p4g/300_dialog_turn_based
 These four runners do *turn-by-turn response comparison* (predicted next response vs. the
 dataset's ground-truth one) — for the *episode-level* metrics below see `runners/rollout.py`.
 The dataset files are **not** shipped with this repo — supply them via `--data`. Expected
-formats: P4G = GDP-Zero's `300_dialog_turn_based.pkl` (`{did: {dialog, label}}`); ESConv =
+formats: P4G = GDP-Zero's `300_dialog_turn_based.pkl` (`{did: {dialog, label}}`) **or** the
+ESC/CB-style JSON-lines `.txt` produced by `python runners/convert_p4g_to_jsonl.py` (one
+`{id, dialog:[{text,speaker,strategy}]}` per line — auto-detected from the path suffix); ESConv =
 JSON / JSON-lines of `{emotion_type, problem_type, situation, dialog: [{text, speaker, strategy?}]}`;
 CraigslistBargain = JSON-lines of `{item_name, buyer_*, seller_*, dialog: [{text, speaker, strategy}]}`.
 The task wiring + dataset readers live in `runners/_common.py` (`TASKS`, `read_p4g/esc/cb`).
+
+#### Loading datasets from the Hugging Face Hub
+
+`--data hf:<repo>[:<split>]` loads the dataset directly from the Hub (requires `pip install datasets`).
+The HF loaders live in `runners/hf_loaders.py` and produce the same normalized dialog list as the
+local-file readers, so all runners accept them transparently:
+
+```bash
+cd src
+python runners/raw_prompting.py --game p4g --data hf:spawn99/PersuasionForGood:FullDialog
+python runners/raw_prompting.py --game esc --data hf:thu-coai/esconv:validation
+python runners/raw_prompting.py --game cb  --data hf:stanfordnlp/craigslist_bargains:validation
+```
+
+The `spawn99/PersuasionForGood` dump carries dialog text but no DA labels, so the P4G HF loader
+defaults `sys_da` to `"other"` and `usr_da` to `PersuasionGame.U_Neutral` (the dialog text is
+intact). For ESConv and CraigslistBargain the loaders preserve the dataset's strategy labels.
 
 ## Metrics (SR / AT / SL)
 
@@ -189,7 +209,8 @@ ends or `--max_turns`) and writes one episode record per dialog
 
 ```bash
 cd src
-python runners/rollout.py     --game cb  --data data/cb/cb-valid.txt --max_turns 8 --output outputs/rollout_cb.pkl
+python runners/rollout.py     --game cb  --data data/cb/cb-valid.txt  --max_turns 8 --output outputs/rollout_cb.pkl
+python runners/rollout.py     --game esc --data data/esc/esc-valid.txt --max_turns 8 --output outputs/rollout_esc.pkl
 python metrics/run_metrics.py --episodes outputs/rollout_cb.pkl --task cb --max_turns 8
 ```
 
@@ -215,12 +236,39 @@ to debias, majority vote over `n` samples), returning `0` (A better) / `1` (B be
 Shared logic is in `evaluators/resp_ranker.py` (`RespRanker` / `LLMRespRanker`); pick one with
 `evaluators.get_evaluator(task, gen_model)`.
 
-```python
-from utils.gen_models import OpenAIChatModel
-from evaluators import get_evaluator
-ev = get_evaluator("cb", OpenAIChatModel("gpt-3.5-turbo"))
-pref, debug = ev.evaluate(dialog_context, response_a, response_b)   # pref in {0, 1, 2}
+`evaluators/run_judge.py` is the CLI wrapper. It consumes the per-turn pickles written by the
+offline runners (`runners/raw_prompting.py`, `runners/gdpzero*.py`) — each record has
+`{did, context, ori_resp, new_resp, …}` — and asks the judge LLM which response wins. Two modes:
+
+- **vs. human ground truth** (default): A = `ori_resp`, B = `new_resp` (the `-f` model).
+- **head-to-head** (`--h2h <other.pkl>`): A = the `--h2h` runner's `new_resp`, B = the `-f` runner's `new_resp`.
+
+A "win" always means the `-f` model beat the reference (so the win-rate is for the `-f` runner).
+
+```bash
+cd src
+# vs. human ground truth
+python evaluators/run_judge.py --task p4g -f outputs/gdpzero_p4g.pkl --output outputs/eval_p4g.pkl
+# head-to-head: gdpzero vs raw-prompt
+python evaluators/run_judge.py --task esc -f outputs/gdpzero_esc.pkl --h2h outputs/raw_esc.pkl --output outputs/h2h_esc.pkl
+# local judge via Ollama
+python evaluators/run_judge.py --task cb  -f outputs/gdpzero_cb.pkl  --judge ollama --ollama_model llama3.1
 ```
+
+Output: a pickle with per-record decisions (`winner`, judge `choices` / `rationales`, A/B-swap
+flag, `did`, `context`, `resp_a`, `resp_b`) plus a printed summary
+`{win, draw, lose, n, win_rate}`. Pass `--out_json <path>` to also dump that summary as JSON, or
+`--limit N` to score the first `N` records only.
+
+| flag | default | meaning |
+|------|---------|---------|
+| `--task {p4g,esc,cb}` | *required* | which task evaluator (and its prompt) to use |
+| `-f <pkl>` | *required* | the runner pickle to evaluate — B = its `new_resp` |
+| `--h2h <pkl>` | (vs. human) | second runner pickle — A = its `new_resp`; requires `--output` |
+| `--judge {gpt-3.5-turbo,chatgpt,ollama}` | `gpt-3.5-turbo` | which LLM judges; Ollama works fully offline |
+| `--ollama_model`, `--ollama_host` | `llama3.1`, `$OLLAMA_HOST` | Ollama model / server when `--judge ollama` |
+| `--output`, `--out_json`, `--limit`, `--debug` | — | per-record pickle path / summary JSON / cap / verbose ranker logs |
+
 
 ## Status / known limitations
 

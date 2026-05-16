@@ -1,0 +1,17 @@
+# Core
+numpy
+tqdm
+nltk          # used for sentence truncation; run: python -c "import nltk; nltk.download('punkt')"
+
+# LLM backends
+openai        # NOTE: utils/gen_models.py mixes openai<1.0 (Engine/Completion/ChatCompletion)
+              # and openai>=1.0 (openai.chat.completions) call styles -- pick the variant that
+              # matches the backend you actually use, or update gen_models.py accordingly.
+tenacity      # exponential-backoff retries around the OpenAI API
+requests      # HTTP for the OpenAI/HF inference API and the Ollama backend
+datasets      # optional: only needed when --data uses an hf:<repo> spec (runners/hf_loaders.py)
+
+# Local 🤗 Transformers backend + policy-network paths (optional if you only use API/Ollama LLMs)
+torch
+transformers
+datasets

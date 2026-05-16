@@ -28,6 +28,7 @@ from utils.gen_models import (
 from utils.prompt_examples import EXP_DIALOG, ESConv_EXP_DIALOG, CB_EXP_DIALOG
 
 from games import PersuasionGame, EmotionalSupportGame, CBGame
+from runners.hf_loaders import HF_PREFIX, read_p4g_hf, read_esc_hf, read_cb_hf
 from players.p4g_players import (
 	PersuaderModel, PersuaderChatModel, PersuadeeModel, PersuadeeChatModel,
 	P4GSystemPlanner, P4GChatSystemPlanner,
@@ -123,7 +124,14 @@ _P4G_USER_DA_MAP = {
 P4G_BAD_DIALOGS = {"20180808-024552_152_live", "20180723-100140_767_live", "20180825-080802_964_live"}
 
 
-def read_p4g(path, system_dialog_acts):
+def _resolve_p4g_sys_da(raw_label, system_dialog_acts):
+	"""Pick a system DA from a raw P4G label; fall back to "other" if unknown."""
+	if raw_label and raw_label in system_dialog_acts:
+		return raw_label
+	return "other"
+
+
+def _read_p4g_pickle(path, system_dialog_acts):
 	with open(path, "rb") as f:
 		all_dialogs = pickle.load(f)
 	out = []
@@ -149,8 +157,37 @@ def read_p4g(path, system_dialog_acts):
 	return out
 
 
-# --- ESConv (DPDP's esc-valid.json: JSON objects of {emotion_type, problem_type, situation, dialog:[{text,speaker,strategy?}]}) ---
+def _read_p4g_jsonl(path, system_dialog_acts):
+	"""Read the ESC/CB-style JSON-lines variant produced by ``runners/convert_p4g_to_jsonl.py``."""
+	out = []
+	for i, dialog in enumerate(_iter_json_objects(path)):
+		did = dialog.get("id", f"p4g-{i}")
+		if did in P4G_BAD_DIALOGS:
+			continue
+		segments = _collapse_segments(dialog["dialog"])
+		turns = []
+		for (sp_s, txt_s, da_s), (sp_u, txt_u, da_u) in _pair_segments(segments):
+			sys_da = _resolve_p4g_sys_da(da_s, system_dialog_acts)
+			usr_da = _P4G_USER_DA_MAP.get(da_u or "", PersuasionGame.U_Neutral)
+			turns.append({"sys_da": sys_da, "sys_utt": txt_s, "usr_da": usr_da, "usr_utt": txt_u})
+		if turns:
+			out.append({"id": did, "scenario": (), "turns": turns})
+	return out
+
+
+def read_p4g(path, system_dialog_acts):
+	if path.startswith(HF_PREFIX):
+		return read_p4g_hf(path, system_dialog_acts)
+	# JSON-lines variant produced by convert_p4g_to_jsonl.py; the pickle is the GDP-Zero original
+	if path.endswith(".pkl"):
+		return _read_p4g_pickle(path, system_dialog_acts)
+	return _read_p4g_jsonl(path, system_dialog_acts)
+
+
+# --- ESConv (DPDP's esc-valid.txt: JSON-lines of {emotion_type, problem_type, situation, dialog:[{text,speaker,strategy?}]}) ---
 def read_esc(path, system_dialog_acts):
+	if path.startswith(HF_PREFIX):
+		return read_esc_hf(path, system_dialog_acts)
 	out = []
 	for i, dialog in enumerate(_iter_json_objects(path)):
 		segments = _collapse_segments(dialog["dialog"])
@@ -174,6 +211,8 @@ _CB_DEAL_STRATEGIES = {"agree", "affirm", "accept"}
 
 
 def read_cb(path, system_dialog_acts):
+	if path.startswith(HF_PREFIX):
+		return read_cb_hf(path, system_dialog_acts)
 	out = []
 	for i, dialog in enumerate(_iter_json_objects(path)):
 		segments = _collapse_segments(dialog["dialog"])
@@ -218,7 +257,7 @@ TASKS = {
 		"example": ESConv_EXP_DIALOG,
 		"success_user_da": EmotionalSupportGame.U_Solved,
 		"read_dialogs": read_esc,
-		"default_data": "data/esc/esc-valid.json",
+		"default_data": "data/esc/esc-valid.txt",
 	}),
 	"cb": dotdict({
 		"game_cls": CBGame,

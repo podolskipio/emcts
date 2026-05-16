@@ -36,7 +36,7 @@ def plan_turn(game, system, planner, backbone_model, state, cmd_args):
 	policy = dp.get_action_prob(state)
 	best = int(np.argmax(policy))
 	da = system.dialog_acts[best]
-	next_state, _agent_state, _ = game.get_next_state(state, best, agent_state=[])
+	next_state, _ = game.get_next_state(state, best)
 	utt = next_state.history[-2][2]
 	debug = {
 		"probs": policy, "da": da,

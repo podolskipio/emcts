@@ -6,7 +6,7 @@ and uses `get_best_realization` to pick the concrete utterance.
 
     cd src
     python runners/gdpzero.py --game p4g --data data/p4g/300_dialog_turn_based.pkl --num_mcts_sims 20
-    python runners/gdpzero.py --game esc --data data/esc/esc-valid.json
+    python runners/gdpzero.py --game esc --data data/esc/esc-valid.txt
     python runners/gdpzero.py --game cb  --data data/cb/cb-valid.txt
 
 NOTE: the MCTS classes in `mcts/mcts.py` currently call `game.get_next_state(state, action)`

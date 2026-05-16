@@ -45,8 +45,8 @@ class DialogGame(ABC):
     def map_user_action(self, v, sampled_das):
         raise NotImplementedError
 
-    def get_next_state(self, state:DialogSession, action, agent_state: list = None, mode: str = 'train') -> "Tuple[DialogSession, list, float]":
-        # returns (next_state, next_agent_state, v)
+    def get_next_state(self, state:DialogSession, action, mode: str = 'train') -> "Tuple[DialogSession, float]":
+        # returns (next_state, v)
         raise NotImplementedError
 
     def display(self, state: DialogSession):

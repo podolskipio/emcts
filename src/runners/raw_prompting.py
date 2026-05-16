@@ -7,7 +7,7 @@ Works for all three tasks::
 
     cd src
     python runners/raw_prompting.py --game p4g --data data/p4g/300_dialog_turn_based.pkl
-    python runners/raw_prompting.py --game esc --data data/esc/esc-valid.json
+    python runners/raw_prompting.py --game esc --data data/esc/esc-valid.txt
     python runners/raw_prompting.py --game cb  --data data/cb/cb-valid.txt --llm ollama --ollama_model llama3.1
 """
 import os
@@ -24,7 +24,7 @@ def plan_turn(game, system, planner, backbone_model, state, cmd_args):
 	prior, v = planner.predict(state)
 	best = int(np.argmax(prior))
 	da = system.dialog_acts[best]
-	next_state, _agent_state, _ = game.get_next_state(state, best, agent_state=[])
+	next_state, _ = game.get_next_state(state, best)
 	utt = next_state.history[-2][2]  # [sys_turn, simulated_user_turn] -> the system utterance
 	return da, utt, {"prior": prior, "da": da, "v": v}
 
