@@ -234,8 +234,6 @@ def main():
 	parser = argparse.ArgumentParser(description="self-play rollouts -> episode records for SR / AT / SL")
 	add_common_args(parser, default_output="outputs/rollout.pkl")
 	parser.add_argument("--max_turns", type=int, default=10, help="hard cap on dialog turns per episode")
-	parser.add_argument("--max_conv", type=int, default=None,
-						help="max number of conversations to rollout (default: all). Overrides --num_dialogs.")
 	add_policy_args(parser)
 	cmd_args = finalize_args(parser.parse_args())
 	print(f"algo={cmd_args.algo}  saving to {cmd_args.output}")
@@ -257,7 +255,7 @@ def main():
 	print(f"task={cmd_args.game}  loaded {len(dialogs)} scenarios from {data_path}  (max_turns={cmd_args.max_turns})")
 
 	episodes = []
-	cap = cmd_args.max_conv if cmd_args.max_conv is not None else len(dialogs)
+	cap = len(dialogs) if cmd_args.max_conv is None or cmd_args.max_conv < 0 else cmd_args.max_conv
 	n = min(cap, len(dialogs))
 	pbar = tqdm(total=n, desc=f"rollout {cmd_args.game}/{cmd_args.algo}")
 	for dialog in dialogs[:n]:

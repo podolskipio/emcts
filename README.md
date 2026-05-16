@@ -206,8 +206,8 @@ Adding a new policy: subclass `RolloutPolicy` (any class with
 
 ```bash
 cd src
-python runners/rollout.py --game cb                                           # llm_raw, all CB dialogs (data/cb/cb-valid.txt)
-python runners/rollout.py --game cb  --algo llm_raw --max_conv 10             # first 10 only
+python runners/rollout.py --game cb                                           # llm_raw on data/cb/cb-valid.txt, first 20 dialogs
+python runners/rollout.py --game cb  --algo gdpzero --max_conv -1             # GDP-Zero MCTS over the whole split
 python runners/rollout.py --game esc --algo emomcts --num_mcts_sims 20        # emotion-aware MCTS
 python metrics/run_metrics.py --episodes outputs/rollout.pkl --max_turns 8
 ```
@@ -216,7 +216,7 @@ python metrics/run_metrics.py --episodes outputs/rollout.pkl --max_turns 8
 |---------------------------------------------------|--------------------------|----------------------------------------------------------------------------|
 | `--algo {llm_raw,gdpzero,emomcts}`                | `llm_raw`                | which policy picks each system action                                      |
 | `--max_turns`                                     | `10`                     | hard cap on turns per episode                                              |
-| `--max_conv N`                                    | all dialogs              | rollout only the first N conversations                                     |
+| `--max_conv N`                                    | `20`                     | rollout only the first N conversations (pass `-1` for all dialogs)         |
 | `--num_mcts_sims`, `--max_realizations`, `--Q_0`, `--cpuct` | `20`, `3`, `0.0`, `1.0` | MCTS hyper-parameters (for `gdpzero` / `emomcts`)                   |
 
 Episode metrics:
@@ -230,6 +230,27 @@ Episode metrics:
 Implementations: `metrics/dialog_metrics.py` (`success_rate`, `average_turn`,
 `sale_to_list_ratio`, `compute_metrics`). The CB deal price is best-effort
 extracted (last number mentioned in the dialog).
+
+### How one rollout runs
+
+End-to-end trace of `rollout.py main()`:
+
+1. **CLI parsing** — `add_common_args` + `add_policy_args` collect `--game`, `--data`, `--output`, `--llm`, `--max_conv` (default 20, `-1` for all), `--max_turns`, `--algo`, and MCTS hyper-parameters.
+2. **Backbone + agents** (`_common.make_backbone_model`, `build_agents`) — instantiate the LLM and the `game` / `system` agent / `user` agent / `planner` quadruple for the task. `zero_shot=False` is hardcoded so the user agent emits its own DA via `get_utterance_w_da` (GDPZero-faithful).
+3. **Policy** (`make_policy`) — wraps the chosen `--algo` into a `RolloutPolicy` with a single `pick_action(state, *, game, system, planner) -> int` method.
+4. **Dataset** (`cfg.read_dialogs`) — reads the normalized dialog list; only each dialog's `id` and `scenario` are used (the recorded turns are ignored — this is self-play, not replay).
+5. **Per-dialog loop**, capped at `min(max_conv, len(dialogs))`. For each dialog `rollout_one` runs:
+   1. `state = game.init_dialog(*scenario)` — empty `DialogSession` parameterized by the scenario.
+   2. **Forced greeting at turn 0** — first non-zero index in `planner.get_valid_moves(state)`; `state, _ = game.get_next_state(state, action)`.
+   3. **Plan-and-step**, while `game.get_dialog_ended(state) == 0.0` and `len(state) < max_turns`:
+      - `action = policy.pick_action(state, …)` — `llm_raw` = one chat call; `gdpzero`/`emomcts` = run `num_mcts_sims` MCTS searches and take the argmax visit-count action.
+      - `state, _ = game.get_next_state(state, action)` — two LLM calls: system realizes the chosen DA into an utterance; user LLM replies *and* self-tags its DA (`U_Donate` / `U_Solved` / `U_Deal` / …). For CB the user DA comes from `SellerChatModel.get_utterance_w_da`'s YES/NO classifier turn.
+   4. Loop exits on user-emitted terminal DA (`get_dialog_ended` returns ±1.0) or `max_turns`.
+6. **Episode record** (`make_episode`) — `{did, task, algo, success, num_turns, history, [deal_price, buyer_price, seller_price]}`. `success = (ended >= 1.0)`. CB `deal_price` is best-effort regex-extracted from the transcript.
+7. **Persist + progress** — after **every** dialog the full `episodes` list is re-pickled to `--output` (crash-safe), and the tqdm bar shows `rollout <game>/<algo>`.
+8. **Inline summary** — calls `metrics.dialog_metrics.compute_metrics(episodes, task, max_turns)` and prints SR / AT (+ SL for CB) so you don't have to run `run_metrics.py` for a quick read.
+
+The only contract is `policy.pick_action(state, *, game, system, planner) -> int` and the game's `init_dialog` / `get_next_state` / `get_dialog_ended` API. Swap a policy / game / classifier without touching `rollout_one` or `main`.
 
 ## Pairwise LLM judge
 

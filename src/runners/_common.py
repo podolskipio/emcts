@@ -371,9 +371,9 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 # the shared eval loop
 # ---------------------------------------------------------------------------
 def run_eval(task_name, cmd_args, plan_turn, *, sys_inference_args=None, usr_inference_args=None):
-	"""Replay ``cmd_args.num_dialogs`` dialogs and, at every turn, call ``plan_turn`` to get
-	the predicted next (dialog_act, utterance, debug_dict). Dumps a pickle of comparison records
-	to ``cmd_args.output`` after every dialog.
+	"""Replay up to ``cmd_args.max_conv`` dialogs (or all of them when ``max_conv`` is ``None``)
+	and, at every turn, call ``plan_turn`` to get the predicted next (dialog_act, utterance,
+	debug_dict). Dumps a pickle of comparison records to ``cmd_args.output`` after every dialog.
 
 	``plan_turn`` is called as ``plan_turn(game, system, planner, backbone_model, state, cmd_args)``
 	and must return ``(next_da: str, next_utt: str, debug: dict)``.
@@ -395,7 +395,7 @@ def run_eval(task_name, cmd_args, plan_turn, *, sys_inference_args=None, usr_inf
 	print(f"loaded {len(dialogs)} dialogs from {data_path}")
 
 	output = []  # [{did, context, ori_da, ori_resp, new_da, new_resp, debug}, ...]
-	num_dialogs = cmd_args.num_dialogs
+	num_dialogs = len(dialogs) if cmd_args.max_conv is None or cmd_args.max_conv < 0 else cmd_args.max_conv
 	num_done = 0
 	pbar = tqdm(total=min(num_dialogs, len(dialogs)), desc=f"eval {task_name}")
 	for dialog in dialogs:
@@ -463,7 +463,8 @@ def add_common_args(parser, default_output):
 	parser.add_argument("--ollama_model", type=str, default="llama3.1", help="[--llm ollama] model name served by Ollama")
 	parser.add_argument("--ollama_host", type=str, default=None, help="[--llm ollama] server URL (default $OLLAMA_HOST or http://localhost:11434)")
 	parser.add_argument("--gen_sentences", type=int, default=-1, help="truncate generations to this many sentences (-1 = no limit)")
-	parser.add_argument("--num_dialogs", type=int, default=20, help="number of dialogs to evaluate")
+	parser.add_argument("--max_conv", type=int, default=20,
+						help="max number of conversations to evaluate (default: 20; use -1 for all dialogs in the dataset)")
 	parser.add_argument("--debug", action="store_true", help="print each turn's context / prediction")
 	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing dialog")
 	return parser
