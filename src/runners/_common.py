@@ -18,6 +18,29 @@ import logging
 # allow running these files directly (python src/runners/<x>.py) by putting `src/` on the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# repo root is two levels up from this file (src/runners/_common.py); used to resolve relative
+# --data / default_data paths so the runners load data/<task>/... regardless of CWD.
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+def resolve_data_path(path):
+	"""Resolve a ``--data`` value to something a reader can open.
+
+	* ``hf:<repo>...`` URIs pass through unchanged.
+	* Absolute paths pass through unchanged.
+	* Relative paths are resolved against the repo root (so ``data/esc/esc-valid.txt`` works
+	  from any working directory). If that path doesn't exist but the CWD-relative version
+	  does, fall back to it for back-compat with the previous behaviour.
+	"""
+	if path is None or path.startswith("hf:") or os.path.isabs(path):
+		return path
+	rooted = os.path.join(REPO_ROOT, path)
+	if os.path.exists(rooted):
+		return rooted
+	if os.path.exists(path):
+		return os.path.abspath(path)
+	return rooted  # let the reader raise the FileNotFoundError with a useful path
+
 from tqdm.auto import tqdm
 
 from utils.sessions import DialogSession
@@ -28,7 +51,7 @@ from utils.gen_models import (
 from utils.prompt_examples import EXP_DIALOG, ESConv_EXP_DIALOG, CB_EXP_DIALOG
 
 from games import PersuasionGame, EmotionalSupportGame, CBGame
-from runners.hf_loaders import HF_PREFIX, read_p4g_hf, read_esc_hf, read_cb_hf
+from utils.hf_loaders import HF_PREFIX, read_p4g_hf, read_esc_hf, read_cb_hf
 from players.p4g_players import (
 	PersuaderModel, PersuaderChatModel, PersuadeeModel, PersuadeeChatModel,
 	P4GSystemPlanner, P4GChatSystemPlanner,
@@ -362,7 +385,7 @@ def run_eval(task_name, cmd_args, plan_turn, *, sys_inference_args=None, usr_inf
 	print(f"task={task_name}  system DAs={system.dialog_acts}")
 	print(f"task={task_name}  user DAs={user.dialog_acts}")
 
-	data_path = cmd_args.data or cfg.default_data
+	data_path = resolve_data_path(cmd_args.data or cfg.default_data)
 	dialogs = cfg.read_dialogs(data_path, set(system.dialog_acts))
 	print(f"loaded {len(dialogs)} dialogs from {data_path}")
 

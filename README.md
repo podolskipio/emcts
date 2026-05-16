@@ -39,9 +39,9 @@ src/
   evaluators/   resp_ranker + {p4g,esc,cb}_evaluator   pairwise LLM rankers
                 run_judge.py                     CLI: vs-human or head-to-head judge
 data/
-  p4g/  300_dialog_turn_based.pkl (GDP-Zero) · p4g-valid.txt (JSON-lines, generated)
-  esc/  esc-{train,valid,test}.txt   (DPDP)
-  cb/   cb-{train,valid,test}.txt    (DPDP)
+  p4g/  300_dialog_turn_based.pkl · p4g-valid.txt (JSON-lines, generated)
+  esc/  esc-{train,valid,test}.txt
+  cb/   cb-{train,valid,test}.tx
 ```
 
 Each task's `*Game` / `*SystemPlanner` / `*Model` triple exposes a common API
@@ -62,9 +62,6 @@ covers OpenAI and Ollama. Pin the `openai` package per `requirements.txt`.
 ```bash
 # OpenAI
 export OPENAI_API_KEY=sk-...
-# Azure OpenAI (only for --llm chatgpt)
-export MS_OPENAI_API_KEY=... MS_OPENAI_API_BASE="https://...openai.azure.com"
-export MS_OPENAI_API_VERSION=... MS_OPENAI_API_CHAT_VERSION=...
 ```
 
 Modules use absolute imports rooted at `src/`. Run from `src/` or set
@@ -76,20 +73,15 @@ Modules use absolute imports rooted at `src/`. Run from `src/` or set
 
 The repo ships pre-converted validation/train/test splits:
 
-| Task  | File(s)                                       | Source / format                                                                                     |
-|-------|-----------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `p4g` | `data/p4g/300_dialog_turn_based.pkl`           | GDP-Zero pickle: `{did: {dialog:[{er,ee}], label:[{er,ee}]}}`                                       |
-| `p4g` | `data/p4g/p4g-valid.txt`                      | JSON-lines, one `{id, dialog:[{speaker,text,strategy}]}` per dialog — produced by the converter      |
-| `esc` | `data/esc/esc-{train,valid,test}.txt`         | DPDP JSON-lines: `{emotion_type, problem_type, situation, dialog:[{text,speaker,strategy?}]}`        |
-| `cb`  | `data/cb/cb-{train,valid,test}.txt`           | DPDP JSON-lines: `{item_name, buyer_*, seller_*, dialog:[{text,speaker,strategy}]}`                  |
+| Task  | File(s)                                       | Source / format                                                                                |
+|-------|-----------------------------------------------|------------------------------------------------------------------------------------------------|
+| `p4g` | `data/p4g/300_dialog_turn_based.pkl`           | GDP-Zero pickle: `{did: {dialog:[{er,ee}], label:[{er,ee}]}}`                                  |
+| `p4g` | `data/p4g/p4g-valid.txt`                      | JSON-lines, one `{id, dialog:[{speaker,text,strategy}]}` per dialog — produced by the converter |
+| `esc` | `data/esc/esc-{train,valid,test}.txt`         | JSON-lines: `{emotion_type, problem_type, situation, dialog:[{text,speaker,strategy?}]}`       |
+| `cb`  | `data/cb/cb-{train,valid,test}.txt`           | JSON-lines: `{item_name, buyer_*, seller_*, dialog:[{text,speaker,strategy}]}`             |
 
 `read_p4g` accepts either format (auto-detected by suffix). Re-create the
 JSON-lines P4G file at any time:
-
-```bash
-python src/runners/convert_p4g_to_jsonl.py
-# --input/--output override; relative paths resolve from the repo root
-```
 
 The dataset readers and task registry live in `runners/_common.py`
 (`TASKS`, `read_p4g/esc/cb`).

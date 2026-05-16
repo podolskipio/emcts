@@ -26,7 +26,7 @@ import argparse
 import numpy as np
 from tqdm.auto import tqdm
 
-from runners._common import TASKS, make_backbone_model, build_agents, add_common_args, finalize_args
+from runners._common import TASKS, make_backbone_model, build_agents, add_common_args, finalize_args, resolve_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def main():
 		zero_shot=cmd_args.zero_shot,
 		sys_inference_args={},  # greedy: use the model's built-in inference defaults
 	)
-	data_path = cmd_args.data or cfg.default_data
+	data_path = resolve_data_path(cmd_args.data or cfg.default_data)
 	dialogs = cfg.read_dialogs(data_path, set(system.dialog_acts))
 	print(f"task={cmd_args.game}  loaded {len(dialogs)} scenarios from {data_path}  (max_turns={cmd_args.max_turns})")
 
