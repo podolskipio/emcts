@@ -311,12 +311,18 @@ def make_backbone_model(llm, gen_sentences=-1, ollama_model="llama3.1", ollama_h
 	raise ValueError(f"unsupported --llm {llm}")
 
 
-def build_agents(task_name, backbone_model, family, *, zero_shot=True,
+def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 				 sys_inference_args=None, usr_inference_args=None):
 	"""Construct (game, system, user, planner) for ``task_name``.
 
 	``family`` is "chat" or "completion" (selects the *ChatModel / *ChatSystemPlanner
 	vs the plain variants), matching how the backbone model was created.
+
+	``zero_shot`` defaults to ``False`` to match GDPZero's behaviour: the user agent emits its
+	own DA via ``get_utterance_w_da`` (rather than having ``game.get_next_state`` infer it from
+	the planner heuristic). MCTS still works because ``planner.predict`` calls ``heuristic``
+	internally for its leaf-value signal — the ``v`` ``get_next_state`` returns under
+	``zero_shot=True`` is currently discarded by ``mcts/mcts.py`` either way.
 	"""
 	cfg = TASKS[task_name]
 	chat = (family == "chat")
@@ -379,7 +385,6 @@ def run_eval(task_name, cmd_args, plan_turn, *, sys_inference_args=None, usr_inf
 	)
 	game, system, user, planner = build_agents(
 		task_name, backbone_model, family,
-		zero_shot=getattr(cmd_args, "zero_shot", True),
 		sys_inference_args=sys_inference_args, usr_inference_args=usr_inference_args,
 	)
 	print(f"task={task_name}  system DAs={system.dialog_acts}")
@@ -458,7 +463,6 @@ def add_common_args(parser, default_output):
 	parser.add_argument("--ollama_model", type=str, default="llama3.1", help="[--llm ollama] model name served by Ollama")
 	parser.add_argument("--ollama_host", type=str, default=None, help="[--llm ollama] server URL (default $OLLAMA_HOST or http://localhost:11434)")
 	parser.add_argument("--gen_sentences", type=int, default=-1, help="truncate generations to this many sentences (-1 = no limit)")
-	parser.add_argument("--zero_shot", type=int, default=1, choices=[0, 1], help="1: simulate the user with the user LLM + planner heuristic; 0: use get_utterance_w_da")
 	parser.add_argument("--num_dialogs", type=int, default=20, help="number of dialogs to evaluate")
 	parser.add_argument("--debug", action="store_true", help="print each turn's context / prediction")
 	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing dialog")
@@ -466,7 +470,6 @@ def add_common_args(parser, default_output):
 
 
 def finalize_args(cmd_args):
-	cmd_args.zero_shot = bool(cmd_args.zero_shot)
 	out_dir = os.path.dirname(cmd_args.output)
 	if out_dir:
 		os.makedirs(out_dir, exist_ok=True)

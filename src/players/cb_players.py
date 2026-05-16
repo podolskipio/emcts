@@ -870,6 +870,39 @@ class SellerChatModel(SellerModel):
         )[0]
         return user_resp
 
+    def get_utterance_w_da(self, state: DialogSession, action=None, mode: str = 'train') -> Tuple[str, str]:
+        """Generate the seller's reply and classify whether they just accepted the deal.
+
+        Two-step: (1) sample the utterance via :meth:`get_utterance`; (2) ask the same chat
+        backbone a yes/no question over the resulting transcript and map yes -> ``U_Deal`` /
+        no -> ``U_No_deal``. This matches GDP-Zero's contract (the user agent emits its own
+        DA) without depending on the planner's heuristic for termination.
+        """
+        user_resp = self.get_utterance(state, action, mode=mode)
+        # build the truncated dialog snippet (with the just-generated seller turn appended)
+        snippet_state = state.copy()
+        snippet_state.add_single(CBGame.USR, None, user_resp)
+        snippet = snippet_state.to_string_rep(
+            keep_user_da=False, max_turn_to_display=self.max_hist_num_turns,
+        ).strip()
+        messages = [
+            {"role": "system",
+             "content": "You decide whether a Seller has just agreed to close a deal with a Buyer in a price-negotiation dialogue."},
+            {"role": "user",
+             "content": (
+                "You can only reply with YES or NO. "
+                "YES means the Seller has accepted the Buyer's offer (or agreed on a price). "
+                "NO means the Seller has not yet accepted.\n\n"
+                f"Conversation:\n{snippet}\n\n"
+                "Has the Seller just agreed to close the deal? Answer:"
+            )},
+        ]
+        classify_args = {**self.inference_args, "num_return_sequences": 1, "temperature": 0.0}
+        data = self.backbone_model.chat_generate(messages, **classify_args)
+        answer = self.backbone_model._cleaned_chat_resp(data, assistant_role="", user_role="")[0]
+        da = CBGame.U_Deal if answer.strip().lower().startswith("yes") else CBGame.U_No_deal
+        return da, user_resp
+
     def get_utterance_from_batched_states(
         self, states: List[DialogSession], action=None
     ) -> List[str]:
