@@ -1,10 +1,14 @@
+from typing import Tuple
+
 import numpy as np
 import logging
 
 from collections import defaultdict as ddict
+
+from emotion_classifiers.llm_emotion import Emotions
 from games.game import DialogGame
 from utils.gen_models import DialogModel
-from utils.sessions import DialogSession
+from utils.sessions import DialogSession, EmotionAwareDialogSession
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +105,66 @@ class PersuasionGame(DialogGame):
         next_state.add_single(state.SYS, sys_da, sys_utt)
 
         # state in user's perspective
+        # here when zero_shot=False the user agent emits its utterance with its won DA together
         if not self.zero_shot:
             user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)  # user just reply
             next_state.add_single(state.USR, user_da, user_resp)
             v = None
         else:
+            # default for interactive, user agent generetes only the utterance without DA. Later the planner heuristic infers a value v and samples DA
             user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
             next_state.add_single(state.USR, None, user_resp)
             v, sampled_das = self.planner.heuristic(next_state)
             user_da = self.map_user_action(v, sampled_das)
             next_state[-1][1] = user_da
         return next_state, v
+
+
+class EmotionAwarePersuasionGame(PersuasionGame):
+
+    def __init__(
+        self,
+        system_agent: DialogModel,
+        user_agent: DialogModel,
+        planner,
+        zero_shot,
+        emotion_classifier,
+        max_conv_turns=15,
+        success_base=0.1
+    ):
+        super().__init__(
+            system_agent,
+            user_agent,
+            planner,
+            zero_shot,
+            max_conv_turns=max_conv_turns,
+            success_base=success_base
+        )
+        self.emotion_classifier = emotion_classifier
+
+    def init_dialog(self) -> EmotionAwareDialogSession:
+        return EmotionAwareDialogSession(self.SYS, self.USR)
+
+    def get_next_state(self, state: EmotionAwareDialogSession, action, mode: str = 'train') -> Tuple[EmotionAwareDialogSession, float, Emotions]:
+        next_state = state.copy()
+
+        sys_utt = self.system_agent.get_utterance(next_state, action)  # action is DA
+        sys_da = self.system_agent.dialog_acts[action]
+        # only the USER's emotion is classified; the system turn carries a neutral placeholder
+        next_state.add_single(state.SYS, sys_da, "Neutral", sys_utt)
+
+        # state in user's perspective
+        # here when zero_shot=False the user agent emits its utterance with its won DA together
+        if not self.zero_shot:
+            user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)  # user just reply
+            user_emotion = self.emotion_classifier.get_emotion(user_resp)
+            next_state.add_single(state.USR, user_da, user_emotion, user_resp)
+            v = None
+        else:
+            # default for interactive, user agent generetes only the utterance without DA. Later the planner heuristic infers a value v and samples DA
+            user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
+            user_emotion = self.emotion_classifier.get_emotion(user_resp)
+            next_state.add_single(state.USR, None, user_emotion, user_resp)
+            v, sampled_das = self.planner.heuristic(next_state)
+            next_state.history[-1].da = self.map_user_action(v, sampled_das)
+        return next_state, v, user_emotion

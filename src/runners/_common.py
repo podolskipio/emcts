@@ -4,15 +4,18 @@ These scripts replay a held-out dataset of dialogs: for every turn they rebuild 
 conversation state, ask the planner for the next system dialog act + utterance, and
 record it next to the ground-truth response so it can be scored later.
 
-Everything that differs between the three tasks lives in ``TASKS`` (which game / model /
-planner classes to use, the few-shot example dialog, and how to read that task's dataset
-into a normalized form). The per-algorithm differences live in the individual runner files,
-which call :func:`run_eval` with their own ``plan_turn`` callback.
+Everything that differs between the tasks lives in ``TASKS`` (which game / model / planner
+classes to use, the few-shot example dialog, and how to read that task's dataset into a
+normalized form). A runner calls :func:`make_backbone_model` + :func:`build_agents` to construct
+``(game, system, user, planner)`` for ``--game`` and :func:`load_dialogs` to read the dataset,
+then writes its own evaluation loop inline (matching the original GDP-Zero ``runners/`` scripts,
+just with the p4g-only agent/data construction replaced by these TASKS-driven helpers).
 """
 import os
 import sys
 import json
 import pickle
+from collections import Counter
 import logging
 
 # allow running these files directly (python src/runners/<x>.py) by putting `src/` on the path
@@ -41,16 +44,15 @@ def resolve_data_path(path):
 		return os.path.abspath(path)
 	return rooted  # let the reader raise the FileNotFoundError with a useful path
 
-from tqdm.auto import tqdm
-
-from utils.sessions import DialogSession
+from utils.sessions import DialogSession, EmotionAwareDialogSession
 from utils.utils import dotdict
 from utils.gen_models import (
 	OpenAIModel, OpenAIChatModel, AzureOpenAIChatModel, OllamaChatModel,
 )
 from utils.prompt_examples import EXP_DIALOG, ESConv_EXP_DIALOG, CB_EXP_DIALOG
 
-from games import PersuasionGame, EmotionalSupportGame, CBGame
+from games import PersuasionGame, EmotionAwarePersuasionGame, EmotionalSupportGame, CBGame
+from emotion_classifiers.llm_emotion import P4GLLMEmotionClassifier
 from utils.hf_loaders import HF_PREFIX, read_p4g_hf, read_esc_hf, read_cb_hf
 from players.p4g_players import (
 	PersuaderModel, PersuaderChatModel, PersuadeeModel, PersuadeeChatModel,
@@ -296,6 +298,27 @@ TASKS = {
 
 
 # ---------------------------------------------------------------------------
+# emotion-aware task variants
+#
+# An emotion-aware task reuses everything from its base task (models, planner, reader,
+# few-shot example, success DA, data) but swaps in a game whose ``init_dialog`` returns an
+# ``EmotionAwareDialogSession`` and adds an ``emotion_classifier_cls`` that ``build_agents``
+# instantiates and attaches to the game. Emotion-aware runners (``runners/emomcts.py``) then
+# read ``game.emotion_classifier`` instead of hardcoding one — so registering the next dataset
+# (esc / cb) is one ``_emotion_aware_variant`` call once its emotion-aware game exists.
+# ---------------------------------------------------------------------------
+def _emotion_aware_variant(base_task, game_cls, emotion_classifier_cls):
+	cfg = dotdict(dict(base_task))
+	cfg["game_cls"] = game_cls
+	cfg["emotion_aware"] = True
+	cfg["emotion_classifier_cls"] = emotion_classifier_cls
+	return cfg
+
+
+TASKS["emo_p4g"] = _emotion_aware_variant(TASKS["p4g"], EmotionAwarePersuasionGame, P4GLLMEmotionClassifier)
+
+
+# ---------------------------------------------------------------------------
 # model / agent construction
 # ---------------------------------------------------------------------------
 def make_backbone_model(llm, gen_sentences=-1, ollama_model="llama3.1", ollama_host=None):
@@ -363,89 +386,99 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 		generation_model=backbone_model,
 		conv_examples=[example],
 	)
-	game = cfg.game_cls(system, user, planner, zero_shot=zero_shot)
+	# emotion-aware tasks build the classifier on the backbone model and pass it to the game,
+	# whose __init__ requires it (and whose get_next_state classifies the user's emotion).
+	if cfg.get("emotion_aware") and cfg.get("emotion_classifier_cls"):
+		emotion_classifier = cfg.emotion_classifier_cls(backbone_model)
+		game = cfg.game_cls(system, user, planner, zero_shot, emotion_classifier)
+	else:
+		game = cfg.game_cls(system, user, planner, zero_shot=zero_shot)
 	return game, system, user, planner
 
 
 # ---------------------------------------------------------------------------
-# the shared eval loop
+# loading the dataset for a task
 # ---------------------------------------------------------------------------
-def run_eval(task_name, cmd_args, plan_turn, *, sys_inference_args=None, usr_inference_args=None):
-	"""Replay up to ``cmd_args.max_conv`` dialogs (or all of them when ``max_conv`` is ``None``)
-	and, at every turn, call ``plan_turn`` to get the predicted next (dialog_act, utterance,
-	debug_dict). Dumps a pickle of comparison records to ``cmd_args.output`` after every dialog.
+def load_dialogs(task_name, cmd_args, system):
+	"""Read + normalize the task's dataset into ``[{id, scenario, turns}, ...]`` (see the readers).
 
-	``plan_turn`` is called as ``plan_turn(game, system, planner, backbone_model, state, cmd_args)``
-	and must return ``(next_da: str, next_utt: str, debug: dict)``.
+	``--data`` overrides ``TASKS[task].default_data``; the system's dialog acts are passed so the
+	reader can map dataset labels onto this game's ontology.
 	"""
 	cfg = TASKS[task_name]
-	backbone_model, family = make_backbone_model(
-		cmd_args.llm, getattr(cmd_args, "gen_sentences", -1),
-		getattr(cmd_args, "ollama_model", "llama3.1"), getattr(cmd_args, "ollama_host", None),
-	)
-	game, system, user, planner = build_agents(
-		task_name, backbone_model, family,
-		sys_inference_args=sys_inference_args, usr_inference_args=usr_inference_args,
-	)
-	print(f"task={task_name}  system DAs={system.dialog_acts}")
-	print(f"task={task_name}  user DAs={user.dialog_acts}")
-
 	data_path = resolve_data_path(cmd_args.data or cfg.default_data)
 	dialogs = cfg.read_dialogs(data_path, set(system.dialog_acts))
 	print(f"loaded {len(dialogs)} dialogs from {data_path}")
+	return dialogs
 
-	output = []  # [{did, context, ori_da, ori_resp, new_da, new_resp, debug}, ...]
-	num_dialogs = len(dialogs) if cmd_args.max_conv is None or cmd_args.max_conv < 0 else cmd_args.max_conv
-	num_done = 0
-	pbar = tqdm(total=min(num_dialogs, len(dialogs)), desc=f"eval {task_name}")
-	for dialog in dialogs:
-		if num_done >= num_dialogs:
-			break
-		did = dialog["id"]
-		turns = dialog["turns"]
-		if len(turns) < 2:
-			continue
-		state = game.init_dialog(*dialog["scenario"])
-		context = ""
-		try:
-			for t in range(len(turns) - 1):
-				cur, nxt = turns[t], turns[t + 1]
-				state.add_single(game.SYS, cur["sys_da"], cur["sys_utt"])
-				state.add_single(game.USR, cur["usr_da"], cur["usr_utt"])
-				context = f"{context}\n{game.SYS}: {cur['sys_utt']}\n{game.USR}: {cur['usr_utt']}".strip()
 
-				# user already reached the goal -> nothing left to plan
-				if cur["usr_da"] == cfg.success_user_da:
-					break
+def dump_da_emotion_records(da_emotion_counts: list, output_path: str):
+	"""Aggregate per-turn MCTS ``emotions_count`` dicts into a system-DA -> emotion histogram.
 
-				if isinstance(backbone_model, OpenAIModel):
-					backbone_model._cached_generate.cache_clear()
-				next_da, next_utt, debug = plan_turn(game, system, planner, backbone_model, state, cmd_args)
+	``da_emotion_counts`` is a list (one per dialog turn evaluated) of the
+	``EmotionAwareOpenLoopMCTS.emotions_count`` dict at that turn, keyed by the child state's
+	DA prefix (``parent_prefix + "__" + da``). The last "__"-segment identifies which system DA
+	was just attempted in the rollout; we group user-emotion counts by that DA across the run so
+	you can report, per strategy: how often each user emotion followed it.
 
-				output.append({
-					"did": did,
-					"context": context,
-					"ori_da": nxt["sys_da"],
-					"ori_resp": nxt["sys_utt"],
-					"new_da": next_da,
-					"new_resp": next_utt,
-					"debug": debug,
-				})
-				if getattr(cmd_args, "debug", False):
-					print(context)
-					print(f"  human:  [{nxt['sys_da']}] {nxt['sys_utt']}")
-					print(f"  pred:   [{next_da}] {next_utt}")
-		except Exception as e:  # keep partial results, move on
-			logger.exception(f"dialog {did} failed: {e}")
-			if getattr(cmd_args, "raise_errors", False):
-				raise
-		with open(cmd_args.output, "wb") as f:
-			pickle.dump(output, f)
-		num_done += 1
-		pbar.update(1)
-	pbar.close()
-	print(f"done: {num_done} dialogs, {len(output)} turn-records -> {cmd_args.output}")
-	return output
+	Writes ``<output_base>_da_emotions.json`` and prints a one-line-per-DA summary. No-op when
+	there is nothing to record.
+	"""
+	from collections import Counter, defaultdict
+	agg: dict = defaultdict(Counter)
+	for per_turn in da_emotion_counts:
+		for state_hash, emo_counts in (per_turn or {}).items():
+			# the part after the final "__" is the DA that produced these emotions
+			da = state_hash.rsplit("__", 1)[-1] if state_hash else "<root>"
+			for emotion, n in emo_counts.items():
+				if n:
+					agg[da][str(emotion)] += n
+	if not agg:
+		print("no DA->emotion records to save")
+		return None
+
+	output = {}
+	for da, counts in sorted(agg.items()):
+		total = sum(counts.values())
+		output[da] = {
+			"total": total,
+			"counts": dict(counts.most_common()),
+			"fractions": {e: round(n / total, 4) for e, n in counts.most_common()},
+		}
+
+	out_path = os.path.splitext(output_path)[0] + "_da_emotions.json"
+	with open(out_path, "w", encoding="utf-8") as f:
+		json.dump(output, f, indent=2, ensure_ascii=False)
+
+	print("\nDA -> user emotion distribution (from MCTS rollouts):")
+	for da, info in output.items():
+		top = ", ".join(f"{e}={n}" for e, n in list(info["counts"].items())[:3])
+		print(f"  {da:>30}: {info['total']:5d}  (top: {top})")
+	print(f"saved DA->emotion records to {out_path}")
+	return out_path
+
+
+def dump_emotion_records(emotion_classifier, output_path):
+	"""Print the emotion distribution and save the utterance->emotion records to JSON.
+
+	Records come from the shared classifier instance, so this captures every classification made
+	during the run (runner seeding + inside the MCTS). The JSON lands next to ``output_path`` as
+	``<output_base>_emotions.json``. No-op when there is no classifier / no records.
+	"""
+	records = getattr(emotion_classifier, "records", None)
+	if not records:
+		print("no emotion records to save")
+		return None
+	total = len(records)
+	print(f"\nEmotion distribution over {total} classified user utterances:")
+	for emotion, n in Counter(r["emotion"] for r in records).most_common():
+		print(f"  {emotion:>10}: {n:4d} ({100.0 * n / total:5.1f}%)")
+
+	emotions_path = os.path.splitext(output_path)[0] + "_emotions.json"
+	with open(emotions_path, "w", encoding="utf-8") as f:
+		json.dump(records, f, ensure_ascii=False, indent=2)
+	print(f"saved {total} utterance->emotion records to {emotions_path}")
+	return emotions_path
 
 
 # ---------------------------------------------------------------------------
@@ -463,10 +496,7 @@ def add_common_args(parser, default_output):
 	parser.add_argument("--ollama_model", type=str, default="llama3.1", help="[--llm ollama] model name served by Ollama")
 	parser.add_argument("--ollama_host", type=str, default=None, help="[--llm ollama] server URL (default $OLLAMA_HOST or http://localhost:11434)")
 	parser.add_argument("--gen_sentences", type=int, default=-1, help="truncate generations to this many sentences (-1 = no limit)")
-	parser.add_argument("--max_conv", type=int, default=20,
-						help="max number of conversations to evaluate (default: 20; use -1 for all dialogs in the dataset)")
 	parser.add_argument("--debug", action="store_true", help="print each turn's context / prediction")
-	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing dialog")
 	return parser
 
 
@@ -475,3 +505,39 @@ def finalize_args(cmd_args):
 	if out_dir:
 		os.makedirs(out_dir, exist_ok=True)
 	return cmd_args
+
+
+def setup_output_dir(cmd_args, runner_name: str, mcts_class: str, mcts_args=None) -> str:
+	"""Re-point ``cmd_args.output`` into a per-run subdirectory and write metadata.json.
+
+	Given ``--output outputs/foo.pkl``, creates ``outputs/foo/`` and mutates
+	``cmd_args.output`` to ``outputs/foo/foo.pkl``. All sibling artifacts written via paths
+	derived from ``cmd_args.output`` (e.g. ``*_emotions.json``, ``*_da_emotions.json``)
+	naturally land in the same directory. Writes ``outputs/foo/metadata.json`` with a
+	snapshot of cmd_args, the runner identity, the MCTS class name, the MCTS hyperparams
+	dict, and a UTC start timestamp. Written early so crashed runs still leave a trace.
+	"""
+	from datetime import datetime, timezone
+	base, ext = os.path.splitext(cmd_args.output)
+	if not ext:
+		ext = ".pkl"
+	run_id = os.path.basename(base) or "run"
+	run_dir = base  # e.g. 'outputs/foo'
+	os.makedirs(run_dir, exist_ok=True)
+	cmd_args.output = os.path.join(run_dir, run_id + ext)
+
+	args_snapshot = vars(cmd_args).copy() if hasattr(cmd_args, "__dict__") else dict(cmd_args)
+	metadata = {
+		"runner": runner_name,
+		"mcts_class": mcts_class,
+		"started_at": datetime.now(timezone.utc).isoformat(),
+		"args": args_snapshot,
+		"mcts_args": dict(mcts_args) if mcts_args else None,
+	}
+	meta_path = os.path.join(run_dir, "metadata.json")
+	with open(meta_path, "w", encoding="utf-8") as f:
+		json.dump(metadata, f, indent=2, default=str)
+	print(f"run dir: {run_dir}")
+	print(f"  output:   {cmd_args.output}")
+	print(f"  metadata: {meta_path}")
+	return run_dir

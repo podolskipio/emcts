@@ -19,7 +19,9 @@ OpenAI, local 🤗 Transformers, or local [Ollama](https://ollama.com).
 [Data](#data) · [Interactive demo](#interactive-demo) ·
 [Offline runners](#offline-evaluation-runners) ·
 [Self-play & SR/AT/SL](#self-play-metrics--sr--at--sl) ·
-[LLM judge](#pairwise-llm-judge) · [Status](#status--known-limitations)
+[LLM judge](#pairwise-llm-judge) ·
+[EmoMCTS vs GDP-Zero](#comparing-emomcts-vs-gdp-zero) ·
+[Status](#status--known-limitations)
 
 ## Repository layout
 
@@ -31,10 +33,11 @@ src/
   utils/        gen_models (OpenAI/Azure/HF/Ollama), sessions, rewards, prompts,
                 hf_loaders.py             Hugging Face Hub dataset loaders
                 convert_p4g_to_jsonl.py   P4G pickle -> ESC/CB-style JSON-lines
-  interactive/  interactive.py — interactive demo
-  runners/      raw_prompting.py / gdpzero*.py  turn-by-turn response comparison
-                rollout.py                       self-play episodes (pluggable --algo)
-                _common.py                       task registry + dataset readers
+  interactive/  gdpzero/interactive.py    P4G-only GDPZero-faithful demo
+                emcts/interactive.py      multi-task demo (--game p4g|esc|cb)
+  runners/      raw_prompting.py / gdpzero*.py / emomcts.py  turn-by-turn response comparison
+                rollout.py                                    self-play episodes (pluggable --algo)
+                _common.py                                    task registry + dataset readers
   metrics/      dialog_metrics.py + run_metrics.py   SR / AT / SL
   evaluators/   resp_ranker + {p4g,esc,cb}_evaluator   pairwise LLM rankers
                 run_judge.py              CLI: vs-human or head-to-head judge
@@ -119,11 +122,17 @@ strategy labels.
 
 Converse with the policy planner; you play the user side.
 
+There are two demo scripts:
+
+* `interactive/emcts/interactive.py` — multi-task (`--game p4g|esc|cb`), with the full scenario / `--zero_shot` flag set described below.
+* `interactive/gdpzero/interactive.py` — P4G-only, GDPZero-faithful original (no `--game`, no `--zero_shot`).
+
 ```bash
 cd src
-python interactive/interactive.py --game p4g --algo raw-prompt
-python interactive/interactive.py --game esc --algo raw-prompt --emotion_type anxiety --problem_type "job crisis"
-python interactive/interactive.py --game cb  --algo raw-prompt --cb_buyer_price 80 --cb_seller_price 150
+python interactive/emcts/interactive.py --game p4g --algo raw-prompt
+python interactive/emcts/interactive.py --game esc --algo raw-prompt --emotion_type anxiety --problem_type "job crisis"
+python interactive/emcts/interactive.py --game cb  --algo raw-prompt --cb_buyer_price 80 --cb_seller_price 150
+python interactive/gdpzero/interactive.py --algo raw-prompt          # P4G only
 ```
 
 Type `q` to quit, `r` to restart. Key flags (`-h` for the full list):
@@ -134,7 +143,7 @@ Type `q` to quit, `r` to restart. Key flags (`-h` for the full list):
 | `--algo {gdpzero,raw-prompt}`                                   | `gdpzero`        | planning algorithm                                                            |
 | `--llm {gpt-3.5-turbo,chatgpt,code-davinci-002,text-davinci-002,ollama}` | `gpt-3.5-turbo` | backbone LLM                                                          |
 | `--ollama_model`, `--ollama_host`                               | `llama3.1`, env  | local model / server URL when `--llm ollama`                                  |
-| `--zero_shot {0,1}`                                             | `1`              | interactive-only — user DA from planner heuristic (`1`) vs `get_utterance_w_da` (`0`); the runners hardcode `0` |
+| `--zero_shot {0,1}`                                             | `0`              | interactive-only — user DA from `get_utterance_w_da` (`0`, GDPZero-faithful) vs planner heuristic (`1`); the runners hardcode `0` |
 | `--num_mcts_sims`, `--max_realizations`, `--Q_0`                | `10`, `3`, `0.25`| MCTS hyper-parameters (used by `gdpzero`)                                     |
 | `--emotion_type`, `--problem_type`                              | `anxiety`, `job crisis` | ESConv scenario (`esc` only)                                            |
 | `--cb_item`, `--cb_buyer_desc`, `--cb_buyer_price`, `--cb_seller_desc`, `--cb_seller_price` | bike listing | CraigslistBargain scenario (`cb` only)                       |
@@ -146,7 +155,7 @@ instead of OpenAI:
 
 ```bash
 ollama serve && ollama pull llama3.1
-python interactive/interactive.py --game cb --algo raw-prompt --llm ollama --ollama_model llama3.1
+python interactive/emcts/interactive.py --game cb --algo raw-prompt --llm ollama --ollama_model llama3.1
 # remote: --ollama_host http://host:11434 (or $OLLAMA_HOST)
 ```
 
@@ -167,6 +176,7 @@ for later judging.
 | `runners/gdpzero.py`            | open-loop MCTS + realization selection                                   |
 | `runners/gdpzero_noopenloop.py` | closed-loop MCTS                                                         |
 | `runners/gdpzero_noRS.py`       | open-loop MCTS, no realization selection                                 |
+| `runners/emomcts.py`            | emotion-aware open-loop MCTS (`EmotionAwareOpenLoopMCTS`) + realization selection |
 
 ```bash
 cd src
@@ -174,7 +184,12 @@ python runners/raw_prompting.py --game p4g                                      
 python runners/raw_prompting.py --game esc
 python runners/raw_prompting.py --game cb --llm ollama --ollama_model llama3.1
 python runners/gdpzero.py       --game p4g --num_mcts_sims 20
+python runners/emomcts.py       --game esc --num_mcts_sims 20         # see Status for the EmotionAwareDialogSession caveat
 ```
+
+To compare the original GDP-Zero MCTS against `emomcts` head-to-head with the LLM judge,
+run both over the same dataset and feed the pickles to `evaluators/run_judge.py --h2h`
+(see [Pairwise LLM judge](#pairwise-llm-judge)).
 
 The runners are **GDPZero-faithful**: the user agent emits its own DA via
 `get_utterance_w_da` (no planner-heuristic shortcut), so `get_dialog_ended` reads
@@ -272,6 +287,9 @@ cd src
 python evaluators/run_judge.py --task p4g -f outputs/gdpzero_p4g.pkl --output outputs/eval_p4g.pkl
 python evaluators/run_judge.py --task esc -f outputs/gdpzero_esc.pkl --h2h outputs/raw_esc.pkl --output outputs/h2h_esc.pkl
 python evaluators/run_judge.py --task cb  -f outputs/gdpzero_cb.pkl  --judge ollama --ollama_model llama3.1
+# GDP-Zero MCTS vs. emotion-aware MCTS head-to-head:
+python evaluators/run_judge.py --task esc -f outputs/emomcts_esc.pkl --h2h outputs/gdpzero_esc.pkl \
+                               --output outputs/emomcts_vs_gdpzero_esc.pkl
 ```
 
 Output: a pickle with per-record decisions (`winner`, `choices`, `rationales`,
@@ -288,11 +306,87 @@ Output: a pickle with per-record decisions (`winner`, `choices`, `rationales`,
 | `--ollama_model`, `--ollama_host`                     | `llama3.1`, env  | judge server when `--judge ollama`                                     |
 | `--output`, `--out_json`, `--limit`, `--debug`        | —                | per-record pickle / summary JSON / record cap / verbose ranker logs    |
 
+## Comparing EmoMCTS vs GDP-Zero
+
+Two complementary axes: per-turn response quality (LLM judge) and full-episode
+task success (self-play metrics). Run both on the **same** dataset / `--max_conv`
+/ `--max_turns` / `--num_mcts_sims` so the comparison is apples-to-apples.
+
+### A — LLM-judge head-to-head (per-turn quality)
+
+`runners/gdpzero.py` and `runners/emomcts.py` write the same per-turn
+`_common.run_eval` pickle schema, so `run_judge.py --h2h` consumes them directly.
+
+```bash
+cd src
+
+# ESC
+python runners/gdpzero.py --game esc --data data/esc/esc-valid.txt \
+       --output outputs/gdpzero_esc.pkl --num_mcts_sims 20
+python runners/emomcts.py --game esc --data data/esc/esc-valid.txt \
+       --output outputs/emomcts_esc.pkl --num_mcts_sims 20
+python evaluators/run_judge.py --task esc \
+       -f   outputs/emomcts_esc.pkl \
+       --h2h outputs/gdpzero_esc.pkl \
+       --output   outputs/emomcts_vs_gdpzero_esc.pkl \
+       --out_json outputs/emomcts_vs_gdpzero_esc.json
+
+# CB
+python runners/gdpzero.py --game cb --data data/cb/cb-valid.txt --output outputs/gdpzero_cb.pkl --num_mcts_sims 20
+python runners/emomcts.py --game cb --data data/cb/cb-valid.txt --output outputs/emomcts_cb.pkl --num_mcts_sims 20
+python evaluators/run_judge.py --task cb \
+       -f outputs/emomcts_cb.pkl --h2h outputs/gdpzero_cb.pkl \
+       --output outputs/emomcts_vs_gdpzero_cb.pkl
+```
+
+A *win* means EmoMCTS (the `-f` model) beat GDP-Zero. Offline judging:
+`--judge ollama --ollama_model llama3.1`.
+
+### B — Self-play SR / AT / SL (episode-level)
+
+The judge only sees one-turn responses; SR / AT / SL come from
+`rollout.py` + `metrics/run_metrics.py`.
+
+```bash
+cd src
+
+# ESC -> SR, AT
+python runners/rollout.py --game esc --algo gdpzero --max_conv -1 --max_turns 8 \
+       --output outputs/rollout_gdpzero_esc.pkl
+python runners/rollout.py --game esc --algo emomcts --max_conv -1 --max_turns 8 \
+       --output outputs/rollout_emomcts_esc.pkl
+python metrics/run_metrics.py --episodes outputs/rollout_gdpzero_esc.pkl --max_turns 8
+python metrics/run_metrics.py --episodes outputs/rollout_emomcts_esc.pkl --max_turns 8
+
+# CB -> SR, AT, SL
+python runners/rollout.py --game cb --algo gdpzero --max_conv -1 --max_turns 8 \
+       --output outputs/rollout_gdpzero_cb.pkl
+python runners/rollout.py --game cb --algo emomcts --max_conv -1 --max_turns 8 \
+       --output outputs/rollout_emomcts_cb.pkl
+python metrics/run_metrics.py --episodes outputs/rollout_gdpzero_cb.pkl --max_turns 8
+python metrics/run_metrics.py --episodes outputs/rollout_emomcts_cb.pkl --max_turns 8
+```
+
+`rollout.py` also prints an inline SR / AT (/ SL) summary at the end, so
+`run_metrics.py` is mainly useful for re-scoring with a different `--max_turns`
+or with `--at_successes_only` (AT averaged over successes only).
+
+### Caveats
+
+- **EmoMCTS is not yet end-to-end** (see [Status](#status--known-limitations)) —
+  `EmotionAwareOpenLoopMCTS` expects `EmotionAwareDialogSession` while the games
+  emit `EmotionSupportDialogSession` / `DialogSession`. Unblock that before A/B
+  produce usable numbers.
+- The default `--emotion_classifier stub` labels everything "neutral", so the
+  emotion signal is degenerate until a real classifier is plugged in.
+- For a working baseline today, judge `gdpzero` vs `raw_prompting` on ESC/CB —
+  same workflow, just swap one of the runners.
+
 ## Status / known limitations
 
 - `--algo llm_raw` works end-to-end for all three games (CB's `SellerChatModel.get_utterance_w_da` was added so the GDPZero-faithful user-DA path runs).
-- `--algo gdpzero` / `emomcts` for `rollout.py` (and `runners/gdpzero*.py`) are wired but not yet runnable end-to-end: `mcts/mcts.py` calls `game.get_next_state(state, action)` with two positional args and `get_next_state_batched(...)`, which the games don't implement. Reconciling those is the next step.
-- `emomcts` additionally needs an emotion-aware game producing `EmotionAwareDialogSession` and a real `emotion_classifier` (a stub with Ekman labels is wired by default so the policy *constructs*).
+- `runners/gdpzero*.py` and `--algo gdpzero` use `OpenLoopMCTS`, which only calls the 2-arg `game.get_next_state(state, action)`. Games define `get_next_state(self, state, action, mode='train')`, so 2-arg calls work. The `get_next_state_batched(...)` path is only used by `OpenLoopMCTSParallel`, which neither the runners nor `rollout.py` instantiate, so it isn't a blocker here.
+- `--algo emomcts` (and `runners/emomcts.py`) is wired but not yet end-to-end: `EmotionAwareOpenLoopMCTS` expects `EmotionAwareDialogSession` (`utils/sessions.py`), while the games currently emit `EmotionSupportDialogSession` / `DialogSession`. Until `init_dialog` / `get_next_state` return the emotion-aware session type, the policy constructs but can't traverse. The default `emotion_classifier` is a stub with Ekman labels — swap for a real classifier before relying on the emotion signal.
 - `players/p4g_players.py` is a near-direct port of GDP-Zero's `core/players.py`; some dead/commented blocks remain.
 - `utils/gen_models.py` mixes pre-1.0 and ≥1.0 `openai` SDK call styles — pin the version that matches your backend.
 - No training entry point (policy-network fine-tuning) yet.

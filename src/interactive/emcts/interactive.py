@@ -149,7 +149,7 @@ def label_user_turn(user, state, your_utt, cfg):
 	return user_da
 
 
-def play_gdpzero(backbone_model, args):
+def play_emo_mcts(backbone_model, args):
 	mcts_args = dotdict({
 		"cpuct": 1.0,
 		"num_MCTS_sims": args.num_mcts_sims,
@@ -254,7 +254,7 @@ def main(args):
 
 	if args.algo == "gdpzero":
 		print(f"using GDPZero (MCTS) as planning algorithm on '{args.game}'")
-		play_gdpzero(backbone_model, args)
+		play_emo_mcts(backbone_model, args)
 	elif args.algo == "raw-prompt":
 		print(f"using raw prompting as planning on '{args.game}'")
 		play_raw_prompt(backbone_model, args)
@@ -269,8 +269,8 @@ if __name__ == "__main__":
 						help="which dialog game to play")
 	parser.add_argument("--algo", type=str, default="gdpzero", choices=["gdpzero", "raw-prompt"],
 						help="planning algorithm")
-	parser.add_argument("--zero_shot", type=int, default=1, choices=[0, 1],
-						help="1: simulate the user with the user LLM + planner heuristic; 0: use the user model's get_utterance_w_da")
+	parser.add_argument("--zero_shot", type=int, default=0, choices=[0, 1],
+						help="0 (default, GDPZero-faithful): use the user model's get_utterance_w_da; 1: simulate the user with the user LLM + planner heuristic")
 	# backbone LLM
 	parser.add_argument("--llm", type=str, default="gpt-3.5-turbo",
 						choices=["code-davinci-002", "gpt-3.5-turbo", "text-davinci-002", "chatgpt", "ollama"],

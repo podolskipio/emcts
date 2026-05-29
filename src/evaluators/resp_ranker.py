@@ -53,7 +53,8 @@ class LLMRespRanker(RespRanker):
         if do_swap:
             resp_a, resp_b = resp_b, resp_a
         prompt = self.build_prompt(context, resp_a, resp_b)
-        logger.debug(f"prompt: {prompt}")
+        logger.debug(f"do swap={do_swap}, prompt: {prompt}")
+        print(f"do swap={do_swap}, prompt: {prompt}")
         resps = self.gen_model.generate(prompt, **self.inference_args)
         choices, rationales = self._process_resps(resps)
         preference = self._majority_vote(choices, do_swap)
