@@ -36,7 +36,10 @@ def main(cmd_args):
 
 	# load agents from TASKS for the chosen dataset
 	backbone_model, family = make_backbone_model(cmd_args.llm, cmd_args.gen_sentences, cmd_args.ollama_model, cmd_args.ollama_host)
-	game, system, user, planner = build_agents(cmd_args.game, backbone_model, family)
+	game, system, user, planner = build_agents(
+		cmd_args.game, backbone_model, family,
+		llm_prior_topk=getattr(cmd_args, "llm_prior_topk", None),
+	)
 
 	print(f"System dialog acts: {system.dialog_acts}")
 	print(f"User dialog acts: {user.dialog_acts}")

@@ -1,16 +1,3 @@
-"""Shared plumbing for the offline policy-planning runners (gdpzero / raw prompting / ...).
-
-These scripts replay a held-out dataset of dialogs: for every turn they rebuild the
-conversation state, ask the planner for the next system dialog act + utterance, and
-record it next to the ground-truth response so it can be scored later.
-
-Everything that differs between the tasks lives in ``TASKS`` (which game / model / planner
-classes to use, the few-shot example dialog, and how to read that task's dataset into a
-normalized form). A runner calls :func:`make_backbone_model` + :func:`build_agents` to construct
-``(game, system, user, planner)`` for ``--game`` and :func:`load_dialogs` to read the dataset,
-then writes its own evaluation loop inline (matching the original GDP-Zero ``runners/`` scripts,
-just with the p4g-only agent/data construction replaced by these TASKS-driven helpers).
-"""
 import os
 import sys
 import json
@@ -176,7 +163,10 @@ def _read_p4g_pickle(path, system_dialog_acts):
 			# user DA: map dataset label -> game DA
 			raw_usr_da = dialog["label"][t]["ee"][-1]
 			usr_da = _P4G_USER_DA_MAP.get(raw_usr_da, PersuasionGame.U_Neutral)
-			turns.append({"sys_da": sys_da, "sys_utt": sys_utt, "usr_da": usr_da, "usr_utt": usr_utt})
+			turns.append({
+				"sys_da": sys_da, "sys_utt": sys_utt,
+				"usr_da": usr_da, "usr_utt": usr_utt,
+			})
 		if turns:
 			out.append({"id": did, "scenario": (), "turns": turns})
 	return out
@@ -335,7 +325,8 @@ def make_backbone_model(llm, gen_sentences=-1, ollama_model="llama3.1", ollama_h
 
 
 def build_agents(task_name, backbone_model, family, *, zero_shot=False,
-				 sys_inference_args=None, usr_inference_args=None):
+				 sys_inference_args=None, usr_inference_args=None,
+				 llm_prior_topk: int | None = None):
 	"""Construct (game, system, user, planner) for ``task_name``.
 
 	``family`` is "chat" or "completion" (selects the *ChatModel / *ChatSystemPlanner
@@ -378,7 +369,7 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 		conv_examples=[example],
 		zero_shot=zero_shot,
 	)
-	planner = Planner(
+	planner_kwargs = dict(
 		dialog_acts=system.dialog_acts,
 		max_hist_num_turns=system.max_hist_num_turns,
 		user_dialog_acts=user.dialog_acts,
@@ -386,6 +377,13 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 		generation_model=backbone_model,
 		conv_examples=[example],
 	)
+	# llm_prior_topk is only honoured by planners that accept it
+	# (P4GChatSystemPlanner currently). Filter to avoid breaking non-p4g planners.
+	if llm_prior_topk is not None:
+		import inspect
+		if "llm_prior_topk" in inspect.signature(Planner.__init__).parameters:
+			planner_kwargs["llm_prior_topk"] = llm_prior_topk
+	planner = Planner(**planner_kwargs)
 	# emotion-aware tasks build the classifier on the backbone model and pass it to the game,
 	# whose __init__ requires it (and whose get_next_state classifies the user's emotion).
 	if cfg.get("emotion_aware") and cfg.get("emotion_classifier_cls"):
@@ -497,6 +495,18 @@ def add_common_args(parser, default_output):
 	parser.add_argument("--ollama_host", type=str, default=None, help="[--llm ollama] server URL (default $OLLAMA_HOST or http://localhost:11434)")
 	parser.add_argument("--gen_sentences", type=int, default=-1, help="truncate generations to this many sentences (-1 = no limit)")
 	parser.add_argument("--debug", action="store_true", help="print each turn's context / prediction")
+	parser.add_argument("--llm_prior_topk", type=int, default=None,
+						help="if set to an int K, the planner replaces the default 15-sample "
+						     "DA-histogram prior with a single LLM call that, given dialog "
+						     "history + DAs played so far, returns the top-K most promising next "
+						     "DAs. The MCTS then HARD-PRUNES the action space to exactly those K "
+						     "actions for that node — Nsa/Q/valid_moves are restricted, the round-"
+						     "robin only covers K actions, and dropped actions are unreachable. "
+						     "Saves ~14 LLM calls per prior computation AND eliminates round-robin "
+						     "waste on actions the LLM said were bad. Emotion conditioning is "
+						     "intentionally separate (lives in the PUCT bonus, --c_emo_bonus). "
+						     "None (default) preserves legacy 13-action behaviour. Reasonable "
+						     "values: K=5 or K=7.")
 	return parser
 
 
