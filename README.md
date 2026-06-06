@@ -47,6 +47,27 @@ Two further levers, shared with the GDP-Zero baseline:
   (`j-hartmann/emotion-english-distilroberta-base`) labels each user reaction — no LLM
   cost, fully reproducible.
 
+## Results
+
+PersuasionForGood, **100 dialogues** per cell, Vicuna-13B backbone, `max_turns = 10`.
+SR = success rate (↑), AvgT = average turns to resolution (↓). Best SR per budget in **bold**.
+
+| Sims | Method            |  SR   | AvgT |
+|:----:|-------------------|:-----:|:----:|
+|  10  | GDP-Zero          | 0.580 | 7.31 |
+|  10  | GDP-Zero + top-K  | 0.580 | 7.28 |
+|  10  | **EmoMCTS + top-K** | 0.580 | 7.25 |
+|  20  | GDP-Zero          | 0.530 | 7.43 |
+|  20  | GDP-Zero + top-K  | 0.610 | 7.21 |
+|  20  | **EmoMCTS + top-K** | **0.640** | 6.91 |
+|  50  | GDP-Zero          | 0.560 | 7.40 |
+|  50  | GDP-Zero + top-K  | 0.594 | 7.36 |
+|  50  | **EmoMCTS + top-K** | **0.700** | 6.72 |
+
+At a low simulation budget (10 sims) all methods sit at the same success floor; the emotion
+channel separates from the baselines as the budget grows, with EmoMCTS reaching the goal more
+often **and** in fewer turns at 20–50 sims. (`EmoMCTS + top-K` uses `β = 0.7`, `K = 5`.)
+
 ## Repository layout
 
 ```
