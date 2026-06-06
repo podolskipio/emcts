@@ -118,6 +118,10 @@ class EmotionalHistoryRecord:
     da: str
     emotion: str
     utt: str
+    # full {Emotions: probability} dict from the classifier. ``emotion`` is its argmax — stored
+    # together so downstream code (e.g. MCTS emotion penalty) can use the distribution without
+    # re-classifying. ``None`` on SYS turns / placeholders that were never classified.
+    distribution: dict | None = None
 
     # behave like the 4-tuple (role, da, emotion, utt) the session/MCTS code unpacks and indexes
     def __iter__(self):
@@ -141,6 +145,9 @@ class EmotionAwareDialogSession:
     def predicted_emotion(self):
         return self.history[-1].emotion
 
+    def predicted_distribution(self):
+        return self.history[-1].distribution
+
     def to_string_rep(self, keep_sys_da=False, keep_user_da=False, max_turn_to_display=-1):
         history = ""
         num_turns_to_truncate = 0
@@ -153,15 +160,15 @@ class EmotionAwareDialogSession:
             if i % 2 == 0:
                 assert (role == self.SYS)
                 if keep_sys_da:
-                    history += f"{role}: [{da}] [{emotion}]  {utt}\n"
+                    history += f"{role}: [{da}] {utt}\n"
                 else:
-                    history += f"{role}:  [{emotion}] {utt}\n"
+                    history += f"{role}: {utt}\n"
             else:
                 assert (role == self.USR)
                 if keep_user_da:
-                    history += f"{role}: [{da}] [{emotion}]  {utt}\n"
+                    history += f"{role}: [{da}] {utt}\n"
                 else:
-                    history += f"{role}: [{emotion}]  {utt}\n"
+                    history += f"{role}: {utt}\n"
         return history.strip()
 
     def copy(self):
@@ -169,12 +176,12 @@ class EmotionAwareDialogSession:
         new_session.from_history(self.history.copy())
         return new_session
 
-    def add_single(self, role, da, emotion, utt):
+    def add_single(self, role, da, emotion, utt, distribution=None):
         if len(self.history) % 2 == 0:
             assert (role == self.SYS)
         else:
             assert (role == self.USR)
-        self.history.append(EmotionalHistoryRecord(role, da, emotion, utt))
+        self.history.append(EmotionalHistoryRecord(role, da, emotion, utt, distribution))
         return
 
     def get_turn_utt(self, turn, role):
