@@ -7,15 +7,7 @@ action-value channel that tracks the expected **emotional valence** of the user'
 reaction, and folds it into the PUCT selection rule through a single weight `β`.
 
 The method is applied to **PersuasionForGood** (persuade a user to donate to *Save the
-Children*). It builds directly on [GDP-Zero](https://github.com/jasonyux/GDPZero)
-(EMNLP 2023) and borrows task / reward setups from
-[PPDPP](https://github.com/dengyang17/PPDPP) (ICLR 2024). At `β = 0` EmoMCTS reduces
-exactly to GDP-Zero, so every comparison is a clean ablation of the emotion channel.
-
-> **Paper write-up:** the full method, valence mining, and experiments are in
-> [`EmotionMCTSDoubleQ.md`](EmotionMCTSDoubleQ.md). Qualitative dialogues and prompts are
-> in [`article_examples.md`](article_examples.md); the policy-behaviour analysis is in
-> [`article_action_analysis.md`](article_action_analysis.md).
+Children*).
 
 Dialogue simulators are prompted LLMs — OpenAI, Azure OpenAI, local 🤗 Transformers, or
 local [Ollama](https://ollama.com). All reported results use an **open-source
