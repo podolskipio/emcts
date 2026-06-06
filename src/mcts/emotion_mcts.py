@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 
-from emotion_classifiers.llm_emotion import NEGATIVE_EMOTIONS, Emotions
+from emotion_classifiers.llm_emotion import Emotions
 from mcts.mcts import OpenLoopMCTS
 from utils.sessions import EmotionAwareDialogSession
 
@@ -42,8 +42,6 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 		self.Q[hashable_state] = {action: self.configs.Q_0 for action in self.valid_moves[hashable_state]}
 		self.realizations[hashable_state] = [state.copy()]
 
-		# keeping emotional responses across nodes
-		# self.emotions_count[hashable_state] = {emotion: 0 for emotion in self.emotion_classifier.emotions}
 		prior, v = self.player.predict(state)
 		self.Vs[state.to_string_rep(keep_sys_da=True, keep_user_da=True)] = v  # for debugging
 		self.P[hashable_state] = prior * allowed_actions
@@ -53,6 +51,26 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 			logger.warning("This should never happen")
 		else:
 			self.P[hashable_state] /= np.sum(self.P[hashable_state])
+
+		# Hard-prune to the LLM's top-K when --llm_prior_topk is set. Matches the
+		# behaviour in OpenLoopMCTS._init_node so both gdpzero and emomcts paths
+		# get pruning identically.
+		topk = getattr(self.player, "llm_prior_topk", None)
+		if topk is not None and 0 < topk < len(self.valid_moves[hashable_state]):
+			ranked = sorted(self.valid_moves[hashable_state], key=lambda a: -self.P[hashable_state][a])
+			kept = np.array(sorted(ranked[:topk]), dtype=self.valid_moves[hashable_state].dtype)
+			self.valid_moves[hashable_state] = kept
+			self.Nsa[hashable_state] = {a: 0 for a in kept}
+			self.Q[hashable_state] = {a: self.configs.Q_0 for a in kept}
+			mask = np.zeros_like(self.P[hashable_state])
+			mask[kept] = 1.0
+			self.P[hashable_state] = self.P[hashable_state] * mask
+			s = self.P[hashable_state].sum()
+			if s > 0:
+				self.P[hashable_state] /= s
+			else:
+				for a in kept:
+					self.P[hashable_state][a] = 1.0 / len(kept)
 		return v
 
 	def _sample_realization(self, hashable_state):
@@ -189,89 +207,122 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 		return curr_best_realization
 
 
-class EmotionAwareDiscountQOpenLoopMCTS(EmotionAwareOpenLoopMCTS):
-	def __init__(self, game, player, configs, emotion_classifier, emo_lambda: float | None = None) -> None:
+EMOTION_VALENCE_MINED = {
+    Emotions.Fear:      +1.07,   # was -0.30 — flip sign
+    Emotions.Happiness: +0.59,   # was +1.00 — halve
+    Emotions.Anger:     +0.41,   # was -1.00 — flip; n is small (88), keep skeptical
+    Emotions.Disgust:   +0.39,   # was -0.70 — flip; small n
+    Emotions.Surprise:  +0.16,   # was +0.40 — halve
+    Emotions.Neutral:   -0.09,   # was  0.00 — slight tax on apathy
+    Emotions.Sadness:   -0.35,   # was -0.20 — moderate, data agrees on direction
+    Emotions.Contempt:  -0.60,   # HF never emits — kept as hand value for LLM-classifier fallback
+}
+
+class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
+	"""
+	Tracks TWO independent backups per (state, action):
+	  Q[s][a]      — donation-rollout reward (existing behaviour, unchanged)
+	  Q_emo[s][a]  — expected emotional valence at leaf, computed from
+	                 next_state.predicted_distribution() via EMOTION_VALENCE
+
+	PUCT becomes:
+	    score(a) = Q[s][a]
+	             + beta_emo * Q_emo[s][a]
+	             + cpuct * P[s][a] * sqrt(Ns) / (1 + Nsa[s][a])
+	"""
+
+	def __init__(self, game, player, configs, emotion_classifier,
+	             beta_emo: float = 0.3) -> None:
 		super().__init__(game, player, configs, emotion_classifier)
-		self.emo_lambda = emo_lambda
+		# Weight on the emotional-valence Q channel in PUCT. Explicit constructor arg
+		# wins over configs; falls back to configs.beta_emo if present.
+		self.beta_emo = float(
+			beta_emo if beta_emo is not None
+			else getattr(configs, "beta_emo", 0.3)
+		)
+		# Parallel value table, same shape as self.Q. Initialised lazily in _init_node.
+		self.Q_emo: dict = {}
 
-	def _get_emotion_penalty(self, emotion: Emotions) -> float:
-		# Penalties scaled to impact a standard [0, 1] 'v' value
-		penalties = {
-			Emotions.Anger: -1.0,
-			Emotions.Fear: 0.2,
-			Emotions.Disgust: -0.7,
-			Emotions.Contempt: -0.7,
-			Emotions.Sadness: 0.3,
-			Emotions.Surprise: 0.1,
-			Emotions.Neutral: -0.1,
-			Emotions.Happiness: 0,
-		}
-		return penalties.get(emotion, 0.0)
+	def _emotion_quality(self, dist) -> float:
+		"""E[valence] under a predicted emotion distribution. Bounded in [-1, +1];
+		returns 0.0 when no distribution is attached (e.g. SYS turns / placeholders)."""
+		if not dist:
+			return 0.0
+		return sum(p * EMOTION_VALENCE_MINED.get(e, 0.0) for e, p in dist.items())
 
-	def search(self, state: EmotionAwareDialogSession):
+	def _init_node(self, state):
+		# Parent does Q / Nsa / P / valid_moves / realizations / topk-prune. Wrap to
+		# ALSO init Q_emo on the (possibly-pruned) valid moves so the action sets
+		# stay in lock-step between the two Q channels.
+		v = super()._init_node(state)
+		hashable_state = self._to_string_rep(state)
+		self.Q_emo[hashable_state] = {a: 0.0 for a in self.valid_moves[hashable_state]}
+		return v
+
+	def _calculate_uct(self, hashable_state: str, action: int) -> float:
+		Ns = self.Ns[hashable_state] or 1e-8
+		explore = math.sqrt(Ns) / (1 + self.Nsa[hashable_state][action])
+		q_emo = self.Q_emo.get(hashable_state, {}).get(action, 0.0)
+		return (
+			self.Q[hashable_state][action]
+			+ self.beta_emo * q_emo
+			+ self.configs.cpuct * self.P[hashable_state][action] * explore
+		)
+
+	def search(self, state):
+		"""Same selection / expansion / backup structure as the parent, with a
+		PARALLEL Q_emo backup alongside the donation Q backup. Both updates use
+		the SAME old Nsa[a] (before increment) so the running-mean formula is
+		consistent across channels.
+		"""
 		hashable_state = self._to_string_rep(state)
 
-		# check everytime since state is stochastic, does not map to hashable_state
 		terminated_v = self.game.get_dialog_ended(state)
-		# check if it is terminal node
 		if terminated_v == 1.0:
 			logger.debug("ended")
 			return terminated_v
 
-		# otherwise, if is nontermial leaf node, we initialize and return v
 		if hashable_state not in self.P:
-			# selected leaf node, expand it
-			# first visit V because v is only evaluated once for a hashable_state
 			v = self._init_node(state)
 			return v
 		else:
-			# add only when it is new
 			self._add_new_realizations(state)
 
-		# existing, continue selection
-		# go next state by picking best according to U(s,a)
-		best_uct = -float('inf')
-		best_action = -1
+		# PUCT selection — _calculate_uct already folds in beta_emo * Q_emo.
+		best_uct, best_action = -float("inf"), -1
 		for a in self.valid_moves[hashable_state]:
 			uct = self._calculate_uct(hashable_state, a)
 			if uct > best_uct:
-				best_uct = uct
-				best_action = a
-		# transition. For open loop, first sample from an existing realization
+				best_uct, best_action = uct, a
+
 		state = self._sample_realization(hashable_state)
 		next_state = self._get_next_state(state, best_action)
-		emotion = next_state.predicted_emotion()
 
-		# 1. if not leaf, continue traversing, and state=s will get the value from the leaf node
-		# 2. if leaf, we will expand it and return the value for backpropagation
 		v = self.search(next_state)
 
-		# update stats. Apply the emotion penalty *locally* to Q(s, a) and realizations_Vs (it
-		# credits/discredits the action that just produced this emotion), but return the leaf v
-		# unchanged so the penalty does not compound up the backup chain. Returning v + penalty
-		# from search() would stack penalties through nested recursive calls and pull Q below the
-		# [-1, +1] range that the PUCT formula assumes.
+		# Donation backup (parent's formula, unchanged).
+		nsa_old = self.Nsa[hashable_state][best_action]
+		self.Q[hashable_state][best_action] = (
+			nsa_old * self.Q[hashable_state][best_action] + v
+		) / (nsa_old + 1)
 
-		# emotion_penalty = self._get_emotion_penalty(emotion)
-		# blended_v = v + emotion_penalty
+		# Parallel emotion-quality backup. Distribution is already cached on
+		# next_state by EmotionAwarePersuasionGame.get_next_state — no extra
+		# classifier call. Backed up *locally*: emo_v is from the immediate
+		# child's user reaction, NOT the leaf's. This means Q_emo[s][a] is the
+		# running mean of "how the user emotionally reacted when we took a
+		# from s," which is what we want for selection bias.
+		emo_v = self._emotion_quality(next_state.predicted_distribution())
+		self.Q_emo[hashable_state][best_action] = (
+			nsa_old * self.Q_emo[hashable_state][best_action] + emo_v
+		) / (nsa_old + 1)
 
-		# Convex blend of task value with emotion penalty: v~ = (1-λ)·v + λ·π(e).
-		# With π(e) ∈ [-1, +1] and v ∈ [-1, +1], v~ is bounded in [-1, +1] for any λ ∈ [0, 1],
-		# so Q stays in the PUCT-calibrated range and c_p stays valid. λ=0 collapses to GDPZero;
-		# applied locally (we return v, not v~) so the penalty does not compound up the backup.
-		emotion_penalty = self._get_emotion_penalty(emotion)
-		if self.emo_lambda is not None:
-			blended_v = (1.0 - self.emo_lambda) * v + self.emo_lambda * emotion_penalty
-		else:
-			blended_v = v + emotion_penalty
-
-		# add in new estimate and average
-		self.Q[hashable_state][best_action] = (self.Nsa[hashable_state][best_action] * self.Q[hashable_state][
-			best_action] + blended_v) / (self.Nsa[hashable_state][best_action] + 1)
+		# Increment counters AFTER both updates so they share the same old Nsa.
 		self.Ns[hashable_state] += 1
 		self.Nsa[hashable_state][best_action] += 1
 
-		# update v to realizations for NLG at inference
-		self._update_realizations_Vs(next_state, blended_v)
-		# now we are single player, hence just v instead of -v
+		# Realization V tracker keeps the donation v for inference-time NLG choice
+		# (utterance pick still optimises donation; Q_emo only shapes search).
+		self._update_realizations_Vs(next_state, v)
 		return v
+

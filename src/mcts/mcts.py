@@ -157,6 +157,30 @@ class OpenLoopMCTS(MCTS):
 			logger.warning("This should never happen")
 		else:
 			self.P[hashable_state] /= np.sum(self.P[hashable_state])
+
+		# Hard-prune to the LLM's top-K when --llm_prior_topk is set. After this,
+		# valid_moves / Nsa / Q only contain the K highest-prior actions; dropped
+		# actions are unreachable for this node. Eliminates the PUCT round-robin
+		# waste on actions the LLM said were bad. See debug.md "llm_prior_topk
+		# should do hard pruning".
+		topk = getattr(self.player, "llm_prior_topk", None)
+		if topk is not None and 0 < topk < len(self.valid_moves[hashable_state]):
+			ranked = sorted(self.valid_moves[hashable_state], key=lambda a: -self.P[hashable_state][a])
+			kept = np.array(sorted(ranked[:topk]), dtype=self.valid_moves[hashable_state].dtype)
+			self.valid_moves[hashable_state] = kept
+			self.Nsa[hashable_state] = {a: 0 for a in kept}
+			self.Q[hashable_state] = {a: self.configs.Q_0 for a in kept}
+			mask = np.zeros_like(self.P[hashable_state])
+			mask[kept] = 1.0
+			self.P[hashable_state] = self.P[hashable_state] * mask
+			s = self.P[hashable_state].sum()
+			if s > 0:
+				self.P[hashable_state] /= s
+			else:
+				# safety: shouldn't happen since kept has at least one >floor action,
+				# but if it does, fall back to uniform over kept.
+				for a in kept:
+					self.P[hashable_state][a] = 1.0 / len(kept)
 		return v
 
 	def _sample_realization(self, hashable_state):
