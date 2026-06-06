@@ -169,7 +169,8 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 		user_dialog_acts,
 		user_max_hist_num_turns,
 		generation_model:GenerationModel,
-		conv_examples: List[DialogSession] = []
+		conv_examples: List[DialogSession] = [],
+		llm_prior_topk: int | None = None,
 	) -> None:
 		super().__init__(
 			dialog_acts, max_hist_num_turns,
@@ -191,6 +192,26 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			"return_full_text": False,
 			"do_sample": True,
 			"num_return_sequences": 15,
+		}
+		# When set to an int K, predict() routes through _predict_topk_prior: a single
+		# LLM call that, given dialog history + DAs played so far, returns the top-K
+		# most promising next persuader DAs. The K actions get harmonic-decay weights
+		# as the prior; non-listed actions get a smoothing floor. Saves ~14 LLM calls
+		# per prior computation vs the default 15-sample histogram path. None
+		# preserves legacy behaviour.
+		#
+		# Emotion conditioning is intentionally NOT part of this prior — that signal
+		# lives in the PUCT bonus (EmotionGuidedDiscountQOpenLoopMCTS), so the two
+		# concerns stay separated and independently tunable.
+		self.llm_prior_topk = llm_prior_topk
+		# Inference args for the single top-K call — lower temperature (we want a
+		# considered answer, not samples), more tokens to fit a numbered list.
+		self.topk_inf_args = {
+			"max_new_tokens": 256,
+			"temperature": 0.3,
+			"return_full_text": False,
+			"do_sample": False,
+			"num_return_sequences": 1,
 		}
 		return
 	
@@ -289,8 +310,11 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 		return pred_da
 
 	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-		# test k times and compute prob. See num_return_sequences in the API
-		# the value would be our objective function
+		# Route to the single-call top-K path when configured.
+		if self.llm_prior_topk is not None and self.llm_prior_topk > 0:
+			return self._predict_topk_prior(state, self.llm_prior_topk)
+
+		# Legacy path: 15 sampling calls with sequence histogram + smoothing.
 		messages = [
 			{'role': 'system', 'content': self.task_prompt},
 			*self.prompt_examples,
@@ -311,6 +335,142 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 		prob += self.smoothing
 		for da in sampled_das:
 			prob[self.dialog_acts.index(da)] += 1
+		prob /= prob.sum()
+		v, _ = self.heuristic(state)
+		return prob, v
+
+	# ---------------------------------------------------------------------
+	# Single-call top-K prior (emotion-agnostic — emotion lives in the PUCT bonus)
+	# ---------------------------------------------------------------------
+
+	def _format_history_for_topk(self, state: DialogSession) -> str:
+		"""Format the dialog history showing the DA played at each turn. Emotions are
+		deliberately omitted — emotion conditioning is the PUCT bonus's job, not the
+		prior's. Keeping them separated means we can A/B the two signals cleanly.
+
+		Handles both plain DialogSession turns (3-tuples ``(role, da, utt)``) and
+		EmotionAwareDialogSession's ``EmotionalHistoryRecord`` dataclass (has
+		``.role`` / ``.da`` / ``.utt`` attributes but no ``__len__``)."""
+		lines = []
+		for rec in state.history:
+			if hasattr(rec, "role"):
+				# EmotionalHistoryRecord — use attribute access.
+				role, da, utt = rec.role, rec.da, rec.utt
+			else:
+				# plain (role, da, utt) tuple from DialogSession.
+				role, da, utt = rec[0], rec[1], rec[-1]
+			if role == PersuasionGame.SYS:
+				lines.append(f"{role} [{da or 'other'}]: {utt}")
+			else:
+				lines.append(f"{role} [{da or 'neutral'}]: {utt}")
+		return "\n".join(lines).strip()
+
+	def _build_topk_messages(self, state: DialogSession, k: int) -> list:
+		"""Build the messages for the single-call top-K prior prompt."""
+		history_block = self._format_history_for_topk(state) or "(no conversation yet — this is the opening turn)"
+		action_list = ", ".join(f"[{da}]" for da in self.dialog_acts)
+		instruction = (
+			f"You are advising the Persuader. Given the conversation so far and the "
+			f"dialogue actions played at each turn, list the TOP {k} most promising "
+			f"next dialogue actions for the Persuader — ordered from most to least "
+			f"promising for landing a donation.\n\n"
+			f"Available actions (use ONLY these names verbatim, in brackets):\n{action_list}\n\n"
+			f"Conversation so far:\n{history_block}\n\n"
+			f"Output a numbered list of exactly {k} actions, one per line, in the form:\n"
+			f"1. [action]\n2. [action]\n... (up to {k})"
+		)
+		return [
+			{"role": "system", "content": self.task_prompt},
+			*self.prompt_examples,
+			{"role": "system", "content": instruction},
+		]
+
+	def _parse_topk_response(self, response_text: str, k: int) -> list:
+		"""Extract up to K DAs from the LLM's numbered list. Preserves order,
+		deduplicates, and tolerates several output formats:
+		  * "1. [action]\\n2. [action] ..."     (canonical)
+		  * "1. action"                          (no brackets)
+		  * loose mention of any valid DA name anywhere in the text
+		"""
+		import re
+		text = response_text or ""
+		# First pass: bracketed mentions in order of appearance.
+		picked = []
+		for m in re.finditer(r"\[([^\]]+)\]", text):
+			candidate = m.group(1).strip().lower()
+			# match against valid DA names case-insensitively
+			for da in self.dialog_acts:
+				if da.lower() == candidate and da not in picked:
+					picked.append(da)
+					break
+			if len(picked) >= k:
+				break
+		# Second pass: numbered-list lines without brackets.
+		if len(picked) < k:
+			for line in text.splitlines():
+				stripped = re.sub(r"^\s*\d+[\.\):]\s*", "", line).strip().lower()
+				for da in self.dialog_acts:
+					if da.lower() == stripped and da not in picked:
+						picked.append(da)
+						break
+				if len(picked) >= k:
+					break
+		# Third pass: any in-text mention of a valid DA name (longest names first
+		# so "proposition of donation" matches before "personal story" etc.)
+		if len(picked) < k:
+			lower_text = text.lower()
+			for da in sorted(self.dialog_acts, key=len, reverse=True):
+				if da.lower() in lower_text and da not in picked:
+					picked.append(da)
+					if len(picked) >= k:
+						break
+		return picked[:k]
+
+	def _predict_topk_prior(self, state: DialogSession, k: int) -> "Tuple[np.ndarray, float]":
+		"""Single-call top-K prior. Replaces the 15-sample histogram with one chat
+		call asking for the top K actions given conversation history + DAs played.
+
+		Emotion conditioning is intentionally NOT in this prompt — that signal lives
+		in the PUCT bonus (EmotionGuidedDiscountQOpenLoopMCTS). Two reasons to keep
+		them separated:
+		  * Independently tunable / ablatable: swap one signal in/out without affecting
+		    the other; the A/B grid is cleaner.
+		  * Different abstraction levels: the prior is "which actions are coherent
+		    with the conversation"; the bonus is "given the user's emotional state,
+		    which actions pay off." Forcing both into one prompt couples them.
+
+		Prior assignment: picked actions get harmonic-decay weights (1/1, 1/2, ...,
+		1/K) then renormalised; non-listed actions get a small smoothing floor so
+		PUCT can still recover from a wrong LLM pick. The smoothing floor is
+		intentionally small (~0.5% per action) so the LLM's ranking dominates but
+		isn't absolute.
+		"""
+		messages = self._build_topk_messages(state, k)
+		data = self.generation_model.chat_generate(messages, **self.topk_inf_args)
+		# chat_generate returns a list of dicts per the underlying API; take the first.
+		if isinstance(data, list) and data:
+			response_text = data[0].get("generated_text") or data[0].get("content") or str(data[0])
+		else:
+			response_text = str(data)
+		picked = self._parse_topk_response(response_text, k)
+		print(f"top k: {picked}")
+		logger.debug(f"topk-prior picked: {picked} (parsed from: {response_text[:200]!r})")
+
+		prob = np.zeros(len(self.dialog_acts))
+		floor = 0.005  # 0.5% per action smoothing floor — non-zero so PUCT can recover
+		prob += floor
+		if picked:
+			# harmonic-decay weights to encode the LLM's ranking
+			weights = np.array([1.0 / (i + 1) for i in range(len(picked))])
+			weights /= weights.sum()
+			# mass to allocate to the picked actions (rest stays in the floor)
+			mass = 1.0 - floor * len(self.dialog_acts)
+			for da, w in zip(picked, weights):
+				prob[self.dialog_acts.index(da)] += mass * w
+		else:
+			# LLM produced no parseable picks — fall back to uniform over valid actions
+			logger.warning("topk-prior parsing returned no actions; using uniform fallback")
+			prob[:] = 1.0 / len(self.dialog_acts)
 		prob /= prob.sum()
 		v, _ = self.heuristic(state)
 		return prob, v
