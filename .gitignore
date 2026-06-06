@@ -38,3 +38,7 @@ Thumbs.db
 # Secrets
 .env
 *.env
+
+# Unpublished experimental MCTS variants (kept local, not part of the release)
+src/mcts/emotion_mcts_unproven_ideas.py
+src/runners/emomcts_all_approaches.py
