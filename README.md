@@ -1,56 +1,90 @@
-# EMCTS — Prompt-based MCTS Dialogue Policy Planning
+# EmoMCTS — Emotion-Aware Monte-Carlo Tree Search for Dialogue Policy Planning
 
-Monte-Carlo Tree Search over LLM-prompted dialogue simulations for goal-oriented
-dialogue policy planning, applied to three tasks:
+EmoMCTS plans goal-oriented dialogue with **open-loop Monte-Carlo Tree Search over
+LLM-prompted simulations**, and makes the user's **emotion a first-class search
+coordinate**. Alongside the usual task-value estimate, it maintains a *parallel*
+action-value channel that tracks the expected **emotional valence** of the user's
+reaction, and folds it into the PUCT selection rule through a single weight `β`.
 
-| Task  | Game class             | System / User         | Goal                                                  |
-|-------|------------------------|-----------------------|-------------------------------------------------------|
-| `p4g` | `PersuasionGame`       | Persuader / Persuadee | persuade the user to donate to *Save the Children*    |
-| `esc` | `EmotionalSupportGame` | Therapist / Patient   | reduce the user's emotional distress                  |
-| `cb`  | `CBGame`               | Buyer / Seller        | close a deal at a favourable price (CraigslistBargain) |
+The method is applied to **PersuasionForGood** (persuade a user to donate to *Save the
+Children*). It builds directly on [GDP-Zero](https://github.com/jasonyux/GDPZero)
+(EMNLP 2023) and borrows task / reward setups from
+[PPDPP](https://github.com/dengyang17/PPDPP) (ICLR 2024). At `β = 0` EmoMCTS reduces
+exactly to GDP-Zero, so every comparison is a clean ablation of the emotion channel.
 
-Builds on [GDP-Zero](https://github.com/jasonyux/GDPZero) (EMNLP 2023) and borrows
-task / reward setups from [PPDPP](https://github.com/dengyang17/PPDPP). The runner
-defaults are wired to be **GDPZero-faithful** so SR / AT / SL numbers are directly
-comparable to that paper. Dialogue simulators are prompted LLMs — OpenAI, Azure
-OpenAI, local 🤗 Transformers, or local [Ollama](https://ollama.com).
+> **Paper write-up:** the full method, valence mining, and experiments are in
+> [`EmotionMCTSDoubleQ.md`](EmotionMCTSDoubleQ.md). Qualitative dialogues and prompts are
+> in [`article_examples.md`](article_examples.md); the policy-behaviour analysis is in
+> [`article_action_analysis.md`](article_action_analysis.md).
 
-**Contents:** [Layout](#repository-layout) · [Setup](#setup) ·
-[Data](#data) · [Interactive demo](#interactive-demo) ·
-[Offline runners](#offline-evaluation-runners) ·
-[Self-play & SR/AT/SL](#self-play-metrics--sr--at--sl) ·
-[LLM judge](#pairwise-llm-judge) ·
-[EmoMCTS vs GDP-Zero](#comparing-emomcts-vs-gdp-zero) ·
-[Status](#status--known-limitations)
+Dialogue simulators are prompted LLMs — OpenAI, Azure OpenAI, local 🤗 Transformers, or
+local [Ollama](https://ollama.com). All reported results use an **open-source
+Vicuna-13B** backbone (via Ollama) so they are fully reproducible without a proprietary
+API.
+
+**Contents:** [Method](#method) · [Layout](#repository-layout) · [Setup](#setup) ·
+[Data](#data) · [Running EmoMCTS](#running-emomcts) ·
+[Self-play metrics](#self-play-metrics--sr--at) · [LLM judge](#pairwise-llm-judge) ·
+[Reproducing the paper](#reproducing-the-paper) · [Interactive demo](#interactive-demo)
+
+## Method
+
+EmoMCTS (`EmotionAwareMultiObjectiveQ`) keeps **two** value tables per
+`(state, action)`:
+
+- `Q[s][a]` — the donation-rollout value (standard GDP-Zero behaviour), and
+- `Q_emo[s][a]` — the running mean **emotional valence** of the user's reaction.
+
+Selection uses a PUCT rule that adds the emotion channel to the task channel:
+
+```
+score(a) = Q[s][a] + β · Q_emo[s][a] + c_puct · P[s][a] · √N(s) / (1 + N(s,a))
+```
+
+The valence weights `w(e)` per emotion are **mined from the PersuasionForGood corpus**,
+not hand-set: `w(e) ∝ P(donate | user emotion = e) − base_rate`
+(`scripts/mine_emotion_donation_p4g.py`). The mined weights overturn naive affective
+valence — *fear* is the strongest positive predictor of donation, while *neutral*
+(apathy) is the main negative signal.
+
+Two further levers, shared with the GDP-Zero baseline:
+
+- **Top-`K` prior pruning** (`--llm_prior_topk`): the search is hard-pruned to the `K`
+  highest-prior dialogue acts per node, concentrating the simulation budget.
+- **Emotion classifier** (`--emotion_classifier hf`): a deterministic encoder
+  (`j-hartmann/emotion-english-distilroberta-base`) labels each user reaction — no LLM
+  cost, fully reproducible.
 
 ## Repository layout
 
 ```
 src/
-  games/        DialogGame + PersuasionGame / EmotionalSupportGame / CBGame
-  players/      system/user agents + planners per task (p4g / esc / cb)
-  mcts/         MCTS, OpenLoopMCTS, OpenLoopMCTSParallel; emotion_mcts.py
-  utils/        gen_models (OpenAI/Azure/HF/Ollama), sessions, rewards, prompts,
-                hf_loaders.py             Hugging Face Hub dataset loaders
-                convert_p4g_to_jsonl.py   P4G pickle -> ESC/CB-style JSON-lines
-  interactive/  gdpzero/interactive.py    P4G-only GDPZero-faithful demo
-                emcts/interactive.py      multi-task demo (--game p4g|esc|cb)
-  runners/      raw_prompting.py / gdpzero*.py / emomcts.py  turn-by-turn response comparison
-                rollout.py                                    self-play episodes (pluggable --algo)
-                _common.py                                    task registry + dataset readers
-  metrics/      dialog_metrics.py + run_metrics.py   SR / AT / SL
-  evaluators/   resp_ranker + {p4g,esc,cb}_evaluator   pairwise LLM rankers
-                run_judge.py              CLI: vs-human or head-to-head judge
+  games/        DialogGame + PersuasionGame (p4g) / EmotionalSupportGame / CBGame
+  players/      system/user agents + planners per task
+  mcts/         mcts.py            MCTS / OpenLoopMCTS (GDP-Zero base)
+                emotion_mcts.py    EmotionAwareOpenLoopMCTS + EmotionAwareMultiObjectiveQ
+                                   (the published Double-Q) + the mined valence map
+  emotion_classifiers/  hf_emotion.py (encoder) · llm_emotion.py (prompt-based)
+  utils/        gen_models (OpenAI/Azure/HF/Ollama), sessions, rewards, prompts, loaders
+  runners/      gdpzero.py / emomcts.py    turn-by-turn response comparison
+                rollout.py                 self-play episodes (--algo llm_raw|gdpzero|emomcts)
+                _common.py                 task registry + dataset readers
+  metrics/      dialog_metrics.py + run_metrics.py   SR / AT (/ SL)
+  evaluators/   resp_ranker + {p4g,esc,cb}_evaluator + run_judge.py   pairwise LLM judge
+scripts/
+  mine_emotion_donation_p4g.py   mine the emotion-valence map from the corpus
+  run_sweep_experiments.sh       simulation-budget sweep (SR/AT)
+  sweep_judge.sh                 sweep + LLM-judge comparison (vs human / raw / gdpzero)
+  plot_da_histogram.py           per-turn dialogue-act distribution figure
+  plot_emotion_conditioned_actions.py   action choice vs. user emotion figure
 data/
-  p4g/  300_dialog_turn_based.pkl · p4g-valid.txt (JSON-lines, generated)
-  esc/  esc-{train,valid,test}.txt
-  cb/   cb-{train,valid,test}.txt
+  p4g/  300_dialog_turn_based.pkl · p4g-valid.txt
+  esc/  esc-{train,valid,test}.txt   ·   cb/  cb-{train,valid,test}.txt
 ```
 
 Each task's `*Game` / `*SystemPlanner` / `*Model` triple exposes a common API
-(`get_game_ontology`, `get_dialog_ended`, `get_next_state`, `predict`,
-`get_valid_moves`, `get_utterance[_w_da]`, …) so the planner and MCTS code is
-task-agnostic.
+(`get_dialog_ended`, `get_next_state`, `predict`, `get_valid_moves`,
+`get_utterance[_w_da]`, …) so the planner and MCTS code is task-agnostic.
 
 ## Setup
 
@@ -58,341 +92,164 @@ task-agnostic.
 pip install -r requirements.txt
 python -c "import nltk; nltk.download('punkt')"
 
-# OpenAI
+# OpenAI (optional — only if you use an OpenAI/Azure backbone or judge)
 export OPENAI_API_KEY=sk-...
 # Azure OpenAI (only for --llm chatgpt)
 export MS_OPENAI_API_KEY=... MS_OPENAI_API_BASE="https://...openai.azure.com"
 export MS_OPENAI_API_VERSION=... MS_OPENAI_API_CHAT_VERSION=...
+
+# Open-source backbone used for all reported results
+ollama serve && ollama pull vicuna:13b
 ```
 
-`torch` / `transformers` are only needed for the local-HF backend; `requests`
-covers OpenAI and Ollama. Pin the `openai` package per `requirements.txt`.
-
-Modules use absolute imports rooted at `src/`. Run from `src/` or set
-`PYTHONPATH=$PWD/src`; the entry-point scripts also self-bootstrap `src/` and
-resolve relative `--data` / `--output` paths against the repo root, so you can
-invoke them from any working directory.
+`torch` / `transformers` are needed for the HF emotion classifier and the local-HF
+backend; `requests` covers OpenAI and Ollama. Modules use absolute imports rooted at
+`src/` — run from `src/` or set `PYTHONPATH=$PWD/src`. Entry-point scripts self-bootstrap
+`src/` and resolve relative `--data` / `--output` paths against the repo root.
 
 ## Data
 
-The repo ships pre-converted splits — `--data` defaults to the validation file
-of the selected `--game`, so most invocations don't need to pass it explicitly.
+The repo ships pre-converted splits; `--data` defaults to the validation file of the
+selected `--game`.
 
-| Task  | File(s)                                       | Source / format                                                                                |
-|-------|-----------------------------------------------|------------------------------------------------------------------------------------------------|
-| `p4g` | `data/p4g/300_dialog_turn_based.pkl`           | GDP-Zero pickle: `{did: {dialog:[{er,ee}], label:[{er,ee}]}}`                                  |
-| `p4g` | `data/p4g/p4g-valid.txt`                      | JSON-lines, one `{id, dialog:[{speaker,text,strategy}]}` per dialog — produced by the converter |
-| `esc` | `data/esc/esc-{train,valid,test}.txt`         | DPDP JSON-lines: `{emotion_type, problem_type, situation, dialog:[{text,speaker,strategy?}]}`  |
-| `cb`  | `data/cb/cb-{train,valid,test}.txt`           | DPDP JSON-lines: `{item_name, buyer_*, seller_*, dialog:[{text,speaker,strategy}]}`            |
+| Task  | File(s)                                | Format                                                                |
+|-------|----------------------------------------|-----------------------------------------------------------------------|
+| `p4g` | `data/p4g/300_dialog_turn_based.pkl`   | GDP-Zero pickle: `{did: {dialog:[{er,ee}], label:[{er,ee}]}}`         |
+| `p4g` | `data/p4g/p4g-valid.txt`               | JSON-lines `{id, dialog:[{speaker,text,strategy}]}` (from the converter) |
+| `esc` | `data/esc/esc-{train,valid,test}.txt`  | DPDP JSON-lines                                                        |
+| `cb`  | `data/cb/cb-{train,valid,test}.txt`    | DPDP JSON-lines                                                        |
 
-`read_p4g` auto-detects pickle vs JSON-lines from the suffix. Regenerate the
-JSON-lines P4G file at any time:
+Regenerate the JSON-lines P4G file with `python src/utils/convert_p4g_to_jsonl.py`.
+Dataset readers and the task registry live in `runners/_common.py`. A Hugging Face Hub
+loader is available via `--data hf:<repo>[:<config>[:<split>]]` (`pip install datasets`).
 
-```bash
-python src/utils/convert_p4g_to_jsonl.py
-# --input/--output override; relative paths resolve from the repo root
-```
+## Running EmoMCTS
 
-The dataset readers and task registry live in `runners/_common.py`
-(`TASKS`, `read_p4g/esc/cb`).
-
-### Hugging Face Hub
-
-`--data hf:<repo>[:<token>[:<split>]]` loads a dataset straight from the Hub
-(`pip install datasets`). Each call loads **one split**.
-
-| `--data` argument                                 | What gets loaded                                                                                   |
-|---------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `hf:repo`                                         | first split of the default config (usually `train`)                                                |
-| `hf:repo:<token>`                                 | tries `<token>` as a split first; if not a split, treats it as a **config** and takes its first split |
-| `hf:repo:<config>:<split>`                        | explicit                                                                                           |
+EmoMCTS runs on the emotion-aware task `emo_p4g`. The published runner exposes exactly
+two emotion-relevant knobs: **`--beta_emo`** (the emotion-channel weight) and
+**`--llm_prior_topk`** (top-`K` pruning), plus the emotion classifier choice.
 
 ```bash
-python runners/raw_prompting.py --game esc --data hf:thu-coai/esconv:validation
-python runners/raw_prompting.py --game cb  --data hf:stanfordnlp/craigslist_bargains:validation
-python runners/raw_prompting.py --game p4g --data hf:spawn99/PersuasionForGood:FullDialog:train
+cd src
+
+# EmoMCTS (Double-Q), Vicuna-13B backbone
+python runners/emomcts.py --game emo_p4g \
+       --llm ollama --ollama_model vicuna:13b \
+       --emotion_classifier hf --beta_emo 0.7 --llm_prior_topk 5 \
+       --num_mcts_sims 50 --num_dialogs 50 \
+       --output outputs/emomcts_p4g.pkl
+
+# GDP-Zero baseline (β = 0, same backbone)
+python runners/gdpzero.py --game p4g \
+       --llm ollama --ollama_model vicuna:13b \
+       --num_mcts_sims 50 --num_dialogs 50 --llm_prior_topk 5 \
+       --output outputs/gdpzero_p4g.pkl
 ```
 
-(Note `FullDialog` is a **config name**, not a split — three segments needed to
-nail it down.) `spawn99/PersuasionForGood` has no DA labels, so the P4G HF loader
-defaults `sys_da="other"` and `usr_da=U_Neutral`. ESConv and CB preserve their
-strategy labels.
+Both runners write the same per-turn pickle schema, so `run_judge.py --h2h` can compare
+them directly (see [LLM judge](#pairwise-llm-judge)).
+
+## Self-play metrics — SR / AT
+
+`runners/rollout.py` plays *full* self-play episodes (system policy ↔ user simulator
+until the goal or `--max_turns`) and writes one record per dialog
+(`{did, task, algo, success, num_turns, history}`). The action selector is pluggable via
+`--algo`:
+
+| `--algo`  | Planner                                                                 |
+|-----------|-------------------------------------------------------------------------|
+| `llm_raw` | single LLM call per turn (`argmax(planner.predict(state))`)             |
+| `gdpzero` | `OpenLoopMCTS` — GDP-Zero open-loop search                              |
+| `emomcts` | `EmotionAwareMultiObjectiveQ` — the Double-Q (`--beta_emo`, `--emotion_classifier`) |
+
+```bash
+cd src
+python runners/rollout.py --game p4g     --algo gdpzero \
+       --llm ollama --ollama_model vicuna:13b \
+       --num_mcts_sims 50 --max_conv 100 --llm_prior_topk 5 \
+       --output outputs/rollout_gdpzero_p4g.pkl
+
+python runners/rollout.py --game emo_p4g --algo emomcts \
+       --llm ollama --ollama_model vicuna:13b \
+       --emotion_classifier hf --beta_emo 0.7 --llm_prior_topk 5 \
+       --num_mcts_sims 50 --max_conv 100 \
+       --output outputs/rollout_emomcts_p4g.pkl
+
+python metrics/run_metrics.py --episodes outputs/rollout_emomcts_p4g.pkl --max_turns 10
+```
+
+`rollout.py` prints a cumulative SR / AT summary every 10 dialogs and a final summary.
+
+| metric                  | meaning                                                                                  |
+|-------------------------|------------------------------------------------------------------------------------------|
+| **SR** — Success Rate   | fraction of episodes reaching the goal within `--max_turns`                               |
+| **AT** — Average Turn   | mean #turns; failed / over-limit count as `--max_turns` (PPDPP convention)                |
+| **SL** — Sale-to-List   | CraigslistBargain only — `(deal − seller_list) / (buyer_target − seller_list)`, clipped   |
+
+Implementations: `metrics/dialog_metrics.py`.
+
+## Pairwise LLM judge
+
+`evaluators/run_judge.py` reads per-turn pickles and asks an LLM judge which response
+wins (A/B-swapped to debias, majority vote over `n` samples):
+
+- **vs. human** (default): `-f`'s response vs. the human reference.
+- **head-to-head** (`--h2h <other.pkl>`): `-f`'s response vs. `--h2h`'s response.
+
+A "win" always means the `-f` model won.
+
+```bash
+cd src
+# EmoMCTS vs human
+python evaluators/run_judge.py --task p4g --judge gpt-3.5-turbo \
+       -f outputs/emomcts_p4g.pkl --out_json outputs/emomcts_vs_human.json
+# EmoMCTS vs GDP-Zero (head-to-head)
+python evaluators/run_judge.py --task p4g --judge gpt-3.5-turbo \
+       -f outputs/emomcts_p4g.pkl --h2h outputs/gdpzero_p4g.pkl \
+       --output outputs/emomcts_vs_gdpzero.pkl --out_json outputs/emomcts_vs_gdpzero.json
+```
+
+Output: a pickle with per-record decisions plus a printed `{win, draw, lose, n, win_rate}`
+summary (`--out_json` dumps the summary; `--limit N` caps records;
+`--judge ollama` runs fully offline).
+
+## Reproducing the paper
+
+```bash
+# 1. Mine the emotion-valence map from the corpus (writes outputs/emotion_donation_analysis.json)
+python scripts/mine_emotion_donation_p4g.py
+
+# 2. Simulation-budget sweep: gdpzero / gdpzero+topk / emomcts across num_sims (SR / AT)
+scripts/run_sweep_experiments.sh
+
+# 3. Sweep + LLM-judge comparison (emomcts vs human / raw / gdpzero), judged with gpt-3.5
+scripts/sweep_judge.sh
+
+# 4. Policy-behaviour figures
+python scripts/plot_da_histogram.py                  # dialogue-act distribution by turn
+python scripts/plot_emotion_conditioned_actions.py   # action choice vs. user emotion
+```
+
+Each script is env-overridable (e.g. `SIMS="20 50" NUM_DIALOGS=100 scripts/run_sweep_experiments.sh`).
+Per-run outputs land under `src/outputs/<run-id>/` with a `metadata.json` snapshot of the
+exact arguments, so any run is reproducible from its directory.
 
 ## Interactive demo
 
-Converse with the policy planner; you play the user side.
-
-There are two demo scripts:
-
-* `interactive/emcts/interactive.py` — multi-task (`--game p4g|esc|cb`), with the full scenario / `--zero_shot` flag set described below.
-* `interactive/gdpzero/interactive.py` — P4G-only, GDPZero-faithful original (no `--game`, no `--zero_shot`).
+Converse with the planner; you play the user.
 
 ```bash
 cd src
 python interactive/emcts/interactive.py --game p4g --algo raw-prompt
-python interactive/emcts/interactive.py --game esc --algo raw-prompt --emotion_type anxiety --problem_type "job crisis"
-python interactive/emcts/interactive.py --game cb  --algo raw-prompt --cb_buyer_price 80 --cb_seller_price 150
-python interactive/gdpzero/interactive.py --algo raw-prompt          # P4G only
+python interactive/gdpzero/interactive.py --algo raw-prompt        # P4G-only, GDP-Zero-faithful
 ```
 
-Type `q` to quit, `r` to restart. Key flags (`-h` for the full list):
-
-| flag                                                            | default          | meaning                                                                       |
-|-----------------------------------------------------------------|------------------|-------------------------------------------------------------------------------|
-| `--game {p4g,esc,cb}`                                           | `p4g`            | which dialog game                                                             |
-| `--algo {gdpzero,raw-prompt}`                                   | `gdpzero`        | planning algorithm                                                            |
-| `--llm {gpt-3.5-turbo,chatgpt,code-davinci-002,text-davinci-002,ollama}` | `gpt-3.5-turbo` | backbone LLM                                                          |
-| `--ollama_model`, `--ollama_host`                               | `llama3.1`, env  | local model / server URL when `--llm ollama`                                  |
-| `--zero_shot {0,1}`                                             | `0`              | interactive-only — user DA from `get_utterance_w_da` (`0`, GDPZero-faithful) vs planner heuristic (`1`); the runners hardcode `0` |
-| `--num_mcts_sims`, `--max_realizations`, `--Q_0`                | `10`, `3`, `0.25`| MCTS hyper-parameters (used by `gdpzero`)                                     |
-| `--emotion_type`, `--problem_type`                              | `anxiety`, `job crisis` | ESConv scenario (`esc` only)                                            |
-| `--cb_item`, `--cb_buyer_desc`, `--cb_buyer_price`, `--cb_seller_desc`, `--cb_seller_price` | bike listing | CraigslistBargain scenario (`cb` only)                       |
-
-### Local model via Ollama
-
-Pass `--llm ollama` to talk to a local [Ollama](https://ollama.com) server
-instead of OpenAI:
-
-```bash
-ollama serve && ollama pull llama3.1
-python interactive/emcts/interactive.py --game cb --algo raw-prompt --llm ollama --ollama_model llama3.1
-# remote: --ollama_host http://host:11434 (or $OLLAMA_HOST)
-```
-
-`utils/gen_models.py` provides `OllamaModel` (`/api/generate`) and
-`OllamaChatModel` (`/api/chat`); both accept the standard kwargs
-(`max_new_tokens`, `temperature`, `do_sample`, `repetition_penalty`, `stop`, …)
-translated to Ollama's `options`. Multiple samples come from repeated calls.
-
-## Offline evaluation (runners)
-
-`src/runners/` replays a held-out dataset; at every turn the planner picks the
-next system DA + utterance, saved alongside the ground-truth response in a pickle
-for later judging.
-
-| runner                          | planner                                                                  |
-|---------------------------------|--------------------------------------------------------------------------|
-| `runners/raw_prompting.py`      | greedy one-step (chat planner prior → argmax)                            |
-| `runners/gdpzero.py`            | open-loop MCTS + realization selection                                   |
-| `runners/gdpzero_noopenloop.py` | closed-loop MCTS                                                         |
-| `runners/gdpzero_noRS.py`       | open-loop MCTS, no realization selection                                 |
-| `runners/emomcts.py`            | emotion-aware open-loop MCTS (`EmotionAwareOpenLoopMCTS`) + realization selection |
-
-```bash
-cd src
-python runners/raw_prompting.py --game p4g                                       # uses data/p4g/p4g-valid.txt by default
-python runners/raw_prompting.py --game esc
-python runners/raw_prompting.py --game cb --llm ollama --ollama_model llama3.1
-python runners/gdpzero.py       --game p4g --num_mcts_sims 20
-python runners/emomcts.py       --game esc --num_mcts_sims 20         # see Status for the EmotionAwareDialogSession caveat
-```
-
-To compare the original GDP-Zero MCTS against `emomcts` head-to-head with the LLM judge,
-run both over the same dataset and feed the pickles to `evaluators/run_judge.py --h2h`
-(see [Pairwise LLM judge](#pairwise-llm-judge)).
-
-The runners are **GDPZero-faithful**: the user agent emits its own DA via
-`get_utterance_w_da` (no planner-heuristic shortcut), so `get_dialog_ended` reads
-DAs the simulator itself produced — directly comparable to GDPZero's
-`core/game.py`. There is no `--zero_shot` flag; the parameter still exists on
-every `*Model` / game / planner constructor (`build_agents(..., zero_shot=False)`
-by default) for in-code experimentation.
-
-This is *turn-by-turn response comparison*. For *episode-level* SR / AT / SL,
-see the next section.
-
-## Self-play metrics — SR / AT / SL
-
-`runners/rollout.py` plays *full* self-play episodes (system policy ↔ user
-simulator until the game ends or `--max_turns`) and writes one episode record
-per dialog: `{did, task, algo, success, num_turns, history, [deal_price, buyer_price, seller_price]}`.
-The action-selection step is **pluggable** via `--algo`:
-
-| `--algo`  | Class             | What it does                                                                     |
-|-----------|-------------------|----------------------------------------------------------------------------------|
-| `llm_raw` | `LLMRawPolicy`    | `argmax(planner.predict(state))` — single LLM call per turn; mirrors `raw_prompting` |
-| `gdpzero` | `GDPZeroPolicy`   | `OpenLoopMCTS` per turn → argmax of visit-count policy                            |
-| `emomcts` | `EmoMCTSPolicy`   | `EmotionAwareOpenLoopMCTS` — same MCTS loop with an injected `emotion_classifier` |
-
-Adding a new policy: subclass `RolloutPolicy` (any class with
-`pick_action(state, *, game, system, planner) -> int` works), register it in
-`POLICIES`, extend `add_policy_args` / `make_policy` for any CLI flags —
-`rollout_one` and `main` stay untouched.
-
-```bash
-cd src
-python runners/rollout.py --game cb                                           # llm_raw on data/cb/cb-valid.txt, first 20 dialogs
-python runners/rollout.py --game cb  --algo gdpzero --max_conv -1             # GDP-Zero MCTS over the whole split
-python runners/rollout.py --game esc --algo emomcts --num_mcts_sims 20        # emotion-aware MCTS
-python metrics/run_metrics.py --episodes outputs/rollout.pkl --max_turns 8
-```
-
-| flag                                              | default                  | meaning                                                                    |
-|---------------------------------------------------|--------------------------|----------------------------------------------------------------------------|
-| `--algo {llm_raw,gdpzero,emomcts}`                | `llm_raw`                | which policy picks each system action                                      |
-| `--max_turns`                                     | `10`                     | hard cap on turns per episode                                              |
-| `--max_conv N`                                    | `20`                     | rollout only the first N conversations (pass `-1` for all dialogs)         |
-| `--num_mcts_sims`, `--max_realizations`, `--Q_0`, `--cpuct` | `20`, `3`, `0.0`, `1.0` | MCTS hyper-parameters (for `gdpzero` / `emomcts`)                   |
-
-Episode metrics:
-
-| metric                        | meaning                                                                                                                                                                                |
-|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **SR** — Success Rate         | fraction of episodes reaching the goal (donate / solved / deal) within `--max_turns`                                                                                                   |
-| **AT** — Average Turn         | mean #turns; failed / over-limit count as `--max_turns` (PPDPP convention; `--at_successes_only` averages successes only)                                                              |
-| **SL** — Sale-to-List (CB)    | `(deal − seller_list) / (buyer_target − seller_list)`, clipped to `[0,1]`; **higher = better deal**; failed negotiations get `0`                                                       |
-
-Implementations: `metrics/dialog_metrics.py` (`success_rate`, `average_turn`,
-`sale_to_list_ratio`, `compute_metrics`). The CB deal price is best-effort
-extracted (last number mentioned in the dialog).
-
-### How one rollout runs
-
-End-to-end trace of `rollout.py main()`:
-
-1. **CLI parsing** — `add_common_args` + `add_policy_args` collect `--game`, `--data`, `--output`, `--llm`, `--max_conv` (default 20, `-1` for all), `--max_turns`, `--algo`, and MCTS hyper-parameters.
-2. **Backbone + agents** (`_common.make_backbone_model`, `build_agents`) — instantiate the LLM and the `game` / `system` agent / `user` agent / `planner` quadruple for the task. `zero_shot=False` is hardcoded so the user agent emits its own DA via `get_utterance_w_da` (GDPZero-faithful).
-3. **Policy** (`make_policy`) — wraps the chosen `--algo` into a `RolloutPolicy` with a single `pick_action(state, *, game, system, planner) -> int` method.
-4. **Dataset** (`cfg.read_dialogs`) — reads the normalized dialog list; only each dialog's `id` and `scenario` are used (the recorded turns are ignored — this is self-play, not replay).
-5. **Per-dialog loop**, capped at `min(max_conv, len(dialogs))`. For each dialog `rollout_one` runs:
-   1. `state = game.init_dialog(*scenario)` — empty `DialogSession` parameterized by the scenario.
-   2. **Forced greeting at turn 0** — first non-zero index in `planner.get_valid_moves(state)`; `state, _ = game.get_next_state(state, action)`.
-   3. **Plan-and-step**, while `game.get_dialog_ended(state) == 0.0` and `len(state) < max_turns`:
-      - `action = policy.pick_action(state, …)` — `llm_raw` = one chat call; `gdpzero`/`emomcts` = run `num_mcts_sims` MCTS searches and take the argmax visit-count action.
-      - `state, _ = game.get_next_state(state, action)` — two LLM calls: system realizes the chosen DA into an utterance; user LLM replies *and* self-tags its DA (`U_Donate` / `U_Solved` / `U_Deal` / …). For CB the user DA comes from `SellerChatModel.get_utterance_w_da`'s YES/NO classifier turn.
-   4. Loop exits on user-emitted terminal DA (`get_dialog_ended` returns ±1.0) or `max_turns`.
-6. **Episode record** (`make_episode`) — `{did, task, algo, success, num_turns, history, [deal_price, buyer_price, seller_price]}`. `success = (ended >= 1.0)`. CB `deal_price` is best-effort regex-extracted from the transcript.
-7. **Persist + progress** — after **every** dialog the full `episodes` list is re-pickled to `--output` (crash-safe), and the tqdm bar shows `rollout <game>/<algo>`.
-8. **Inline summary** — calls `metrics.dialog_metrics.compute_metrics(episodes, task, max_turns)` and prints SR / AT (+ SL for CB) so you don't have to run `run_metrics.py` for a quick read.
-
-The only contract is `policy.pick_action(state, *, game, system, planner) -> int` and the game's `init_dialog` / `get_next_state` / `get_dialog_ended` API. Swap a policy / game / classifier without touching `rollout_one` or `main`.
-
-## Pairwise LLM judge
-
-`evaluators/` ships LLM-based pairwise rankers — given a context and two
-responses, the judge picks A / B / can't-tell (A/B-swapped to debias,
-majority-vote over `n` samples). One per task (`P4GEvaluator`, `ESCEvaluator`,
-`CBEvaluator`); shared in `resp_ranker.py`.
-
-`evaluators/run_judge.py` is the CLI. It reads per-turn pickles from the offline
-runners and asks the judge which response wins:
-
-- **vs. human** (default): A = `ori_resp`, B = `new_resp` (from `-f`).
-- **head-to-head** (`--h2h <other.pkl>`): A = `--h2h`'s `new_resp`, B = `-f`'s `new_resp`.
-
-A "win" always means the `-f` model beat the reference.
-
-```bash
-cd src
-python evaluators/run_judge.py --task p4g -f outputs/gdpzero_p4g.pkl --output outputs/eval_p4g.pkl
-python evaluators/run_judge.py --task esc -f outputs/gdpzero_esc.pkl --h2h outputs/raw_esc.pkl --output outputs/h2h_esc.pkl
-python evaluators/run_judge.py --task cb  -f outputs/gdpzero_cb.pkl  --judge ollama --ollama_model llama3.1
-# GDP-Zero MCTS vs. emotion-aware MCTS head-to-head:
-python evaluators/run_judge.py --task esc -f outputs/emomcts_esc.pkl --h2h outputs/gdpzero_esc.pkl \
-                               --output outputs/emomcts_vs_gdpzero_esc.pkl
-```
-
-Output: a pickle with per-record decisions (`winner`, `choices`, `rationales`,
-`do_swap`, `did`, `context`, `resp_a`, `resp_b`) + a printed
-`{win, draw, lose, n, win_rate}` summary. `--out_json` dumps the summary;
-`--limit N` caps records.
-
-| flag                                                  | default          | meaning                                                                |
-|-------------------------------------------------------|------------------|------------------------------------------------------------------------|
-| `--task {p4g,esc,cb}`                                 | *required*       | which task evaluator / prompt to use                                   |
-| `-f <pkl>`                                            | *required*       | runner pickle to evaluate — B = its `new_resp`                         |
-| `--h2h <pkl>`                                         | (vs. human)      | second runner pickle — A = its `new_resp`; requires `--output`         |
-| `--judge {gpt-3.5-turbo,chatgpt,ollama}`              | `gpt-3.5-turbo`  | judge LLM; Ollama works fully offline                                  |
-| `--ollama_model`, `--ollama_host`                     | `llama3.1`, env  | judge server when `--judge ollama`                                     |
-| `--output`, `--out_json`, `--limit`, `--debug`        | —                | per-record pickle / summary JSON / record cap / verbose ranker logs    |
-
-## Comparing EmoMCTS vs GDP-Zero
-
-Two complementary axes: per-turn response quality (LLM judge) and full-episode
-task success (self-play metrics). Run both on the **same** dataset / `--max_conv`
-/ `--max_turns` / `--num_mcts_sims` so the comparison is apples-to-apples.
-
-### A — LLM-judge head-to-head (per-turn quality)
-
-`runners/gdpzero.py` and `runners/emomcts.py` write the same per-turn
-`_common.run_eval` pickle schema, so `run_judge.py --h2h` consumes them directly.
-
-```bash
-cd src
-
-# ESC
-python runners/gdpzero.py --game esc --data data/esc/esc-valid.txt \
-       --output outputs/gdpzero_esc.pkl --num_mcts_sims 20
-python runners/emomcts.py --game esc --data data/esc/esc-valid.txt \
-       --output outputs/emomcts_esc.pkl --num_mcts_sims 20
-python evaluators/run_judge.py --task esc \
-       -f   outputs/emomcts_esc.pkl \
-       --h2h outputs/gdpzero_esc.pkl \
-       --output   outputs/emomcts_vs_gdpzero_esc.pkl \
-       --out_json outputs/emomcts_vs_gdpzero_esc.json
-
-# CB
-python runners/gdpzero.py --game cb --data data/cb/cb-valid.txt --output outputs/gdpzero_cb.pkl --num_mcts_sims 20
-python runners/emomcts.py --game cb --data data/cb/cb-valid.txt --output outputs/emomcts_cb.pkl --num_mcts_sims 20
-python evaluators/run_judge.py --task cb \
-       -f outputs/emomcts_cb.pkl --h2h outputs/gdpzero_cb.pkl \
-       --output outputs/emomcts_vs_gdpzero_cb.pkl
-```
-
-A *win* means EmoMCTS (the `-f` model) beat GDP-Zero. Offline judging:
-`--judge ollama --ollama_model llama3.1`.
-
-### B — Self-play SR / AT / SL (episode-level)
-
-The judge only sees one-turn responses; SR / AT / SL come from
-`rollout.py` + `metrics/run_metrics.py`.
-
-```bash
-cd src
-
-# ESC -> SR, AT
-python runners/rollout.py --game esc --algo gdpzero --max_conv -1 --max_turns 8 \
-       --output outputs/rollout_gdpzero_esc.pkl
-python runners/rollout.py --game esc --algo emomcts --max_conv -1 --max_turns 8 \
-       --output outputs/rollout_emomcts_esc.pkl
-python metrics/run_metrics.py --episodes outputs/rollout_gdpzero_esc.pkl --max_turns 8
-python metrics/run_metrics.py --episodes outputs/rollout_emomcts_esc.pkl --max_turns 8
-
-# CB -> SR, AT, SL
-python runners/rollout.py --game cb --algo gdpzero --max_conv -1 --max_turns 8 \
-       --output outputs/rollout_gdpzero_cb.pkl
-python runners/rollout.py --game cb --algo emomcts --max_conv -1 --max_turns 8 \
-       --output outputs/rollout_emomcts_cb.pkl
-python metrics/run_metrics.py --episodes outputs/rollout_gdpzero_cb.pkl --max_turns 8
-python metrics/run_metrics.py --episodes outputs/rollout_emomcts_cb.pkl --max_turns 8
-```
-
-`rollout.py` also prints an inline SR / AT (/ SL) summary at the end, so
-`run_metrics.py` is mainly useful for re-scoring with a different `--max_turns`
-or with `--at_successes_only` (AT averaged over successes only).
-
-### Caveats
-
-- **EmoMCTS is not yet end-to-end** (see [Status](#status--known-limitations)) —
-  `EmotionAwareOpenLoopMCTS` expects `EmotionAwareDialogSession` while the games
-  emit `EmotionSupportDialogSession` / `DialogSession`. Unblock that before A/B
-  produce usable numbers.
-- The default `--emotion_classifier stub` labels everything "neutral", so the
-  emotion signal is degenerate until a real classifier is plugged in.
-- For a working baseline today, judge `gdpzero` vs `raw_prompting` on ESC/CB —
-  same workflow, just swap one of the runners.
-
-## Status / known limitations
-
-- `--algo llm_raw` works end-to-end for all three games (CB's `SellerChatModel.get_utterance_w_da` was added so the GDPZero-faithful user-DA path runs).
-- `runners/gdpzero*.py` and `--algo gdpzero` use `OpenLoopMCTS`, which only calls the 2-arg `game.get_next_state(state, action)`. Games define `get_next_state(self, state, action, mode='train')`, so 2-arg calls work. The `get_next_state_batched(...)` path is only used by `OpenLoopMCTSParallel`, which neither the runners nor `rollout.py` instantiate, so it isn't a blocker here.
-- `--algo emomcts` (and `runners/emomcts.py`) is wired but not yet end-to-end: `EmotionAwareOpenLoopMCTS` expects `EmotionAwareDialogSession` (`utils/sessions.py`), while the games currently emit `EmotionSupportDialogSession` / `DialogSession`. Until `init_dialog` / `get_next_state` return the emotion-aware session type, the policy constructs but can't traverse. The default `emotion_classifier` is a stub with Ekman labels — swap for a real classifier before relying on the emotion signal.
-- `players/p4g_players.py` is a near-direct port of GDP-Zero's `core/players.py`; some dead/commented blocks remain.
-- `utils/gen_models.py` mixes pre-1.0 and ≥1.0 `openai` SDK call styles — pin the version that matches your backend.
-- No training entry point (policy-network fine-tuning) yet.
+Type `q` to quit, `r` to restart; `-h` lists all flags. Use `--llm ollama
+--ollama_model vicuna:13b` for the local backbone.
 
 ## Acknowledgements
 
 - GDP-Zero — Yu et al., *Prompt-Based MCTS for Goal-Oriented Dialogue Policy Planning*, EMNLP 2023 ([paper](https://arxiv.org/abs/2305.13660)).
-- PPDPP — Deng et al., *Plug-and-Play Policy Planner for LLM Dialogue Agents* ([paper](https://arxiv.org/abs/2311.00262)).
+- PPDPP — Deng et al., *Plug-and-Play Policy Planner for LLM Dialogue Agents*, ICLR 2024 ([paper](https://arxiv.org/abs/2311.00262)).
 - Datasets: PersuasionForGood, ESConv, CraigslistBargain.
+- Emotion classifier: `j-hartmann/emotion-english-distilroberta-base`.
