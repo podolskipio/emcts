@@ -157,14 +157,28 @@ class EmotionAwarePersuasionGame(PersuasionGame):
         # here when zero_shot=False the user agent emits its utterance with its won DA together
         if not self.zero_shot:
             user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)  # user just reply
-            user_emotion = self.emotion_classifier.get_emotion(user_resp)
-            next_state.add_single(state.USR, user_da, user_emotion, user_resp)
+            user_dist = self.emotion_classifier.predict_distribution_from_full_history(next_state, user_resp)
+            user_emotion = max(user_dist, key=user_dist.get)
+            self.emotion_classifier.records.append({
+                "utterance": user_resp,
+                "emotion": str(user_emotion),
+                "context": next_state.to_string_rep(),
+                "distribution": user_dist,
+            })
+            next_state.add_single(state.USR, user_da, user_emotion, user_resp, user_dist)
             v = None
         else:
             # default for interactive, user agent generetes only the utterance without DA. Later the planner heuristic infers a value v and samples DA
             user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
-            user_emotion = self.emotion_classifier.get_emotion(user_resp)
-            next_state.add_single(state.USR, None, user_emotion, user_resp)
+            user_dist = self.emotion_classifier.predict_distribution_from_full_history(next_state, user_resp)
+            user_emotion = max(user_dist, key=user_dist.get)
+            self.emotion_classifier.records.append({
+                "utterance": user_resp,
+                "emotion": str(user_emotion),
+                "context": next_state.to_string_rep(),
+                "distribution": user_dist,
+            })
+            next_state.add_single(state.USR, None, user_emotion, user_resp, user_dist)
             v, sampled_das = self.planner.heuristic(next_state)
             next_state.history[-1].da = self.map_user_action(v, sampled_das)
         return next_state, v, user_emotion
