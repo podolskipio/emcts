@@ -32,7 +32,13 @@ def main(cmd_args):
 	cfg = TASKS[cmd_args.game]
 
 	# load agents from TASKS for the chosen dataset; raw prompting uses the system model's defaults
-	backbone_model, family = make_backbone_model(cmd_args.llm, cmd_args.gen_sentences, cmd_args.ollama_model, cmd_args.ollama_host)
+	backbone_model, family = make_backbone_model(
+		llm=cmd_args.llm,
+		gen_sentences=cmd_args.gen_sentences,
+		ollama_model=cmd_args.ollama_model,
+		ollama_host=cmd_args.ollama_host,
+		sglang_model=cmd_args.sglang_model,
+	)
 	game, system, user, planner = build_agents(cmd_args.game, backbone_model, family, sys_inference_args={})
 
 	print(f"System dialog acts: {system.dialog_acts}")

@@ -21,6 +21,9 @@ import math
 import pickle
 import argparse
 
+from multiprocessing.pool import ThreadPool
+from threading import Lock
+
 import numpy as np
 from tqdm.auto import tqdm
 
@@ -129,7 +132,13 @@ def main(cmd_args):
 	cfg = TASKS[cmd_args.game]
 
 	# load agents from TASKS for the chosen dataset
-	backbone_model, family = make_backbone_model(cmd_args.llm, cmd_args.gen_sentences, cmd_args.ollama_model, cmd_args.ollama_host)
+	backbone_model, family = make_backbone_model(
+		llm=cmd_args.llm,
+		gen_sentences=cmd_args.gen_sentences,
+		ollama_model=cmd_args.ollama_model,
+		ollama_host=cmd_args.ollama_host,
+		sglang_model=cmd_args.sglang_model,
+	)
 	game, system, user, planner = build_agents(
 		cmd_args.game, backbone_model, family,
 		llm_prior_topk=getattr(cmd_args, "llm_prior_topk", None),
@@ -176,10 +185,21 @@ def main(cmd_args):
 	da_emotion_counts = []
 	num_done = 0
 	pbar = tqdm(total=num_dialogs, desc="evaluating dialogues")
-	for dialog in all_dialogs:
-		if num_done == num_dialogs:
-			break
+	# --num_workers > 1 evaluates several dialogs at once so SGLang can batch the requests: the
+	# runner is otherwise one dependent chain of short requests with the GPU idle in between (see
+	# the '[cache:...] N% of wall' line). Threads, not processes — the time goes on waiting for
+	# HTTP, and the agents/games hold no mutable state outside __init__, so sharing them is safe.
+	# Each turn still builds its own MCTS object, so no search state is shared between dialogs.
+	# Per-turn records are collected per dialog and merged in dialog order on every dump, so the
+	# output pickle does not depend on which dialog happens to finish first.
+	finished = []            # (dialog index, per-turn records{}), guarded by results_lock
+	results_lock = Lock()
 
+	def run_one_dialog(indexed_dialog):
+		nonlocal num_done
+		idx, dialog = indexed_dialog
+		dialog_output = []   # this dialog's records; merged into `output` under the lock
+		dialog_da_counts = []  # per-turn DA->emotion snapshots, merged with the records
 		did = dialog["id"]
 		turns = dialog["turns"]
 		print("evaluating dialog id: ", did)
@@ -251,7 +271,10 @@ def main(cmd_args):
 					"realizations": dialog_planner.realizations,
 					"realizations_Vs": dialog_planner.realizations_Vs,
 					"realizations_Ns": dialog_planner.realizations_Ns,
-					"emotions_count": dialog_planner.emotions_count,
+					# plain dict copy: emotions_count is a defaultdict whose factory is a *bound method*
+					# of the planner, so pickling it as-is drags in the whole MCTS -> game -> backbone
+					# model (and, under --llm sglang, the openai client's unpicklable RLock).
+					"emotions_count": {k: dict(v) for k, v in dialog_planner.emotions_count.items()},
 				},
 			}
 
@@ -282,9 +305,9 @@ def main(cmd_args):
 				'dialog_length': len(turns),
 				"debug": debug_data,
 			}
-			output.append(cmp_data)
+			dialog_output.append(cmp_data)
 			# snapshot the per-turn DA->emotion counts (dict-copy to detach from the planner's defaultdict)
-			da_emotion_counts.append({k: dict(v) for k, v in dialog_planner.emotions_count.items()})
+			dialog_da_counts.append({k: dict(v) for k, v in dialog_planner.emotions_count.items()})
 
 			if cmd_args.debug:
 				print(context)
@@ -292,12 +315,28 @@ def main(cmd_args):
 				print("human da: ", next_sys_da)
 				print("mcts resp: ", mcts_pred_rep)
 				print("mcts da: ", mcts_policy_next_da)
-		with open(cmd_args.output, "wb") as f:
-			pickle.dump(output, f)
-		num_done += 1
-		pbar.update(1)
-	pbar.close()
+		with results_lock:
+			finished.append((idx, dialog_output, dialog_da_counts))
+			output[:] = [rec for entry in sorted(finished, key=lambda t: t[0]) for rec in entry[1]]
+			da_emotion_counts[:] = [c for entry in sorted(finished, key=lambda t: t[0]) for c in entry[2]]
+			with open(cmd_args.output, "wb") as f:
+				pickle.dump(output, f)
+			num_done += 1
+			pbar.update(1)
 
+	indexed_dialogs = list(enumerate(all_dialogs[:num_dialogs]))
+	workers = max(1, min(cmd_args.num_workers, len(indexed_dialogs)))
+	if workers == 1:
+		# unchanged sequential path, so single-worker runs stay identical to before
+		for indexed_dialog in indexed_dialogs:
+			run_one_dialog(indexed_dialog)
+	else:
+		print(f"evaluating {workers} dialogs concurrently (--num_workers {cmd_args.num_workers})")
+		pool = ThreadPool(processes=workers)
+		pool.map(run_one_dialog, indexed_dialogs)
+		pool.close()
+		pool.join()
+	pbar.close()
 	# emotion distribution + utterance->emotion records (seeding here + inside the MCTS, both go
 	# through the same shared classifier instance)
 	dump_emotion_records(emotion_classifier, cmd_args.output)
@@ -315,6 +354,11 @@ if __name__ == "__main__":
 	parser.add_argument('--max_realizations', type=int, default=3, help='number of realizations per mcts state')
 	parser.add_argument('--Q_0', type=float, default=0.0, help='initial Q value for unitialized states. to control exploration')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
+	parser.add_argument('--num_workers', type=int, default=1,
+						help='evaluate this many dialogs concurrently (threads). 1 = the old '
+						     'sequential behaviour. Higher values keep several requests in flight '
+						     'so SGLang can batch them; the GPU is otherwise idle between calls. '
+						     '4-8 suits a single local server. Records stay in dialog order.')
 	parser.add_argument('--emotion_classifier', choices=['llm', 'hf'], default='llm',
 						help='which emotion classifier to use. '
 							 '"llm" = prompt-based (shares the system backbone; uses few-shot + low temp + cache). '

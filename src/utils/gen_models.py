@@ -11,6 +11,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
 from typing import List, Tuple, Dict
 from utils.sessions import DialogSession
 from functools import lru_cache
+from multiprocessing.pool import ThreadPool
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed  # for exponential backoff
 from utils.utils import hashabledict
 
@@ -547,3 +548,122 @@ class LocalModel(GenerationModel):
         for resp in gen_resps:
             gen_output.append({"generated_text": resp})
         return gen_output
+
+
+@lru_cache(maxsize=None)
+def _sglang_cached_chat_completion(client, **parameters):
+    # deterministic (do_sample=False) requests are memoized so that repeated visits to the
+    # same tree node don't hit the server again. messages/extra_body arrive hashable.
+    parameters["messages"] = list(parameters["messages"])
+    return client.chat.completions.create(**parameters)
+
+
+class SGLangChatModel(GenerationModel):
+    def __init__(
+            self,
+            model_name="TheBloke/vicuna-13B-v1.5-AWQ",
+            gen_sentences=-1,
+            base_url=None,
+            request_timeout=600
+    ):
+        base_url = base_url or os.environ.get("SGLANG_HOST", "http://127.0.0.1:30000")
+        if not base_url.startswith("http"):
+            base_url = f"http://{base_url}"
+        base_url = base_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        self.base_url = base_url
+        self.client = openai.Client(base_url=self.base_url, api_key="None", timeout=request_timeout)
+        # sanity check: is the server up, and is it serving the model we are about to ask for?
+        try:
+            served = [m.id for m in self.client.models.list().data]
+        except Exception as e:
+            raise ConnectionError(
+                f"could not reach an SGLang server at {self.base_url}. Start it with "
+                f"`python -m sglang.launch_server --model-path {model_name} --port 30000`, "
+                f"or point SGLANG_HOST / base_url at the right address. Original error: {e}"
+            )
+        if served and model_name not in served:
+            logger.warning(
+                f"SGLang at {self.base_url} serves {served}, not '{model_name}'. Using '{served[0]}' instead."
+            )
+            model_name = served[0]
+
+        self.inference_args = {
+            "model": model_name,
+            "max_tokens": 64,
+            "temperature": 0.7,
+            "n": 1,
+            # "stop": "\n"  # no longer need since we are using chat
+            # "echo": False,
+        }
+        self.gen_sentences = None if gen_sentences < 0 else gen_sentences
+        return
+
+    def _update_args(self, new_args):
+        new_args = dict(new_args)  # never mutate the caller's dict (shared across batched workers)
+        args = {**self.inference_args}
+        from_cache = False
+        # completion-only / HF-only arguments that the chat endpoint has no use for
+        for k in ("stop", "echo", "return_full_text"):
+            new_args.pop(k, None)
+        if "max_new_tokens" in new_args:
+            new_args["max_tokens"] = new_args.pop("max_new_tokens")
+        if "do_sample" in new_args:
+            from_cache = not new_args.pop("do_sample")  # greedy + memoized
+        if "num_return_sequences" in new_args:
+            new_args["n"] = new_args.pop("num_return_sequences")
+        if "repetition_penalty" in new_args:
+            # HF semantics (multiplicative, neutral 1.0) != OpenAI frequency_penalty (additive,
+            # neutral 0.0), but SGLang accepts repetition_penalty itself as an extra field.
+            repetition_penalty = new_args.pop("repetition_penalty")
+            if repetition_penalty != 1.0:
+                new_args["extra_body"] = hashabledict({"repetition_penalty": repetition_penalty})
+        parameters = {**args, **new_args}
+        if from_cache:
+            parameters["temperature"] = 0.0  # do_sample=False means greedy decoding
+        return from_cache, parameters
+
+    def generate(self, input_text, **_args):
+        logging.info("It is recommended to use chat_generate instead of generate for SGLangChatModel")
+        messages = [{
+            "role": "user",
+            "content": input_text
+        }]
+        return self.chat_generate(messages, **_args)
+
+    @retry(wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(3))
+    def chat_generate(self, messages: List[Dict], **gen_args):
+        # generate in a chat format
+        from_cache, parameters = self._update_args(gen_args)
+        hashable_messages = [hashabledict(m) for m in messages]
+        parameters["messages"] = hashable_messages
+        if from_cache:
+            parameters["messages"] = tuple(hashable_messages)  # list cannot be hashed, so cannot do **parameters
+            response = _sglang_cached_chat_completion(self.client, **parameters)
+        else:
+            response = self.client.chat.completions.create(**parameters)
+
+        # format to a common format
+        gen_output = []
+        for resp in response.choices:
+            text = resp.message.content or ""
+            if self.gen_sentences is not None:
+                sentences = nltk.sent_tokenize(text)
+                if len(sentences) > self.gen_sentences:
+                    text = " ".join(sentences[:self.gen_sentences])
+            gen_output.append({"generated_text": text})
+        return gen_output
+
+    def chat_generate_batched(self, messages_list: List[List[Dict]], **gen_args):
+        # threads, not processes: the openai client holds an httpx client (locks, sockets) that
+        # cannot be pickled, and these calls are pure IO that SGLang batches server-side anyway.
+        if len(messages_list) == 0:
+            return []
+        pool = ThreadPool(processes=len(messages_list))
+        results = []
+        for messages in messages_list:
+            results.append(pool.apply_async(self.chat_generate, args=(messages,), kwds=dict(gen_args)))
+        pool.close()
+        pool.join()
+        return [r.get() for r in results]

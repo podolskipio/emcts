@@ -34,7 +34,7 @@ def resolve_data_path(path):
 from utils.sessions import DialogSession, EmotionAwareDialogSession
 from utils.utils import dotdict
 from utils.gen_models import (
-	OpenAIModel, OpenAIChatModel, AzureOpenAIChatModel, OllamaChatModel,
+	OpenAIModel, OpenAIChatModel, AzureOpenAIChatModel, OllamaChatModel, SGLangChatModel,
 )
 from utils.prompt_examples import EXP_DIALOG, ESConv_EXP_DIALOG, CB_EXP_DIALOG
 
@@ -311,10 +311,12 @@ TASKS["emo_p4g"] = _emotion_aware_variant(TASKS["p4g"], EmotionAwarePersuasionGa
 # ---------------------------------------------------------------------------
 # model / agent construction
 # ---------------------------------------------------------------------------
-def make_backbone_model(llm, gen_sentences=-1, ollama_model="llama3.1", ollama_host=None):
+def make_backbone_model(llm, gen_sentences=-1, ollama_model=None, sglang_model=None, ollama_host=None):
 	"""Build the LLM backend + a flag for which (chat vs completion) model family to use."""
 	if llm == "ollama":
 		return OllamaChatModel(ollama_model, base_url=ollama_host, gen_sentences=gen_sentences), "chat"
+	if llm == "sglang":
+		return SGLangChatModel(sglang_model), "chat"
 	if llm in ("code-davinci-002", "text-davinci-002", "text-davinci-003"):
 		return OpenAIModel(llm), "completion"
 	if llm == "gpt-3.5-turbo":
@@ -489,9 +491,10 @@ def add_common_args(parser, default_output):
 						help="path to the dataset file (default: TASKS[game].default_data)")
 	parser.add_argument("--output", type=str, default=default_output, help="output pickle path")
 	parser.add_argument("--llm", type=str, default="gpt-3.5-turbo",
-						choices=["code-davinci-002", "text-davinci-002", "gpt-3.5-turbo", "chatgpt", "ollama"],
+						choices=["code-davinci-002", "text-davinci-002", "gpt-3.5-turbo", "chatgpt", "ollama", "sglang"],
 						help="backbone model ('ollama' = local Ollama server, see --ollama_model)")
 	parser.add_argument("--ollama_model", type=str, default="llama3.1", help="[--llm ollama] model name served by Ollama")
+	parser.add_argument("--sglang_model", type=str, default="TheBloke/vicuna-13B-v1.5-AWQ", help="[--llm sglang] model name served by SGLang")
 	parser.add_argument("--ollama_host", type=str, default=None, help="[--llm ollama] server URL (default $OLLAMA_HOST or http://localhost:11434)")
 	parser.add_argument("--gen_sentences", type=int, default=-1, help="truncate generations to this many sentences (-1 = no limit)")
 	parser.add_argument("--debug", action="store_true", help="print each turn's context / prediction")

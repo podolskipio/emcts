@@ -32,6 +32,9 @@ import pickle
 import logging
 import argparse
 
+from multiprocessing.pool import ThreadPool
+from threading import Lock
+
 import numpy as np
 from tqdm.auto import tqdm
 
@@ -143,7 +146,13 @@ def main(cmd_args):
 
 	# load agents from TASKS; llm_raw keeps the model's built-in inference defaults, MCTS open-loop wants sampling on
 	sys_inference_args = {} if cmd_args.algo == "llm_raw" else None
-	backbone_model, family = make_backbone_model(cmd_args.llm, cmd_args.gen_sentences, cmd_args.ollama_model, cmd_args.ollama_host)
+	backbone_model, family = make_backbone_model(
+		llm=cmd_args.llm,
+		gen_sentences=cmd_args.gen_sentences,
+		ollama_model=cmd_args.ollama_model,
+		ollama_host=cmd_args.ollama_host,
+		sglang_model=cmd_args.sglang_model,
+	)
 	game, system, user, planner = build_agents(
 		cmd_args.game, backbone_model, family,
 		sys_inference_args=sys_inference_args,
@@ -200,32 +209,66 @@ def main(cmd_args):
 	n = min(cap, len(all_dialogs))
 	print(f"task={cmd_args.game}  {n} scenarios  (max_turns={cmd_args.max_turns})")
 	pbar = tqdm(total=n, desc=f"rollout {cmd_args.game}/{cmd_args.algo}")
-	for dialog in all_dialogs[:n]:
+
+	# --num_workers > 1 plays several dialogs at once so SGLang can batch them: the runner is
+	# otherwise one dependent chain of ~0.2s requests with the GPU idle in between (see the
+	# '[cache:...] N% of wall' line). Threads, not processes — the time is spent waiting on HTTP,
+	# and the agents/games hold no mutable state outside __init__, so they are shared safely.
+	# Each dialog still builds its own MCTS object per turn, so no search state is shared.
+	# Results carry their scenario index and are re-sorted on every dump, so the output pickle is
+	# in scenario order regardless of which dialog finishes first.
+	finished = []            # (scenario index, episode), guarded by results_lock
+	results_lock = Lock()
+	first_error = []         # first worker exception, re-raised after the pool drains (--raise_errors)
+
+	def run_one_dialog(indexed_dialog):
+		idx, dialog = indexed_dialog
 		did = dialog["id"]
 		try:
 			state = rollout_one(game, planner, cmd_args.algo, configs,
 								 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
 								 mcts_cls=mcts_cls, mcts_kwargs=mcts_kwargs)
-			episodes.append(make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo))
-			if cmd_args.debug:
-				game.display(state)
-				print(f"  -> success={episodes[-1]['success']}  turns={episodes[-1]['num_turns']}")
+			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo)
 		except Exception as e:
 			logger.exception(f"rollout {did} failed: {e}")
-			if cmd_args.raise_errors:
-				raise
-		with open(cmd_args.output, "wb") as f:
-			pickle.dump(episodes, f)
-		pbar.update(1)
-		# cumulative SR / AvgT over ALL episodes so far, printed every 10 completed dialogs
-		if episodes and len(episodes) % 10 == 0:
-			try:
-				from metrics.dialog_metrics import compute_metrics, format_metrics
-				m = compute_metrics(episodes, task=cmd_args.game, max_turns=cmd_args.max_turns)
-				pbar.write(f"[after {len(episodes)} dialogs] {format_metrics(m)}")
-			except Exception:
-				pass
+			with results_lock:
+				if not first_error:
+					first_error.append(e)
+				pbar.update(1)
+			return
+		with results_lock:
+			finished.append((idx, episode))
+			episodes[:] = [ep for _, ep in sorted(finished, key=lambda t: t[0])]
+			if cmd_args.debug:
+				game.display(state)
+				print(f"  -> success={episode['success']}  turns={episode['num_turns']}")
+			with open(cmd_args.output, "wb") as f:
+				pickle.dump(episodes, f)
+			pbar.update(1)
+			# cumulative SR / AvgT over ALL episodes so far, printed every 10 completed dialogs
+			if episodes and len(episodes) % 10 == 0:
+				try:
+					from metrics.dialog_metrics import compute_metrics, format_metrics
+					m = compute_metrics(episodes, task=cmd_args.game, max_turns=cmd_args.max_turns)
+					pbar.write(f"[after {len(episodes)} dialogs] {format_metrics(m)}")
+				except Exception:
+					pass
+
+	indexed_dialogs = list(enumerate(all_dialogs[:n]))
+	workers = max(1, min(cmd_args.num_workers, n))
+	if workers == 1:
+		# unchanged sequential path, so single-worker runs stay identical to before
+		for indexed_dialog in indexed_dialogs:
+			run_one_dialog(indexed_dialog)
+	else:
+		print(f"rolling out {workers} dialogs concurrently (--num_workers {cmd_args.num_workers})")
+		pool = ThreadPool(processes=workers)
+		pool.map(run_one_dialog, indexed_dialogs)
+		pool.close()
+		pool.join()
 	pbar.close()
+	if first_error and cmd_args.raise_errors:
+		raise first_error[0]
 
 	# quick on-the-fly summary
 	try:
@@ -245,6 +288,11 @@ if __name__ == "__main__":
 	parser.add_argument("--max_turns", type=int, default=10, help="hard cap on dialog turns per episode")
 	parser.add_argument("--max_conv", type=int, default=20, help="max scenarios to roll out (-1 for all)")
 	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing rollout")
+	parser.add_argument("--num_workers", type=int, default=1,
+						help="play this many dialogs concurrently (threads). 1 = the old sequential "
+						     "behaviour. Higher values keep several requests in flight so SGLang can "
+						     "batch them; the GPU is otherwise idle between calls. 4-8 suits a single "
+						     "local server. Episodes stay in scenario order in the output pickle.")
 	parser.add_argument("--algo", choices=list(ALGOS), default="llm_raw",
 						help="how to pick each system action (see pick_action in rollout.py)")
 	# MCTS hyper-parameters (used by gdpzero + emomcts)
