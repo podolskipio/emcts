@@ -11,6 +11,25 @@ logger = logging.getLogger(__name__)
 
 
 class MCTS:
+	# Optional bookkeeping tables, declared here so EVERY planner exposes the whole
+	# subtree-log schema (runners/_common.build_subtree_records) as plain attributes.
+	# Only the subclasses named below ever write to them, and they write by assigning
+	# an instance attribute in __init__ -- these class-level dicts are read-only
+	# placeholders that stay empty on the planners that have no such channel.
+	#   realizations / realizations_Vs / realizations_Ns / cache_hits -> OpenLoopMCTS
+	#   Q_emo / M2_emo / emo_valences                                 -> EmotionAwareMultiObjectiveQ
+	realizations: dict = {}
+	realizations_Vs: dict = {}
+	realizations_Ns: dict = {}
+	cache_hits: dict = {}
+	Q_emo: dict = {}
+	M2_emo: dict = {}
+	emo_valences: dict = {}
+	# True on the open-loop variants, where a node is a dialog-act prefix with a pool of
+	# concrete realizations behind it. The subtree log records action_seq / depth only for
+	# those, so it asks this instead of sniffing for a `realizations` attribute.
+	is_open_loop: bool = False
+
 	def __init__(self, game:DialogGame, player:DialogPlanner, configs) -> None:
 		self.game = game
 		self.player = player
@@ -25,6 +44,11 @@ class MCTS:
 		self.terminals: dict = {}  # cached terminal-value lookup (used by base MCTS; OpenLoopMCTS re-checks every visit because terminality depends on the concrete realization, not the DA prefix).
 		# debugging / more information
 		self.Vs: dict = {}  # leaf values, kept only for debugging/inspection.
+		# Same leaf values as self.Vs, but keyed by the TREE key (the DA prefix for the
+		# open-loop variants) instead of the full string rep. self.Vs' key space cannot be
+		# joined against Nsa/Q, so the frozen subtree log reads leaf_value from here.
+		# Write-only bookkeeping: nothing in selection or backup reads it.
+		self.node_V: dict = {}
 		return
 
 	def _to_string_rep(self, state:DialogSession):
@@ -42,6 +66,7 @@ class MCTS:
 
 		prior, v = self.player.predict(state)
 		self.Vs[state.to_string_rep(keep_sys_da=True, keep_user_da=True)] = v  # for debugging
+		self.node_V[hashable_state] = v  # same value, keyed for the subtree log
 		self.P[hashable_state] = prior * allowed_actions
 		# renormalize
 		if np.sum(self.P[hashable_state]) == 0:
@@ -83,7 +108,7 @@ class MCTS:
 				best_uct = uct
 				best_action = a
 		# transition
-		next_state, _ = self.game.get_next_state(state, best_action)
+		next_state = self.game.get_next_state(state, best_action)
 
 		# 1. if not leaf, continue traversing, and state=s will get the value from the leaf node
 		# 2. if leaf, we will expand it and return the value for backpropagation
@@ -114,6 +139,8 @@ class MCTS:
 
 
 class OpenLoopMCTS(MCTS):
+	is_open_loop = True
+
 	def __init__(self, game, player, configs) -> None:
 		super().__init__(game, player, configs)
 		# Pool of concrete dialog trajectories that all collapse to this DA-prefix node.
@@ -127,6 +154,10 @@ class OpenLoopMCTS(MCTS):
 		# Visit counts that go with realizations_Vs so the means in realizations_Vs can be updated incrementally.
 		self.realizations_Ns: dict = {}  # state -> {realization: N(realization)}
 		self.max_realizations = configs.max_realizations
+
+		# node -> [served_from_cache, freshly_generated] transitions INTO that node.
+		# The frozen subtree log reports cache_hit = served_from_cache > 0. Write-only.
+		self.cache_hits: dict = {}
 		return
 
 	def _to_string_rep(self, state:DialogSession):
@@ -149,6 +180,7 @@ class OpenLoopMCTS(MCTS):
 
 		prior, v = self.player.predict(state)
 		self.Vs[st := state.to_string_rep(keep_sys_da=True, keep_user_da=True)] = v  # for debugging
+		self.node_V[hashable_state] = v  # same value, keyed for the subtree log
 		logger.debug(f"State: {st}\n\n")
 		self.P[hashable_state] = prior * allowed_actions
 		# renormalize
@@ -163,7 +195,7 @@ class OpenLoopMCTS(MCTS):
 		# actions are unreachable for this node. Eliminates the PUCT round-robin
 		# waste on actions the LLM said were bad. See debug.md "llm_prior_topk
 		# should do hard pruning".
-		topk = getattr(self.player, "llm_prior_topk", None)
+		topk = self.player.llm_prior_topk
 		if topk is not None and 0 < topk < len(self.valid_moves[hashable_state]):
 			ranked = sorted(self.valid_moves[hashable_state], key=lambda a: -self.P[hashable_state][a])
 			kept = np.array(sorted(ranked[:topk]), dtype=self.valid_moves[hashable_state].dtype)
@@ -201,14 +233,20 @@ class OpenLoopMCTS(MCTS):
 			self.realizations[hashable_state].pop(0)
 		return
 
+	def _record_cache(self, node: str, hit: bool):
+		counts = self.cache_hits.setdefault(node, [0, 0])
+		counts[0 if hit else 1] += 1
+
 	def _get_next_state(self, state, best_action):
 		prefetch_state = self._to_string_rep(state) + "__" + self.player.dialog_acts[best_action]
 		if prefetch_state in self.realizations and len(self.realizations[prefetch_state]) == self.max_realizations:
 			# use the cached realization
+			self._record_cache(prefetch_state, True)
 			return self._sample_realization(prefetch_state)
 		
 		# otherwise, generate a new realization
-		next_state, _ = self.game.get_next_state(state, best_action)
+		self._record_cache(prefetch_state, False)
+		next_state = self.game.get_next_state(state, best_action)
 		return next_state
 
 	def _update_realizations_Vs(self, state: DialogSession, v: float):
@@ -311,8 +349,10 @@ class OpenLoopMCTSParallel(OpenLoopMCTS):
 		prefetch_state = self._to_string_rep(state) + "__" + self.player.dialog_acts[best_action]
 		if prefetch_state in self.realizations and len(self.realizations[prefetch_state]) == self.max_realizations:
 			# use the cached realization
+			self._record_cache(prefetch_state, True)
 			return self._sample_realization(prefetch_state)
 
+		self._record_cache(prefetch_state, False)
 		self._populate_next_realizations(state, best_action, self.max_realizations)
 		return self._sample_realization(prefetch_state)
 	
@@ -331,6 +371,7 @@ class OpenLoopMCTSParallel(OpenLoopMCTS):
 		# TODO: batch predict value function
 		prior, v = self.player.predict(state)
 		self.Vs[state.to_string_rep(keep_sys_da=True, keep_user_da=True)] = v  # for debugging
+		self.node_V[hashable_state] = v  # same value, keyed for the subtree log
 		self.P[hashable_state] = prior * allowed_actions
 		# renormalize
 		if np.sum(self.P[hashable_state]) == 0:

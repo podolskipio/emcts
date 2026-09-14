@@ -57,6 +57,12 @@ class DialogSession:
         else:
             return self.history[turn * 2 + 1][-1]
 
+    def predicted_distribution(self):
+        """No emotion is attached on a plain session; EmotionAwareDialogSession returns the
+        classifier softmax over the last turn. Defined on both so the subtree logger can ask
+        any realization for its distribution and get the nu(empty) = 0 convention here."""
+        return None
+
     def to_chat_messages(self) -> list:
         return [{'role': role, 'content': utt} for role, _da, utt in self.history]
 

@@ -1,6 +1,8 @@
 import os
 import sys
+import csv
 import json
+import gzip
 import pickle
 from collections import Counter
 import logging
@@ -31,7 +33,9 @@ def resolve_data_path(path):
 		return os.path.abspath(path)
 	return rooted  # let the reader raise the FileNotFoundError with a useful path
 
-from utils.sessions import DialogSession, EmotionAwareDialogSession
+import numpy as np
+
+from utils.sessions import DialogSession
 from utils.utils import dotdict
 from utils.gen_models import (
 	OpenAIModel, OpenAIChatModel, AzureOpenAIChatModel, OllamaChatModel, SGLangChatModel,
@@ -190,12 +194,64 @@ def _read_p4g_jsonl(path, system_dialog_acts):
 	return out
 
 
+# --- PersuasionForGood full corpus (data/p4g_personas/full_dialog.csv: one row per utterance,
+#     columns Unit / Turn / B4 (0 = persuader, 1 = persuadee) / B2 (dialogue id)) ---
+ANNOTATED_P4G_PKL = "data/p4g/300_dialog_turn_based.pkl"
+
+
+def _annotated_p4g_ids():
+	"""Dialogue ids of the annotated 300 (the GDP-Zero pickle), for excluding them below."""
+	with open(resolve_data_path(ANNOTATED_P4G_PKL), "rb") as f:
+		return set(pickle.load(f).keys())
+
+
+def _read_p4g_full_csv(path, system_dialog_acts):
+	"""Read the full 1017-dialogue P4G corpus, minus the annotated 300.
+	The annotated 300 are dropped because w(e) is mined from them (see
+	``emotion_mining/build_p4g_rollout_evalset.py``); evaluating on the remaining 717 keeps the
+	rollout set disjoint from the mining corpus by construction, personas included.
+	"""
+	annotated = _annotated_p4g_ids()
+	# {did: {(turn, speaker): [unit, ...]}} -- a speaker occasionally has several rows per turn
+	by_dialog = {}
+	with open(path, newline="", encoding="utf-8") as f:
+		for row in csv.DictReader(f):
+			did = row["B2"]
+			turn_key = (int(row["Turn"]), int(row["B4"]))
+			by_dialog.setdefault(did, {}).setdefault(turn_key, []).append(str(row["Unit"]).strip())
+
+	n_total = len(by_dialog)
+	out = []
+	for did, units in by_dialog.items():
+		if did in annotated or did in P4G_BAD_DIALOGS:
+			continue
+		turns = []
+		for t in sorted({turn for turn, _spk in units}):
+			sys_utt = " ".join(u for u in units.get((t, 0), []) if u).strip()
+			usr_utt = " ".join(u for u in units.get((t, 1), []) if u).strip()
+			if not sys_utt or not usr_utt:
+				continue  # the corpus ends on a half turn now and then; self-play ignores turns anyway
+			turns.append({
+				# unannotated corpus: no dialog acts to map, so the neutral fallbacks both readers use
+				"sys_da": "other", "sys_utt": sys_utt,
+				"usr_da": PersuasionGame.U_Neutral, "usr_utt": usr_utt,
+			})
+		if turns:
+			out.append({"id": did, "scenario": (), "turns": turns})
+	print(f"p4g full corpus: {n_total} dialogs, {n_total - len(out)} dropped "
+	      f"(annotated 300 + bad ids + empty) -> {len(out)} non-annotated scenarios")
+	return out
+
+
 def read_p4g(path, system_dialog_acts):
 	if path.startswith(HF_PREFIX):
 		return read_p4g_hf(path, system_dialog_acts)
 	# JSON-lines variant produced by convert_p4g_to_jsonl.py; the pickle is the GDP-Zero original
 	if path.endswith(".pkl"):
 		return _read_p4g_pickle(path, system_dialog_acts)
+	# data/p4g_personas/full_dialog.csv -- the unannotated full corpus, for self-play rollouts
+	if path.endswith(".csv"):
+		return _read_p4g_full_csv(path, system_dialog_acts)
 	return _read_p4g_jsonl(path, system_dialog_acts)
 
 
@@ -263,6 +319,12 @@ TASKS = {
 		"success_user_da": PersuasionGame.U_Donate,
 		"read_dialogs": read_p4g,
 		"default_data": "data/p4g/300_dialog_turn_based.pkl",
+		# the p4g user model and planner take a `persona`; the planner also takes
+		# llm_prior_topk / logit_scoring / explicit_value_labels. See build_agents.
+		"supports_persona": True,
+		"supports_planner_tuning": True,
+		"emotion_aware": False,
+		"emotion_classifier_cls": None,
 	}),
 	"esc": dotdict({
 		"game_cls": EmotionalSupportGame,
@@ -273,6 +335,10 @@ TASKS = {
 		"success_user_da": EmotionalSupportGame.U_Solved,
 		"read_dialogs": read_esc,
 		"default_data": "data/esc/esc-valid.txt",
+		"supports_persona": False,
+		"supports_planner_tuning": False,
+		"emotion_aware": False,
+		"emotion_classifier_cls": None,
 	}),
 	"cb": dotdict({
 		"game_cls": CBGame,
@@ -283,6 +349,10 @@ TASKS = {
 		"success_user_da": CBGame.U_Deal,
 		"read_dialogs": read_cb,
 		"default_data": "data/cb/cb-valid.txt",
+		"supports_persona": False,
+		"supports_planner_tuning": False,
+		"emotion_aware": False,
+		"emotion_classifier_cls": None,
 	}),
 }
 
@@ -292,10 +362,10 @@ TASKS = {
 #
 # An emotion-aware task reuses everything from its base task (models, planner, reader,
 # few-shot example, success DA, data) but swaps in a game whose ``init_dialog`` returns an
-# ``EmotionAwareDialogSession`` and adds an ``emotion_classifier_cls`` that ``build_agents``
-# instantiates and attaches to the game. Emotion-aware runners (``runners/emomcts.py``) then
-# read ``game.emotion_classifier`` instead of hardcoding one — so registering the next dataset
-# (esc / cb) is one ``_emotion_aware_variant`` call once its emotion-aware game exists.
+# ``EmotionAwareDialogSession``, and names the ``emotion_classifier_cls`` that
+# ``make_emotion_classifier`` builds once per run for ``build_agents`` to hand that game — so
+# registering the next dataset (esc / cb) is one ``_emotion_aware_variant`` call once its
+# emotion-aware game exists.
 # ---------------------------------------------------------------------------
 def _emotion_aware_variant(base_task, game_cls, emotion_classifier_cls):
 	cfg = dotdict(dict(base_task))
@@ -326,19 +396,37 @@ def make_backbone_model(llm, gen_sentences=-1, ollama_model=None, sglang_model=N
 	raise ValueError(f"unsupported --llm {llm}")
 
 
-def build_agents(task_name, backbone_model, family, *, zero_shot=False,
+def build_agents(task_name, backbone_model, family, *, infer_user_da=False,
 				 sys_inference_args=None, usr_inference_args=None,
-				 llm_prior_topk: int | None = None):
+				 llm_prior_topk: int | None = None,
+				 logit_scoring: "str | bool" = "off",
+				 explicit_value_labels: bool = False,
+				 persona: str | None = None,
+				 max_conv_turns: int | None = None,
+				 emotion_classifier=None):
 	"""Construct (game, system, user, planner) for ``task_name``.
 
 	``family`` is "chat" or "completion" (selects the *ChatModel / *ChatSystemPlanner
 	vs the plain variants), matching how the backbone model was created.
 
-	``zero_shot`` defaults to ``False`` to match GDPZero's behaviour: the user agent emits its
-	own DA via ``get_utterance_w_da`` (rather than having ``game.get_next_state`` infer it from
-	the planner heuristic). MCTS still works because ``planner.predict`` calls ``heuristic``
-	internally for its leaf-value signal — the ``v`` ``get_next_state`` returns under
-	``zero_shot=True`` is currently discarded by ``mcts/mcts.py`` either way.
+	``max_conv_turns`` bounds how deep MCTS may simulate (``game.get_dialog_ended`` returns a
+	loss once a state reaches it).
+
+	``persona`` (p4g only) conditions the two objects that role-play the persuadee -- the user
+	simulator and the planner's value estimator -- on the real participant from that dialogue's
+	pre-task survey (see ``utils/p4g_personas.py``).
+	``None`` gives the unconditioned agents, byte-identical to GDPZero's.
+
+	``emotion_classifier`` is required by the emotion-aware tasks and ignored by the others;
+	see make_emotion_classifier.
+
+	``infer_user_da`` says who assigns the user's dialog act. ``False`` (the default, matching
+	GDPZero) has the user agent tag its own turn through ``get_utterance_w_da``; ``True`` has it
+	write only the utterance and lets the planner's critic infer the act in
+	``game.get_next_state``. It also selects how the esc/cb agents are prompted: their
+	instruction-style prompts carry no ``[act]`` labels, which is why nothing can self-tag under
+	them. MCTS is unaffected either way -- ``planner.predict`` calls ``heuristic`` itself for the
+	leaf value, so the critic's value is never a transition output.
 	"""
 	cfg = TASKS[task_name]
 	chat = (family == "chat")
@@ -351,26 +439,39 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 	user_da = ontology["user"]["dialog_acts"]
 	example = DialogSession(cfg.game_cls.SYS, cfg.game_cls.USR).from_history(cfg.example)
 
+	# top_p/top_k are pinned rather than left to the backend. Unset, every server applies its own
+	# default -- Ollama uses top_p=0.9/top_k=40, while SGLang adopts the model's generation_config
+	# (vicuna-13b-v1.5 ships top_p=0.6). A 0.6 nucleus collapses the open-loop rollouts: on one
+	# mid-dialogue context, 30 persuadee samples at temperature 1.1 came back byte-identical
+	# 30/30 at top_p=0.6 vs 30/30 *distinct* at 0.9, which is what drove the repetition loops in
+	# the SGLang §W5 row. Pinning them also makes the backend comparison a like-for-like one.
+	SAMPLING = {"top_p": 0.9, "top_k": 40}
 	if sys_inference_args is None:
-		sys_inference_args = {"temperature": 0.7, "do_sample": True, "return_full_text": False}  # MCTS open loop
+		sys_inference_args = {"temperature": 0.7, "do_sample": True, "return_full_text": False, **SAMPLING}  # MCTS open loop
 	if usr_inference_args is None:
 		usr_inference_args = {
 			"max_new_tokens": 128, "temperature": 1.1, "repetition_penalty": 1.0,
-			"do_sample": True, "return_full_text": False,  # MCTS open loop
+			"do_sample": True, "return_full_text": False, **SAMPLING,  # MCTS open loop
 		}
 	system = SysModel(
 		sys_da, backbone_model,
 		conv_examples=[example],
 		inference_args=sys_inference_args,
-		zero_shot=zero_shot,
+		infer_user_da=infer_user_da,
 	)
-	user = UsrModel(
-		user_da,
+	usr_kwargs = dict(
 		inference_args=usr_inference_args,
 		backbone_model=backbone_model,
 		conv_examples=[example],
-		zero_shot=zero_shot,
+		infer_user_da=infer_user_da,
 	)
+	# `persona` is p4g-only: the esc/cb user models and planners have no such parameter and
+	# would raise TypeError. Which players take it is declared on the task (supports_persona /
+	# supports_planner_tuning above) rather than sniffed off the constructor signature.
+	if persona and cfg.supports_persona:
+		usr_kwargs["persona"] = persona
+	user = UsrModel(user_da, **usr_kwargs)
+
 	planner_kwargs = dict(
 		dialog_acts=system.dialog_acts,
 		max_hist_num_turns=system.max_hist_num_turns,
@@ -379,37 +480,271 @@ def build_agents(task_name, backbone_model, family, *, zero_shot=False,
 		generation_model=backbone_model,
 		conv_examples=[example],
 	)
-	# llm_prior_topk is only honoured by planners that accept it
-	# (P4GChatSystemPlanner currently). Filter to avoid breaking non-p4g planners.
-	if llm_prior_topk is not None:
-		import inspect
-		if "llm_prior_topk" in inspect.signature(Planner.__init__).parameters:
+	if persona and cfg.supports_persona:
+		planner_kwargs["persona"] = persona
+	if cfg.supports_planner_tuning:
+		if llm_prior_topk is not None:
 			planner_kwargs["llm_prior_topk"] = llm_prior_topk
+		# "off" / False / None all mean "sample the value and the prior, don't score logits"
+		if logit_scoring not in (None, False, "off"):
+			planner_kwargs["logit_scoring"] = logit_scoring
+		if explicit_value_labels:
+			planner_kwargs["explicit_value_labels"] = True
 	planner = Planner(**planner_kwargs)
-	# emotion-aware tasks build the classifier on the backbone model and pass it to the game,
-	# whose __init__ requires it (and whose get_next_state classifies the user's emotion).
-	if cfg.get("emotion_aware") and cfg.get("emotion_classifier_cls"):
-		emotion_classifier = cfg.emotion_classifier_cls(backbone_model)
-		game = cfg.game_cls(system, user, planner, zero_shot, emotion_classifier)
-	else:
-		game = cfg.game_cls(system, user, planner, zero_shot=zero_shot)
+
+	game_kwargs = {} if max_conv_turns is None else {"max_conv_turns": max_conv_turns}
+	if not cfg.emotion_aware:
+		return cfg.game_cls(system, user, planner, infer_user_da=infer_user_da, **game_kwargs), system, user, planner
+	# An emotion-aware game requires a classifier: its get_next_state labels the simulated user
+	# reaction with it. The caller owns the instance (make_emotion_classifier) so that one
+	# classifier -- and so one `records` list -- is shared by every dialog of a run.
+	if emotion_classifier is None:
+		raise ValueError(
+			f"task {task_name!r} is emotion-aware and needs an emotion classifier; "
+			f"build one with make_emotion_classifier() and pass it in."
+		)
+	game = cfg.game_cls(system, user, planner, infer_user_da, emotion_classifier, **game_kwargs)
 	return game, system, user, planner
+
+
+def make_emotion_classifier(task_name, kind, backbone_model):
+	"""The one emotion classifier a run shares, or ``None`` on a task that has no emotions.
+
+	``kind`` is ``--emotion_classifier``: "llm" builds the task's prompt-based classifier on the
+	backbone model (few-shot + low temperature + cache), "hf" the encoder-based drop-in
+	(j-hartmann/emotion-english-distilroberta-base -- deterministic, no LLM cost). Both expose
+	the same interface, so nothing downstream branches on which one is in use.
+
+	Build it once per run and hand the same instance to every ``build_agents`` call: it
+	accumulates the run's utterance -> emotion ``records``, which dump_emotion_records writes out.
+	"""
+	cfg = TASKS[task_name]
+	if not cfg.emotion_aware:
+		return None
+	if kind == "hf":
+		from emotion_classifiers.hf_emotion import HFEmotionClassifier
+		print(f"emotion classifier: HFEmotionClassifier ({HFEmotionClassifier.DEFAULT_MODEL})")
+		return HFEmotionClassifier()
+	if kind == "llm":
+		return cfg.emotion_classifier_cls(backbone_model)
+	raise ValueError(f"unsupported --emotion_classifier {kind!r}; choose 'llm' or 'hf'")
 
 
 # ---------------------------------------------------------------------------
 # loading the dataset for a task
 # ---------------------------------------------------------------------------
-def load_dialogs(task_name, cmd_args, system):
+def load_dialogs(task_name, cmd_args):
 	"""Read + normalize the task's dataset into ``[{id, scenario, turns}, ...]`` (see the readers).
 
-	``--data`` overrides ``TASKS[task].default_data``; the system's dialog acts are passed so the
-	reader can map dataset labels onto this game's ontology.
+	``--data`` overrides ``TASKS[task].default_data``. The system dialog acts come straight off
+	the game ontology -- the same list the system agent gets -- so the reader can map dataset
+	labels onto this game's ontology without a built agent to ask.
 	"""
 	cfg = TASKS[task_name]
+	system_dialog_acts = set(cfg.game_cls.get_game_ontology()["system"]["dialog_acts"])
 	data_path = resolve_data_path(cmd_args.data or cfg.default_data)
-	dialogs = cfg.read_dialogs(data_path, set(system.dialog_acts))
+	dialogs = cfg.read_dialogs(data_path, system_dialog_acts)
 	print(f"loaded {len(dialogs)} dialogs from {data_path}")
 	return dialogs
+
+
+# Subtree logging
+#   {
+#    "dlg_id","turn","node_id","parent_id","action_seq":[...],
+#    "utterances":[...],          # all R cached realizations at this node
+#    "emotion_dist":{...},        # FULL softmax, mean over those realizations
+#    "leaf_value":0.0,
+#    "N":0,"Q":0.0,"Q_emo":0.0,"M2_emo":0.0,"sigma_emo":0.0,
+#    "root_visit_dist":{...},
+#    "cache_hit":true,"seed":0,"depth":0,
+#    "per_step_valences":[...]
+#    }   # every z backed up on this edge, in visit order
+
+SUBTREE_LOG_DIRNAME = "subtree"
+
+
+def _json_safe(value):
+	"""numpy scalars -> python scalars, Emotions -> str. json.dumps handles the rest."""
+	if isinstance(value, (np.floating, np.integer)):
+		return value.item()
+	return value
+
+
+def _node_das(node_id: str) -> list:
+	"""The DA prefix of a node key, as a list. "" is the empty prefix, not [""]."""
+	return node_id.split("__") if node_id else []
+
+
+def _node_emotion_dist(planner, node_id: str) -> dict:
+	"""Mean FULL emotion softmax over the node's cached realizations.
+
+	Never an argmax, and never the raw counts: each cached realization carries the
+	classifier's whole distribution over the user reaction at that node, and this
+	averages them so the record summarises all R samples rather than one of them.
+	"""
+	dists = []
+	for realization in planner.realizations.get(node_id, []):
+		if not realization.history:
+			continue
+		dist = realization.predicted_distribution()  # None on a session with no emotions
+		if dist:
+			dists.append(dist)
+	if not dists:
+		return {}
+	agg: dict = {}
+	for dist in dists:
+		for emotion, p in dist.items():
+			agg[str(emotion)] = agg.get(str(emotion), 0.0) + float(p)
+	return {e: p / len(dists) for e, p in agg.items()}
+
+
+def _node_utterances(planner, node_id: str) -> list:
+	"""The last system utterance of each cached realization at this node (all R samples)."""
+	utterances = []
+	for realization in planner.realizations.get(node_id, []):
+		try:
+			utterances.append(realization.get_turn_utt(turn=-1, role=realization.SYS))
+		except (IndexError, AttributeError):
+			continue  # the dialogue-start root has no system turn yet
+	if utterances:
+		return utterances
+	# fall back to the distinct utterances the realization-value tracker saw
+	return list(planner.realizations_Vs.get(node_id, {}).keys())
+
+
+def _root_visit_dist(planner, root_id: str, dialog_acts: list) -> dict:
+	"""{dialog act: share of root visits}. Identical on every record of a turn; carried
+	per record so a single NDJSON line is self-contained."""
+	counts = planner.Nsa.get(root_id, {})
+	total = float(sum(counts.values()))
+	if total <= 0:
+		return {}
+	out = {}
+	for action, n in counts.items():
+		idx = int(action)
+		name = dialog_acts[idx] if idx < len(dialog_acts) else str(idx)
+		out[name] = float(n) / total
+	return out
+
+
+def build_subtree_records(planner, *, dlg_id, turn: int, root_state, seed=None) -> list:
+	"""One frozen-schema record per edge of ``planner``'s tree. See the block comment above.
+
+	Reads only write-only bookkeeping the planner already keeps (Nsa/Q/Q_emo/M2_emo/
+	emo_valences/realizations/node_V/cache_hits), so calling it has no effect on search.
+	"""
+	from mcts.emotion_mcts import welford_sigma
+
+	dialog_acts = list(planner.player.dialog_acts)
+	open_loop = planner.is_open_loop
+	root_id = planner._to_string_rep(root_state)
+	root_depth = len(_node_das(root_id))
+	root_visit_dist = _root_visit_dist(planner, root_id, dialog_acts)
+	seed = _json_safe(seed)
+
+	# Emotion-channel tables. Empty on the GDP-Zero baselines, which never write them --
+	# MCTS declares all of these so every planner answers with the same shape (see mcts.py).
+	q_emo_all = planner.Q_emo
+	m2_all = planner.M2_emo
+	valences_all = planner.emo_valences
+	cache_all = planner.cache_hits
+	node_v = planner.node_V
+
+	def record(node_id, parent_id, n, q, q_emo, m2, valences):
+		sigma = welford_sigma(int(n), float(m2))
+		return {
+			"dlg_id": dlg_id,
+			"turn": int(turn),
+			"node_id": node_id,
+			"parent_id": parent_id,
+			"action_seq": _node_das(node_id) if open_loop else [],
+			"utterances": _node_utterances(planner, node_id),
+			"emotion_dist": _node_emotion_dist(planner, node_id),
+			"leaf_value": (float(node_v[node_id]) if node_id in node_v else None),
+			"N": int(n),
+			"Q": float(q),
+			"Q_emo": float(q_emo),
+			"M2_emo": float(m2),
+			"sigma_emo": float(sigma),
+			"root_visit_dist": root_visit_dist,
+			"cache_hit": bool(cache_all.get(node_id, [0, 0])[0] > 0),
+			"seed": seed,
+			"depth": (len(_node_das(node_id)) - root_depth) if open_loop else None,
+			"per_step_valences": [float(z) for z in valences],
+		}
+
+	# the search root has no incoming edge: N is its total visit count, the edge-valued
+	# fields are 0.0 / [] by construction.
+	records = [record(root_id, None, planner.Ns.get(root_id, 0), 0.0, 0.0, 0.0, [])]
+
+	for parent_id, actions in planner.Nsa.items():
+		parent_q = planner.Q.get(parent_id, {})
+		parent_q_emo = q_emo_all.get(parent_id, {})
+		parent_m2 = m2_all.get(parent_id, {})
+		parent_valences = valences_all.get(parent_id, {})
+		for action, n in actions.items():
+			idx = int(action)
+			da = dialog_acts[idx] if idx < len(dialog_acts) else str(idx)
+			node_id = f"{parent_id}__{da}" if parent_id else da
+			records.append(record(
+				node_id if open_loop else f"{parent_id}#{da}",
+				parent_id,
+				n,
+				parent_q.get(action, 0.0),
+				parent_q_emo.get(action, 0.0),
+				parent_m2.get(action, 0.0),
+				parent_valences.get(action, []),
+			))
+	return records
+
+
+def _safe_filename(name) -> str:
+	return "".join(c if (c.isalnum() or c in "-_.") else "_" for c in str(name)) or "dialog"
+
+
+def write_subtree_ndjson(records: list, output_path: str, dlg_id) -> str:
+	"""Write one dialogue's subtree records to <run_dir>/subtree/<dlg_id>.ndjson.gz.
+
+	One file per dialogue, written once when the dialogue finishes, so concurrent
+	workers never touch the same file. Returns the path (or "" when there is nothing
+	to write, e.g. --algo llm_raw, which builds no tree).
+	"""
+	if not records:
+		return ""
+	run_dir = os.path.dirname(os.path.abspath(output_path))
+	log_dir = os.path.join(run_dir, SUBTREE_LOG_DIRNAME)
+	os.makedirs(log_dir, exist_ok=True)
+	path = os.path.join(log_dir, f"{_safe_filename(dlg_id)}.ndjson.gz")
+	with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+		for rec in records:
+			f.write(json.dumps(rec, default=str) + "\n")
+	return path
+
+
+def subtree_emo_stats(dialog_planner):
+	"""Per-edge ``(M2_emo, sigma_emo)`` for the subtree log schema.
+
+	Returns two ``{node: {action: float}}`` dicts shaped exactly like ``planner.Nsa``.
+
+	SCHEMA FREEZE: these two fields are written by EVERY runner, on EVERY edge, in
+	EVERY run. A planner without the emotion channel (the GDP-Zero baselines, which
+	use plain ``OpenLoopMCTS``) leaves ``M2_emo`` at the empty table MCTS declares, and
+	reports 0.0 on every edge rather than omitting the field -- so the analysis code
+	reads one schema across all arms and a missing key always means a bug, never a
+	baseline.
+
+	``sigma_emo`` is derived here at write time; the planner never stores it.
+	"""
+	from mcts.emotion_mcts import welford_sigma
+
+	nsa = dialog_planner.Nsa
+	stored_m2 = dialog_planner.M2_emo
+	m2_out, sigma_out = {}, {}
+	for node, actions in nsa.items():
+		node_m2 = stored_m2.get(node, {})
+		m2_out[node] = {a: float(node_m2.get(a, 0.0)) for a in actions}
+		sigma_out[node] = {a: welford_sigma(actions[a], m2_out[node][a]) for a in actions}
+	return m2_out, sigma_out
 
 
 def dump_da_emotion_records(da_emotion_counts: list, output_path: str):
@@ -465,7 +800,7 @@ def dump_emotion_records(emotion_classifier, output_path):
 	during the run (runner seeding + inside the MCTS). The JSON lands next to ``output_path`` as
 	``<output_base>_emotions.json``. No-op when there is no classifier / no records.
 	"""
-	records = getattr(emotion_classifier, "records", None)
+	records = emotion_classifier.records if emotion_classifier is not None else None
 	if not records:
 		print("no emotion records to save")
 		return None
@@ -507,10 +842,82 @@ def add_common_args(parser, default_output):
 						     "robin only covers K actions, and dropped actions are unreachable. "
 						     "Saves ~14 LLM calls per prior computation AND eliminates round-robin "
 						     "waste on actions the LLM said were bad. Emotion conditioning is "
-						     "intentionally separate (lives in the PUCT bonus, --c_emo_bonus). "
+						     "intentionally separate (lives in the emotion-aware Q channel, "
+						     "--beta_emo). "
 						     "None (default) preserves legacy 13-action behaviour. Reasonable "
 						     "values: K=5 or K=7.")
+	parser.add_argument("--explicit_value_labels", action="store_true",
+						help="restate the five donation labels in the value estimator's final user "
+						     "message -- where the answer is read -- instead of only in the leading "
+						     "system message ~1000 tokens earlier, and say what the label answers "
+						     "(paper §W5). Applies to the SHARED value prompt, so the sampled and the "
+						     "logit-scored value both get it. Over three 200-state samples it raises "
+						     "agreement between the two estimators from 0.933/0.945/0.939 to "
+						     "0.950/0.954/0.957 -- clearing the 0.95 acceptance bar, which the prompt "
+						     "as shipped does not -- mostly by making the SAMPLED estimator less "
+						     "noisy (test-retest 0.955 -> 0.981). Default off because it changes the "
+						     "MCTS leaf value for every p4g run, so every row in W5_COST_TABLE.md "
+						     "predates it.")
+	parser.add_argument("--logit_scoring", nargs="?", const="both", default="off",
+						choices=["off", "value", "prior", "both"],
+						help="score the value estimator and the policy prior off the model's "
+						     "logits instead of sampling completions and histogramming them "
+						     "Requires a backbone that can score continuations (--llm sglang); ignored "
+						     "with a warning on the others. Composes with --llm_prior_topk, "
+						     "which still prunes MCTS to the K highest-prior actions. A bare "
+					     "--logit_scoring means 'both'; 'value' and 'prior' switch one role at "
+					     "a time, which is how the §W5 table attributes the saving. 'prior' is "
+					     "not cost-only -- it restores the 15-sample histogram's distribution "
+					     "(r = 0.97 over 200 states), which --llm_prior_topk's ranking call does "
+					     "not approximate (r = -0.28).")
+	parser.add_argument("--emotion_classifier", choices=["llm", "hf"], default="llm",
+						help="which emotion classifier the emotion-aware games use (ignored on "
+						     "the plain tasks). 'llm' = prompt-based, sharing the system backbone "
+						     "(few-shot + low temperature + cache). 'hf' = "
+						     "j-hartmann/emotion-english-distilroberta-base, a deterministic "
+						     "encoder with no LLM cost.")
+	parser.add_argument("--seed", type=int, default=None,
+						help="seed random / numpy before the run. Default None = unseeded, i.e. "
+						     "the previous behaviour. Set it for the pre/post-freeze regression, "
+						     "where the realization sampler has to draw the same way in both runs.")
+	parser.add_argument("--num_workers", type=int, default=1,
+						help="evaluate this many dialogs concurrently (threads). 1 = the old "
+						     "sequential behaviour. Higher values keep several requests in flight "
+						     "so SGLang can batch them; the GPU is otherwise idle between calls. "
+						     "4-8 suits a single local server. Records stay in dialog order.")
+	parser.add_argument("--p4g_persona", action="store_true",
+						help="condition the p4g user simulator on the REAL persuadee who took "
+						     "part in each replayed dialogue, from the Persuasion for Good "
+						     "pre-task survey (data/p4g_personas/full_info.csv -- Big Five, "
+						     "Moral Foundations, Schwartz values, decision style, demographics). "
+						     )
 	return parser
+
+
+def apply_seed(cmd_args):
+	"""Seed ``random`` and ``numpy`` from ``--seed``. No-op when the flag is unset."""
+	if cmd_args.seed is None:
+		return
+	import random
+	random.seed(cmd_args.seed)
+	np.random.seed(cmd_args.seed)
+	print(f"seeded random/numpy with {cmd_args.seed}")
+
+
+def load_p4g_personas(cmd_args):
+	"""``{dialogue_id: persona text}`` when ``--p4g_persona`` is set, else ``{}``.
+
+	Returning a plain dict means the runners can call ``.get(did)`` unconditionally and hand
+	``None`` to ``build_agents(persona=...)`` for a dialogue with no survey response.
+	"""
+	if not cmd_args.p4g_persona:
+		return {}
+	if not cmd_args.game.endswith("p4g"):
+		raise ValueError(f"--p4g_persona applies to the p4g tasks, not --game {cmd_args.game!r}")
+	from utils.p4g_personas import load_persona_texts
+	personas = load_persona_texts()
+	print(f"--p4g_persona: loaded {len(personas)} persuadee personas from the p4g survey")
+	return personas
 
 
 def finalize_args(cmd_args):
@@ -539,7 +946,7 @@ def setup_output_dir(cmd_args, runner_name: str, mcts_class: str, mcts_args=None
 	os.makedirs(run_dir, exist_ok=True)
 	cmd_args.output = os.path.join(run_dir, run_id + ext)
 
-	args_snapshot = vars(cmd_args).copy() if hasattr(cmd_args, "__dict__") else dict(cmd_args)
+	args_snapshot = dict(vars(cmd_args))
 	metadata = {
 		"runner": runner_name,
 		"mcts_class": mcts_class,

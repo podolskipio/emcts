@@ -1,9 +1,5 @@
-from typing import Tuple
-
-import numpy as np
 import logging
-
-from collections import defaultdict as ddict
+from typing import Tuple
 
 from emotion_classifiers.llm_emotion import Emotions
 from games.game import DialogGame
@@ -42,13 +38,15 @@ class PersuasionGame(DialogGame):
             system_agent: DialogModel,
             user_agent: DialogModel,
             planner,
-            zero_shot,
+            infer_user_da,
             max_conv_turns=15,
-            success_base=0.1
+            success_base=0.1,
+            end_on_no_donation=False,
     ):
-        super().__init__('p4g', PersuasionGame.SYS, system_agent, PersuasionGame.USR, user_agent, planner, zero_shot, success_base)
-        self.max_conv_turns = max_conv_turns
-        return
+        super().__init__('p4g', PersuasionGame.SYS, system_agent, PersuasionGame.USR, user_agent,
+                         planner, infer_user_da, success_base, max_conv_turns)
+        # GDP-Zero ended the dialogue in failure as soon as the persuadee said [no donation].
+        self.end_on_no_donation = end_on_no_donation
 
     @staticmethod
     def get_game_ontology() -> dict:
@@ -71,114 +69,98 @@ class PersuasionGame(DialogGame):
         }
 
     def map_user_action(self, v, sampled_das):
-        if v > self.success_base:
-            return PersuasionGame.U_Donate
-        da_dict = ddict(int)
-        for sample_da in sampled_das:
-            if sample_da != PersuasionGame.U_Donate:
-                da_dict[sample_da] += 1
-        if len(da_dict) == 0:
-            return PersuasionGame.U_Neutral
-        max_freq_da = max(da_dict, key=lambda x: da_dict[x])
-        return max_freq_da
+        return self._modal_user_action(v, sampled_das,
+                                       success_da=PersuasionGame.U_Donate,
+                                       default_da=PersuasionGame.U_Neutral)
 
     def get_dialog_ended(self, state) -> float:
-        # terminate if there is a <donate> action in the persuadee's response
-        # allow only max_conv_turns turns
-        if len(state) >= self.max_conv_turns:
-            logger.info("Dialog ended with persuasion failure")
-            return -1.0
-        for (_, da, _) in state:
+        for _role, da, _utt in state:
             if da == PersuasionGame.U_Donate:
-                logger.info("Dialog ended with donate")
+                logger.info("p4g: dialog ended with donate")
                 return 1.0
-            if da == PersuasionGame.U_NoDonation:
-                logger.info("Dialog ended with no-donation")
+            if self.end_on_no_donation and da == PersuasionGame.U_NoDonation:
+                logger.info("p4g: dialog ended with no-donation")
                 return -1.0
-        return 0.0
+        return self._failure_or_continue(state)
 
-    def get_next_state(self, state: DialogSession, action, mode: str = 'train') -> "Tuple[DialogSession, float]":
+    def get_next_state(self, state: DialogSession, action, mode: str = 'train') -> DialogSession:
         next_state = state.copy()
-
-        sys_utt = self.system_agent.get_utterance(next_state, action)  # action is DA
         sys_da = self.system_agent.dialog_acts[action]
+        sys_utt = self.system_agent.get_utterance(next_state, action)
         next_state.add_single(state.SYS, sys_da, sys_utt)
 
-        # state in user's perspective
-        # here when zero_shot=False the user agent emits its utterance with its won DA together
-        if not self.zero_shot:
-            user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)  # user just reply
-            next_state.add_single(state.USR, user_da, user_resp)
-            v = None
-        else:
-            # default for interactive, user agent generetes only the utterance without DA. Later the planner heuristic infers a value v and samples DA
-            user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
+        # p4g is the only game that will trust the simulator's own tag: GDP-Zero's persuadee
+        # emits [donate] readily, so its self-report separates the cases. esc and cb always
+        # relabel through the critic. Either way the search's leaf value comes from
+        # planner.predict at node expansion, never from here.
+        if self.infer_user_da:
+            user_resp = self.user_agent.get_utterance(next_state, None, mode)
             next_state.add_single(state.USR, None, user_resp)
             v, sampled_das = self.planner.heuristic(next_state)
-            user_da = self.map_user_action(v, sampled_das)
-            next_state[-1][1] = user_da
-        return next_state, v
+            next_state[-1][1] = self.map_user_action(v, sampled_das)
+        else:
+            user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)
+            next_state.add_single(state.USR, user_da, user_resp)
+        return next_state
 
 
 class EmotionAwarePersuasionGame(PersuasionGame):
+    """PersuasionGame with the persuadee's emotion classified on every turn.
+
+    States are ``EmotionAwareDialogSession``s and ``get_next_state`` returns the emotion
+    alongside the state, which is what the emotion-aware MCTS backs up into its Q_emo channel.
+    """
 
     def __init__(
         self,
         system_agent: DialogModel,
         user_agent: DialogModel,
         planner,
-        zero_shot,
+        infer_user_da,
         emotion_classifier,
         max_conv_turns=15,
-        success_base=0.1
+        success_base=0.1,
     ):
-        super().__init__(
-            system_agent,
-            user_agent,
-            planner,
-            zero_shot,
-            max_conv_turns=max_conv_turns,
-            success_base=success_base
-        )
+        super().__init__(system_agent, user_agent, planner, infer_user_da,
+                         max_conv_turns=max_conv_turns, success_base=success_base)
         self.emotion_classifier = emotion_classifier
 
     def init_dialog(self) -> EmotionAwareDialogSession:
         return EmotionAwareDialogSession(self.SYS, self.USR)
 
-    def get_next_state(self, state: EmotionAwareDialogSession, action, mode: str = 'train') -> Tuple[EmotionAwareDialogSession, float, Emotions]:
-        next_state = state.copy()
+    def _classify_user(self, state, user_resp) -> dict:
+        """The emotion distribution over ``user_resp``, recorded on the run's classifier.
 
-        sys_utt = self.system_agent.get_utterance(next_state, action)  # action is DA
+        Called before the turn is appended, so the recorded context is the dialogue the
+        persuadee was reacting to.
+        """
+        dist = self.emotion_classifier.predict_distribution_from_full_history(state, user_resp)
+        self.emotion_classifier.records.append({
+            "utterance": user_resp,
+            "emotion": str(max(dist, key=dist.get)),
+            "context": state.to_string_rep(),
+            "distribution": dist,
+        })
+        return dist
+
+    def get_next_state(self, state: EmotionAwareDialogSession, action,
+                       mode: str = 'train') -> Tuple[EmotionAwareDialogSession, Emotions]:
+        next_state = state.copy()
         sys_da = self.system_agent.dialog_acts[action]
-        # only the USER's emotion is classified; the system turn carries a neutral placeholder
+        sys_utt = self.system_agent.get_utterance(next_state, action)
+        # only the user's emotion is classified; the system turn carries a placeholder
         next_state.add_single(state.SYS, sys_da, "Neutral", sys_utt)
 
-        # state in user's perspective
-        # here when zero_shot=False the user agent emits its utterance with its won DA together
-        if not self.zero_shot:
-            user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)  # user just reply
-            user_dist = self.emotion_classifier.predict_distribution_from_full_history(next_state, user_resp)
-            user_emotion = max(user_dist, key=user_dist.get)
-            self.emotion_classifier.records.append({
-                "utterance": user_resp,
-                "emotion": str(user_emotion),
-                "context": next_state.to_string_rep(),
-                "distribution": user_dist,
-            })
-            next_state.add_single(state.USR, user_da, user_emotion, user_resp, user_dist)
-            v = None
+        if self.infer_user_da:
+            user_da, user_resp = None, self.user_agent.get_utterance(next_state, None, mode)
         else:
-            # default for interactive, user agent generetes only the utterance without DA. Later the planner heuristic infers a value v and samples DA
-            user_resp = self.user_agent.get_utterance(next_state, None, mode)  # user just reply
-            user_dist = self.emotion_classifier.predict_distribution_from_full_history(next_state, user_resp)
-            user_emotion = max(user_dist, key=user_dist.get)
-            self.emotion_classifier.records.append({
-                "utterance": user_resp,
-                "emotion": str(user_emotion),
-                "context": next_state.to_string_rep(),
-                "distribution": user_dist,
-            })
-            next_state.add_single(state.USR, None, user_emotion, user_resp, user_dist)
+            user_da, user_resp = self.user_agent.get_utterance_w_da(next_state, None, mode)
+
+        user_dist = self._classify_user(next_state, user_resp)
+        user_emotion = max(user_dist, key=user_dist.get)
+        next_state.add_single(state.USR, user_da, user_emotion, user_resp, user_dist)
+
+        if self.infer_user_da:
             v, sampled_das = self.planner.heuristic(next_state)
             next_state.history[-1].da = self.map_user_action(v, sampled_das)
-        return next_state, v, user_emotion
+        return next_state, user_emotion

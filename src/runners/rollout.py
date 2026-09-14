@@ -10,7 +10,7 @@ it records ``{did, task, success, num_turns, history, [deal_price, buyer_price, 
 
   * ``llm_raw`` — single LLM call: ``argmax(planner.predict(state))`` (mirrors ``runners/raw_prompting``)
   * ``gdpzero`` — open-loop MCTS over LLM rollouts (``--num_mcts_sims`` / ``--max_realizations`` / ``--Q_0`` / ``--cpuct``)
-  * ``emomcts`` — emotion-aware open-loop MCTS (``EmotionAwareOpenLoopMCTS``); needs an emotion-aware task (``--game emo_p4g``)
+  * ``emomcts`` — emotion-aware open-loop MCTS (``EmotionAwareMultiObjectiveQ``); needs an emotion-aware task (``--game emo_p4g``)
 
     cd src
     python runners/rollout.py --game cb                                          # llm_raw, all CB dialogs
@@ -20,8 +20,9 @@ it records ``{did, task, success, num_turns, history, [deal_price, buyer_price, 
 
 NOTE: ``llm_raw`` and ``gdpzero`` run end-to-end against the current games (their
 ``get_next_state(state, action[, mode])`` accepts 2-arg calls). ``emomcts`` requires a game that
-produces ``EmotionAwareDialogSession`` states and has an emotion classifier attached (the
-``emo_*`` tasks in ``_common.py``); pointing it at a plain task raises a clear error.
+produces ``EmotionAwareDialogSession`` states and an emotion classifier to label the simulated
+user reactions (the ``emo_*`` tasks in ``_common.py``); pointing it at a plain task raises a
+clear error.
 """
 import os
 import sys
@@ -40,48 +41,64 @@ from tqdm.auto import tqdm
 
 from utils.utils import dotdict
 from mcts.mcts import OpenLoopMCTS
-from mcts.emotion_mcts import EmotionAwareMultiObjectiveQ
-from runners._common import TASKS, make_backbone_model, build_agents, load_dialogs, dump_emotion_records, add_common_args, finalize_args, setup_output_dir
+from mcts.emotion_mcts import EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
+from utils import role_profiler
+from runners._common import (
+	make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	load_p4g_personas, apply_seed, dump_emotion_records, add_common_args, finalize_args,
+	setup_output_dir, build_subtree_records, write_subtree_ndjson,
+)
 
 logger = logging.getLogger(__name__)
 
 ALGOS = ("llm_raw", "gdpzero", "emomcts")
+# p4g self-play draws its scenarios from the unannotated full corpus, not the annotated 300
+# (see _read_p4g_full_csv). --data overrides it.
+P4G_ROLLOUT_DATA = "data/p4g_personas/full_dialog.csv"
 _NUM_RE = re.compile(r"[-+]?\d[\d,]*\.?\d*")
 
 
 # ---------------------------------------------------------------------------
 # action selection (one system dialog-act index per turn)
 # ---------------------------------------------------------------------------
-def pick_action(algo, state, *, game, planner, configs, emotion_classifier,
-				mcts_cls=None, mcts_kwargs=None) -> int:
+def pick_action(algo, state, *, game, planner, configs, emotion_classifier) -> "Tuple[int, object]":
 	"""Pick the next system dialog-act index for ``state`` using ``algo``.
 
-	For ``algo == "emomcts"`` the caller supplies the concrete subclass via
-	``mcts_cls`` (one of EmotionAwareOpenLoopMCTS / EmotionAwareDiscountQOpenLoopMCTS
-	/ EmotionGuidedDiscountQOpenLoopMCTS / EmotionRealizationSelectorMCTS) plus any
-	subclass-specific kwargs in ``mcts_kwargs``. This lets the rollout runner mirror
-	the variant-selection logic in ``runners/emomcts.py`` so SR/AT numbers reflect
-	the actual emotion-aware MCTS being researched, not just the bare base class.
+	Returns ``(action, planner_used)`` where ``planner_used`` is the MCTS object that was
+	searched, or ``None`` for ``llm_raw`` (no tree). The caller needs it to write the
+	per-edge M2_emo / sigma_emo records into the episode -- the schema freeze says those
+	fields are present on every edge of every run, and a rollout throws the tree away.
+
+	``configs`` carries the MCTS hyper-parameters, the four emotion-channel knobs included,
+	so the emomcts branch below builds the same planner ``runners/emomcts.py`` does and the
+	SR/AT numbers reflect the emotion-aware MCTS actually being researched.
 	"""
 	if algo == "llm_raw":
 		# one-shot LLM planner: take the chat planner's prior at face value (no search)
 		prior, _v = planner.predict(state)
-		return int(np.argmax(np.asarray(prior)))
+		return int(np.argmax(np.asarray(prior))), None
 
 	if algo == "gdpzero":
 		# open-loop MCTS over LLM rollouts (as in runners/gdpzero.py)
 		dp = OpenLoopMCTS(game, planner, configs)
 		for _ in tqdm(range(configs.num_MCTS_sims), leave=False, desc="gdpzero"):
 			dp.search(state)
-		return int(np.argmax(np.asarray(dp.get_action_prob(state))))
+		return int(np.argmax(np.asarray(dp.get_action_prob(state)))), dp
 
 	if algo == "emomcts":
-		cls = mcts_cls or EmotionAwareOpenLoopMCTS
-		kwargs = mcts_kwargs or {}
-		dp = cls(game, planner, configs, emotion_classifier, **kwargs)
+		# Emotion-aware planner: the parallel multi-objective Q, scoring actions by
+		# Q + beta_emo*Q_emo + cpuct*P*sqrt(N)/(1+Nsa). beta_emo=0 recovers the task-only
+		# open-loop search.
+		dp = EmotionAwareMultiObjectiveQ(
+			game, planner, configs, emotion_classifier,
+			beta_emo=configs.beta_emo,
+			emo_risk_lambda=configs.emo_risk_lambda,
+			emo_signal=configs.emo_signal,
+			emo_valence_table=configs.emo_valence_table,
+		)
 		for _ in tqdm(range(configs.num_MCTS_sims), leave=False, desc="emomcts"):
 			dp.search(state)
-		return int(np.argmax(np.asarray(dp.get_action_prob(state))))
+		return int(np.argmax(np.asarray(dp.get_action_prob(state)))), dp
 
 	raise ValueError(f"unknown --algo {algo!r}; choose from {list(ALGOS)}")
 
@@ -103,25 +120,39 @@ def _extract_cb_price(state):
 
 
 def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, scenario,
-				mcts_cls=None, mcts_kwargs=None):
-	"""Play one full episode with ``algo`` choosing each system action; return the final session."""
+				dlg_id=None, seed=None):
+	"""Play one full episode with ``algo`` choosing each system action.
+
+	Returns ``(final_session, subtree_records)``. ``subtree_records`` is the frozen
+	NDJSON subtree schema (task 1.5): one record per edge of the tree, for every planned
+	turn of this episode. The caller gzips it to one file per dialogue. Empty for
+	``--algo llm_raw``, which builds no tree and therefore has no edges.
+	"""
+	subtree_records = []
 	state = game.init_dialog(*scenario)
 	# turn 0: the only valid move at the start is the greeting -> realize it directly
 	valid0 = np.asarray(planner.get_valid_moves(state), dtype=float)
 	greeting_idx = int(np.nonzero(valid0)[0][0]) if valid0.sum() > 0 else 0
-	# EmotionAwarePersuasionGame.get_next_state returns (state, v, emotion); base returns (state, v).
-	# Take only state[0] so both shapes work.
-	state = game.get_next_state(state, greeting_idx)[0]
+	# EmotionAwarePersuasionGame.get_next_state returns (state, emotion); base returns state.
+	# Normalize to the state so both shapes work.
+	state = game.state_of(game.get_next_state(state, greeting_idx))
+	# this turn's system-utterance / user-simulator / emotion-classifier calls are already in the
+	# profiler's numerator, so it has to be in the denominator too -- otherwise every calls/turn
+	# figure is inflated by (turns+1)/turns (33% on a 4-turn episode).
+	role_profiler.mark_turn()
 	# then plan turn by turn until the game ends or we hit the limit
 	while game.get_dialog_ended(state) == 0.0 and len(state) < max_turns:
-		action = pick_action(algo, state, game=game, planner=planner,
-							  configs=configs, emotion_classifier=emotion_classifier,
-							  mcts_cls=mcts_cls, mcts_kwargs=mcts_kwargs)
-		state = game.get_next_state(state, action)[0]
-	return state
+		action, dp = pick_action(algo, state, game=game, planner=planner,
+							  configs=configs, emotion_classifier=emotion_classifier)
+		if dp is not None:
+			subtree_records += build_subtree_records(
+				dp, dlg_id=dlg_id, turn=len(state), root_state=state, seed=seed)
+		state = game.state_of(game.get_next_state(state, action))
+		role_profiler.mark_turn()  # denominator for the per-role calls/turn (--profile_roles)
+	return state, subtree_records
 
 
-def make_episode(task, did, game, state, *, algo=None):
+def make_episode(task, did, game, state, *, algo=None, subtree_log_path=None):
 	ended = game.get_dialog_ended(state)
 	episode = {
 		"did": did,
@@ -130,10 +161,14 @@ def make_episode(task, did, game, state, *, algo=None):
 		"success": bool(ended >= 1.0),
 		"num_turns": len(state),
 		"history": [list(t) for t in state.history],
+		# pointer to this dialogue's frozen-schema subtree log (task 1.5). The records
+		# themselves live in the gzipped NDJSON, not in this pickle. "" for llm_raw,
+		# which builds no tree.
+		"subtree_log": subtree_log_path or "",
 	}
 	if task == "cb":
-		episode["buyer_price"] = getattr(state, "buyer_price", None)
-		episode["seller_price"] = getattr(state, "seller_price", None)
+		episode["buyer_price"] = state.buyer_price
+		episode["seller_price"] = state.seller_price
 		episode["deal_price"] = _extract_cb_price(state) if episode["success"] else None
 	return episode
 
@@ -144,8 +179,11 @@ def make_episode(task, did, game, state, *, algo=None):
 def main(cmd_args):
 	print(f"algo={cmd_args.algo}  saving to {cmd_args.output}")
 
-	# load agents from TASKS; llm_raw keeps the model's built-in inference defaults, MCTS open-loop wants sampling on
-	sys_inference_args = {} if cmd_args.algo == "llm_raw" else None
+	# See runners/emomcts.py: delta-valence must not be crossed with a non-default n-step
+	# horizon, because the n-step return over deltas telescopes.
+	check_emo_signal_flags(cmd_args.emo_signal)
+	apply_seed(cmd_args)
+
 	backbone_model, family = make_backbone_model(
 		llm=cmd_args.llm,
 		gen_sentences=cmd_args.gen_sentences,
@@ -153,56 +191,61 @@ def main(cmd_args):
 		ollama_host=cmd_args.ollama_host,
 		sglang_model=cmd_args.sglang_model,
 	)
-	game, system, user, planner = build_agents(
-		cmd_args.game, backbone_model, family,
-		sys_inference_args=sys_inference_args,
-		llm_prior_topk=getattr(cmd_args, "llm_prior_topk", None),
+	# One classifier for the whole run (None unless --game is emotion-aware): every dialog's
+	# game gets this same instance, so the run's utterance -> emotion records stay in one place.
+	emotion_classifier = make_emotion_classifier(cmd_args.game, cmd_args.emotion_classifier, backbone_model)
+	if cmd_args.algo == "emomcts" and emotion_classifier is None:
+		raise ValueError(
+			f"--algo emomcts needs an emotion-aware task with a classifier; "
+			f"--game {cmd_args.game!r} has none (try --game emo_p4g)."
+		)
+	# Every dialog builds its own agents from these (see run_one_dialog), so two concurrent
+	# workers never touch the same game / planner / user simulator.
+	agent_kwargs = dict(
+		# llm_raw keeps the model's built-in inference defaults; the MCTS open loop wants sampling on
+		sys_inference_args={} if cmd_args.algo == "llm_raw" else None,
+		llm_prior_topk=cmd_args.llm_prior_topk,
+		logit_scoring=cmd_args.logit_scoring,
+		explicit_value_labels=cmd_args.explicit_value_labels,
+		# the rollout loop below stops at --max_turns; give the search the same horizon so it
+		# does not simulate branches past the point the dialogue can reach.
+		max_conv_turns=cmd_args.max_turns,
+		emotion_classifier=emotion_classifier,
 	)
-	all_dialogs = load_dialogs(cmd_args.game, cmd_args, system)
+
+	# p4g rollouts are self-play: scenario is () and the corpus turns are never replayed, so the
+	# dataset only supplies which participants to play against. The GDP-Zero pickle (TASKS
+	# default) is the annotated 300 that w(e) is mined from; the full corpus is 717 further
+	# dialogs with no dialog-act labels -- useless to the replay runners, but exactly right here,
+	# and disjoint from the mining set so --p4g_persona cannot feed back a mined participant.
+	if cmd_args.data is None and cmd_args.game.endswith("p4g"):
+		cmd_args.data = P4G_ROLLOUT_DATA
+	all_dialogs = load_dialogs(cmd_args.game, cmd_args)
+	# {} unless --p4g_persona; {dialogue_id: persona text} otherwise (utils/p4g_personas.py)
+	persona_texts = load_p4g_personas(cmd_args)
 
 	configs = dotdict({
 		"cpuct": cmd_args.cpuct,
 		"num_MCTS_sims": cmd_args.num_mcts_sims,
 		"Q_0": cmd_args.Q_0,
 		"max_realizations": cmd_args.max_realizations,
-		"lambda_emo": cmd_args.lambda_emo,
-		"c_emo_bonus": cmd_args.c_emo_bonus,
-		"alpha_realization_emo": cmd_args.alpha_realization_emo,
 		"beta_emo": cmd_args.beta_emo,
-		"c_imag": cmd_args.c_imag,
-		"imag_K": cmd_args.imag_K,
-		"imag_H": cmd_args.imag_H,
+		"emo_risk_lambda": cmd_args.emo_risk_lambda,
+		"emo_signal": cmd_args.emo_signal,
+		"emo_valence_table": cmd_args.emo_valence_table,
 	})
-	emotion_classifier = getattr(game, "emotion_classifier", None)
-	if cmd_args.algo == "emomcts" and emotion_classifier is None:
-		raise ValueError(
-			f"--algo emomcts needs an emotion-aware task with a classifier attached; "
-			f"--game {cmd_args.game!r} has none (try --game emo_p4g)."
-		)
-	# #7: swap to the encoder-based HF classifier if requested (see runners/emomcts.py).
-	if emotion_classifier is not None and getattr(cmd_args, "emotion_classifier", "llm") == "hf":
-		from emotion_classifiers.hf_emotion import HFEmotionClassifier
-		print(f"swapping classifier -> HFEmotionClassifier ({HFEmotionClassifier.DEFAULT_MODEL})")
-		emotion_classifier = HFEmotionClassifier()
-		game.emotion_classifier = emotion_classifier
-
-	mcts_cls = None
-	mcts_kwargs: dict = {}
-	if cmd_args.algo == "emomcts":
-		# Emotion-aware planner: the parallel multi-objective Q (EmotionAwareMultiObjectiveQ).
-		# beta_emo weights the emotion-valence channel in PUCT; beta_emo=0 recovers the
-		# task-only open-loop search.
-		mcts_cls = EmotionAwareMultiObjectiveQ
-		mcts_kwargs = {"beta_emo": cmd_args.beta_emo}
-
-	_mcts_class_by_algo = {
+	mcts_class_by_algo = {
 		"llm_raw": "(none — llm_raw baseline)",
 		"gdpzero": "OpenLoopMCTS",
-		"emomcts": mcts_cls.__name__ if mcts_cls else "EmotionAwareMultiObjectiveQ",
+		"emomcts": EmotionAwareMultiObjectiveQ.__name__,
 	}
 	setup_output_dir(cmd_args, runner_name="runners/rollout.py",
-					 mcts_class=_mcts_class_by_algo.get(cmd_args.algo, cmd_args.algo),
+					 mcts_class=mcts_class_by_algo[cmd_args.algo],
 					 mcts_args=configs)
+
+	if cmd_args.profile_roles:
+		role_profiler.enable()
+		print("per-role cost profiling on (paper §W5 'before' row)")
 
 	episodes = []
 	cap = len(all_dialogs) if cmd_args.max_conv is None or cmd_args.max_conv < 0 else cmd_args.max_conv
@@ -212,9 +255,9 @@ def main(cmd_args):
 
 	# --num_workers > 1 plays several dialogs at once so SGLang can batch them: the runner is
 	# otherwise one dependent chain of ~0.2s requests with the GPU idle in between (see the
-	# '[cache:...] N% of wall' line). Threads, not processes — the time is spent waiting on HTTP,
-	# and the agents/games hold no mutable state outside __init__, so they are shared safely.
-	# Each dialog still builds its own MCTS object per turn, so no search state is shared.
+	# '[cache:...] N% of wall' line). Threads, not processes — the time is spent waiting on HTTP.
+	# Each dialog builds its own agents and each turn its own MCTS object, so concurrent workers
+	# share only the backbone model (an HTTP client) and the emotion classifier.
 	# Results carry their scenario index and are re-sorted on every dump, so the output pickle is
 	# in scenario order regardless of which dialog finishes first.
 	finished = []            # (scenario index, episode), guarded by results_lock
@@ -224,11 +267,25 @@ def main(cmd_args):
 	def run_one_dialog(indexed_dialog):
 		idx, dialog = indexed_dialog
 		did = dialog["id"]
+		# Agents are per dialog, so each worker thread owns its own: building them is pure
+		# object construction (~0.04ms, no I/O), and --p4g_persona conditions the two objects
+		# that role-play the persuadee (user simulator + the planner's value estimator) on THIS
+		# dialogue's participant. persona_texts is {} without the flag (and misses the handful
+		# of participants who skipped the survey), in which case persona is None and the prompts
+		# are byte-identical to an unconditioned run.
+		persona = persona_texts.get(did)
+		game, _system, _user, planner = build_agents(
+			cmd_args.game, backbone_model, family, persona=persona, **agent_kwargs)
 		try:
-			state = rollout_one(game, planner, cmd_args.algo, configs,
+			state, subtree_records = rollout_one(game, planner, cmd_args.algo, configs,
 								 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
-								 mcts_cls=mcts_cls, mcts_kwargs=mcts_kwargs)
-			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo)
+								 dlg_id=did, seed=cmd_args.seed)
+			# one gzipped NDJSON per dialogue, written once the episode is done so
+			# concurrent workers never share a file.
+			subtree_log_path = write_subtree_ndjson(subtree_records, cmd_args.output, did)
+			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo,
+								   subtree_log_path=subtree_log_path)
+			episode["persona"] = persona
 		except Exception as e:
 			logger.exception(f"rollout {did} failed: {e}")
 			with results_lock:
@@ -281,18 +338,25 @@ def main(cmd_args):
 	dump_emotion_records(emotion_classifier, cmd_args.output)
 	print(f"done: {len(episodes)} episodes -> {cmd_args.output}")
 
+	if cmd_args.profile_roles:
+		role_profiler.report(label=f"{cmd_args.llm}/{cmd_args.algo}")
+		role_profiler.dump(cmd_args.output, label=f"{cmd_args.llm}/{cmd_args.algo}")
+
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description="self-play rollouts -> episode records for SR / AT / SL")
+	parser = argparse.ArgumentParser(
+		description="self-play rollouts -> episode records for SR / AT / SL. On the p4g tasks "
+					f"--data defaults to {P4G_ROLLOUT_DATA} (the 717 unannotated dialogs) rather "
+					"than the annotated 300 the replay runners use; see _read_p4g_full_csv.")
 	add_common_args(parser, default_output="outputs/rollout.pkl")
 	parser.add_argument("--max_turns", type=int, default=10, help="hard cap on dialog turns per episode")
 	parser.add_argument("--max_conv", type=int, default=20, help="max scenarios to roll out (-1 for all)")
 	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing rollout")
-	parser.add_argument("--num_workers", type=int, default=1,
-						help="play this many dialogs concurrently (threads). 1 = the old sequential "
-						     "behaviour. Higher values keep several requests in flight so SGLang can "
-						     "batch them; the GPU is otherwise idle between calls. 4-8 suits a single "
-						     "local server. Episodes stay in scenario order in the output pickle.")
+	parser.add_argument("--profile_roles", action="store_true",
+						help="record calls, latency and tokens in/out per role (policy prior, value "
+						     "estimator, user simulator, system utterance model, emotion classifier) "
+						     "and print/dump the cost table at the end. Use --num_workers 1 for it: "
+						     "concurrent dialogs overlap, so latency per call stops being comparable.")
 	parser.add_argument("--algo", choices=list(ALGOS), default="llm_raw",
 						help="how to pick each system action (see pick_action in rollout.py)")
 	# MCTS hyper-parameters (used by gdpzero + emomcts)
@@ -301,33 +365,31 @@ if __name__ == "__main__":
 	parser.add_argument("--Q_0", type=float, default=0.0, help="[--algo gdpzero|emomcts] initial Q value for unvisited states")
 	parser.add_argument("--cpuct", type=float, default=1.0, help="[--algo gdpzero|emomcts] UCT exploration constant")
 	# Emotion-aware MCTS hyper-parameters (mirror runners/emomcts.py; only used when --algo emomcts).
-	parser.add_argument('--emotion_classifier', choices=['llm', 'hf'], default='llm',
-						help='[--algo emomcts] which emotion classifier to use. '
-							 '"llm" = prompt-based, "hf" = j-hartmann/emotion-english-distilroberta-base.')
-	parser.add_argument('--lambda_emo', type=float, default=0.0,
-						help='[--algo emomcts] convex-blend weight on emotion penalty in Q updates. '
-							 '0.0 = no penalty; >0 routes through EmotionAwareDiscountQOpenLoopMCTS (penalty path).')
-	parser.add_argument('--c_emo_bonus', type=float, default=0.0,
-						help='[--algo emomcts] weight on the emotion-DA selection bonus in PUCT. '
-							 '0.0 = no bonus; >0 routes through EmotionGuidedDiscountQOpenLoopMCTS (uses EMOTION_DA_BONUS matrix).')
-	parser.add_argument('--alpha_realization_emo', type=float, default=0.0,
-						help='[--algo emomcts] utterance-layer rerank weight. '
-							 '0.0 = no rerank; >0 routes through EmotionRealizationSelectorMCTS.')
 	parser.add_argument('--beta_emo', type=float, default=0.0,
 						help='[--algo emomcts] weight on the parallel Q_emo channel in PUCT '
 							 '(Direction A — multi-objective parallel Q). '
 							 '0.0 = no MultiObjectiveQ path; >0 routes through EmotionAwareMultiObjectiveQ '
-							 'which scores actions by Q + β·Q_emo + cpuct·P·√N/(1+Nsa). Sweep {0.3, 0.7, 1.0}. '
-							 'Does NOT compose with --c_emo_bonus / --alpha_realization_emo / --lambda_emo.')
-	parser.add_argument('--c_imag', type=float, default=0.0,
-						help='[--algo emomcts] weight on the imagination side-tree in PUCT '
-							 '(Direction B — Markov rollouts). 0.0 = no imagination; >0 routes through '
-							 'EmotionImaginationMCTS which runs K cheap Markov rollouts H turns deep at '
-							 'every expansion. Sweep {0.3, 0.5, 1.0}.')
-	parser.add_argument('--imag_K', type=int, default=50,
-						help='[--c_imag>0] Monte Carlo samples per (state, action) at expansion.')
-	parser.add_argument('--imag_H', type=int, default=10,
-						help='[--c_imag>0] imagination rollout horizon in turns.')
+							 'which scores actions by Q + β·Q_emo + cpuct·P·√N/(1+Nsa). Sweep {0.3, 0.7, 1.0}.')
+	parser.add_argument('--emo_risk_lambda', '--emo-risk-lambda', type=float, default=0.0,
+						help='[--algo emomcts] risk aversion on the emotion channel: selection uses '
+							 'Q_emo - λ·σ_emo instead of Q_emo, σ_emo being the Welford standard '
+							 'deviation of the z values on that edge. DEFAULT 0.0 reduces it to Q_emo '
+							 'exactly (x - 0.0*σ is bit-identical to x). Not swept now.')
+	parser.add_argument('--emo_signal', '--emo-signal', choices=list(EMO_SIGNALS), default='level',
+						help='[--algo emomcts] what the emotion channel backs up. "level" (DEFAULT, '
+							 'unchanged): z = ν(d_s′). "delta" (Tier-C): z = (ν(d_s′) - ν(d_parent))/2, '
+							 'the change in valence -- potential-function shaping; the /2 renormalises '
+							 'to [-1,+1] so β_emo is comparable across arms; z = 0 where the parent has '
+							 'no emotion distribution.')
+	parser.add_argument('--emo_valence_table', '--emo-valence-table',
+						choices=list(EMO_VALENCE_TABLES), default='soft',
+						help='[--algo emomcts] which mined w(e) table the emotion channel scores nu(d) with. '
+							 '"soft" (DEFAULT, deployed): mined crediting every emotion its posterior '
+							 'mass, T(e)+=d(e) -- matches what the planner consumes. '
+							 '"argmax": the same corpus/base rate/shrinkage but crediting only '
+							 'argmax_e Phi(e|u); retained as the ablation for that mismatch. Both are '
+							 'mined on all 300 ANNOTATED dialogs, so evaluate on non-annotated data '
+							 '(see REPLAY_DATA in scripts/run_paper_experiments.sh).')
 	cmd_args = finalize_args(parser.parse_args())
 
 	main(cmd_args)

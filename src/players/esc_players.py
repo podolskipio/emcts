@@ -10,9 +10,30 @@ from utils.gen_models import GenerationModel, DialogModel
 from games import EmotionalSupportGame
 from collections import Counter
 from utils.rewards import reward_dict
+from players.prompting import parse_das, recent_turns, split_da
 
+def esc_patient_scenario(state) -> str:
+    return (
+        "You are the patient who is looking for help from the therapist, because you have "
+        "the emotional issue about %s regarding %s."
+        % (getattr(state, "emotion_type", "distress") or "distress",
+           getattr(state, "problem_type", "an ongoing problem") or "an ongoing problem")
+    )
 
 logger = logging.getLogger(__name__)
+
+_ESC_REWARDS = {
+    EmotionalSupportGame.U_FeelWorse: 'worse',
+    EmotionalSupportGame.U_FeelTheSame: 'same',
+    EmotionalSupportGame.U_FeelBetter: 'better',
+    EmotionalSupportGame.U_Solved: 'solved',
+}
+
+
+def _mean_reward(sampled_das) -> float:
+    """Mean reward over the patient acts that carry one; 0.0 if none of them do."""
+    scores = [reward_dict['esc'][_ESC_REWARDS[da]] for da in sampled_das if da in _ESC_REWARDS]
+    return float(np.mean(scores)) if scores else 0.0
 
 
 class ESCSystemPlanner(DialogPlanner):
@@ -75,23 +96,7 @@ class ESCSystemPlanner(DialogPlanner):
     def get_utterance(self, state, action) -> str:
         return ""  # should not be called
 
-    def _get_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
-
     def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-        # test k times and compute prob. See num_return_sequences in the API
-        # the value would be our objective function
         if len(state) == 0:
             prompt = f"""
             {self.task_prompt}
@@ -106,33 +111,21 @@ class ESCSystemPlanner(DialogPlanner):
         prompt = prompt.replace("\t", "").strip()
         logger.debug(prompt)
         data = self.generation_model.generate(prompt, **self.inf_args)
-        sampled_das = self._get_generated_da(data)
+        sampled_das = parse_das(data, self.dialog_acts)
         logger.debug(f"sampled das: {sampled_das}")
-        # convert to prob distribution
-        prob = np.zeros(len(self.dialog_acts))
-        prob += self.smoothing
+        v, _ = self.heuristic(state)
+        return self._histogram(sampled_das), v
+
+    def _histogram(self, sampled_das) -> "np.ndarray":
+        """Sampled acts as a distribution, with `self.smoothing` added so an act that happened
+        not to be drawn is not assigned probability zero."""
+        prob = np.zeros(len(self.dialog_acts)) + self.smoothing
         for da in sampled_das:
             prob[self.dialog_acts.index(da)] += 1
-        prob /= prob.sum()
-        v, _ = self.heuristic(state)
-        return prob, v
-
-    def _get_user_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.user_dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
+        return prob / prob.sum()
 
     def heuristic(self, state: DialogSession) -> float:
-        # ask the patient simulator how it feels at this point in the conversation
+        """Ask the patient simulator how it feels now; score its answer."""
         assert state[-1][0] == EmotionalSupportGame.USR
         prompt = f"""
         The following is background information about the task.
@@ -156,25 +149,17 @@ class ESCSystemPlanner(DialogPlanner):
             "num_return_sequences": 10,
         }
         data = self.generation_model.generate(prompt, **inf_args)
-        sampled_das = self._get_user_generated_da(data)
+        sampled_das = parse_das(data, self.user_dialog_acts)
 
         logger.debug(f"patient prompt: {prompt}")
         logger.debug(f"sampled das: {sampled_das}")
-
-        # heuristic score
-        score = []
-        for da in sampled_das:
-            if da == EmotionalSupportGame.U_FeelWorse:
-                score.append(-1.0)
-            elif da == EmotionalSupportGame.U_FeelTheSame:
-                score.append(-0.5)
-            elif da == EmotionalSupportGame.U_FeelBetter:
-                score.append(0.5)
-            elif da == EmotionalSupportGame.U_Solved:
-                score.append(1.0)
-        v = 0.0 if len(score) == 0 else np.mean(score)
+        # this planner keeps GDP-Zero's fixed scale rather than reward_dict['esc']
+        scale = {EmotionalSupportGame.U_FeelWorse: -1.0, EmotionalSupportGame.U_FeelTheSame: -0.5,
+                 EmotionalSupportGame.U_FeelBetter: 0.5, EmotionalSupportGame.U_Solved: 1.0}
+        score = [scale[da] for da in sampled_das if da in scale]
+        v = float(np.mean(score)) if score else 0.0
         logger.debug(f"sampled das to v: {v}")
-        return float(v), sampled_das
+        return v, sampled_das
 
 
 class ESCChatSystemPlanner(ESCSystemPlanner):
@@ -186,7 +171,7 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
         user_max_hist_num_turns,
         generation_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
-        zero_shot = True,
+        infer_user_da = True,
         use_policy_prior = True,
         action_temperature = 1.0,
         action_num_return_sequences = 15,
@@ -201,7 +186,9 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
             generation_model,
             conv_examples,
         )
-        self.zero_shot = zero_shot
+        # True makes the critic below ask its question in plain English instead of with
+        # the [act] labels, and read the verdict out of the answer's wording.
+        self.infer_user_da = infer_user_da
         self.use_policy_prior = use_policy_prior
         self.task_prompt = f"""
         Now enter the role-playing mode. In the following conversation, you will play as a therapist in a counselling conversation with a patient.
@@ -237,13 +224,13 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
     ):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(
+            prompt_exps += self._process_chat_turns(
                 exp, keep_sys_da, keep_user_da, assistant_role
             )
             prompt_exps.append({"role": "system", "content": new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(
+    def _process_chat_turns(
         self,
         exp: DialogSession,
         keep_sys_da,
@@ -251,42 +238,21 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
         assistant_role=EmotionalSupportGame.SYS,
         max_hist_num_turns: int = -1,
     ):
-        if len(exp) == 0:
+        """``exp`` as chat messages, with whichever speaker ``assistant_role`` names cast as
+        the assistant. Guarded on the raw history, not ``len(exp)``: that counts turns, so a
+        state ending mid-turn read as empty and dropped the conversation from the prompt."""
+        if len(exp.history) == 0:
             return []
-        # P4G dataset starts with the system/Persuader
-        assert exp[0][0] == EmotionalSupportGame.SYS
+        assert exp[0][0] == EmotionalSupportGame.SYS  # dialogues open with the Therapist
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        # all the rest
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-            # if assistant is the Persuader, then current data is also Persuader -> then it is of role "system"
-            if role == EmotionalSupportGame.SYS:
-                if keep_sys_da:
-                    content = f"{role}: [{da}] {utt}".strip()
-                else:
-                    content = f"{role}: {utt}".strip()
-                if assistant_role == EmotionalSupportGame.SYS:
-                    prompt_role = "assistant"
-                else:
-                    prompt_role = "user"
-            else:
-                if keep_user_da:
-                    content = f"{role}: [{da}] {utt}".strip()
-                else:
-                    content = f"{role}: {utt}".strip()
-                if assistant_role == EmotionalSupportGame.USR:
-                    prompt_role = "assistant"
-                else:
-                    prompt_role = "user"
-
-            prompt_messages.append({"role": prompt_role, "content": content})
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            keep_da = keep_sys_da if role == EmotionalSupportGame.SYS else keep_user_da
+            content = f"{role}: [{da}] {utt}" if keep_da else f"{role}: {utt}"
+            prompt_messages.append({
+                "role": "assistant" if role == assistant_role else "user",
+                "content": content.strip(),
+            })
         return prompt_messages
 
     def get_valid_moves(self, state):
@@ -304,35 +270,11 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
     def get_utterance(self, state, action) -> str:
         return ""  # should not be called
 
-    def _get_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        action_list = [EmotionalSupportGame.S_Question, EmotionalSupportGame.S_Others, EmotionalSupportGame.S_AffirmationAndReassurance, 
-                       EmotionalSupportGame.S_Information, EmotionalSupportGame.S_ProvidingSuggestions, EmotionalSupportGame.S_ReflectionOfFeelings, 
-                       EmotionalSupportGame.S_RestatementOrParaphrasing, EmotionalSupportGame.S_SelfDisclosure]
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 and end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.dialog_acts:
-                pred_da.append(found_da)
-            # for action in action_list:
-            #     if action.lower() in resp.lower():
-            #         pred_da.append(action)
-            #         break
-        return pred_da
-
     def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-        # test k times and compute prob. See num_return_sequences in the API
-        # the value would be our objective function
         if self.use_policy_prior and policy is not None:
             logger.info('Apply policy model to calculate prior')
             with torch.no_grad():
                 agent_dist, _ = policy.apply_policy(state.to_chat_messages())
-            # agent_dist = torch.ones(len(self.dialog_acts)).to(policy.device) / len(self.dialog_acts)
             logger.info('Apply the policy network (Roberta-large) to predict prior distribution.')
             if len(agent_dist.shape) > 1:
                 agent_dist = agent_dist.squeeze(dim=0)
@@ -350,42 +292,20 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
                 )
             else:
                 assert state[-1][0] == EmotionalSupportGame.USR
-                messages += self.__proccess_chat_exp(
-                    state, keep_sys_da=True, keep_user_da=False
+                messages += self._process_chat_turns(
+                    state, keep_sys_da=True, keep_user_da=False,
+                    max_hist_num_turns=self.max_hist_num_turns,
                 )
-            # produce a response
             data = self.generation_model.chat_generate(messages, **self.inf_args)
-
-            sampled_das = self._get_generated_da(data)
+            sampled_das = parse_das(data, self.dialog_acts)
             logger.info(f"sampled das: {sampled_das}")
-            # convert to prob distribution
-            prob = np.zeros(len(self.dialog_acts))
-            prob += self.smoothing
-            for da in sampled_das:
-                try:
-                    prob[self.dialog_acts.index(da)] += 1
-                except:
-                    continue
-            prob /= prob.sum()
+            prob = self._histogram(sampled_das)
         v, _ = self.heuristic(state)
         return prob, v
 
-    def _get_user_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp['generated_text'].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1: end_idx].strip()
-            if found_da in self.user_dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
-
-    def _get_zero_shot_user_da(self, data) -> list:
-        # convert generated responses to DA
+    def _parse_free_text_da(self, data) -> list:
+        """Read the patient's verdict out of a free-text answer, for the zero-shot prompt
+        that asks the question in plain English instead of with act labels."""
         pred_da = []
         for resp in data:
             resp = resp['generated_text'].lower()
@@ -402,7 +322,7 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
     def heuristic(self, state: DialogSession) -> float:
         # ask the patient simulator whether its emotional issue has been solved at this point
         assert state[-1][0] == EmotionalSupportGame.USR
-        if not self.zero_shot:
+        if not self.infer_user_da:
             user_task_prompt = f"""
             Given a conversation between a Therapist and a Patient, please assess whether the Patient' emotional issue has been solved after the conversation.
             You can choose amongst the following actions during a conversation to respond to the Therapist:
@@ -423,11 +343,12 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
                 ),
                 {"role": "system", "content": user_new_task_prompt},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state,
                 assistant_role=EmotionalSupportGame.USR,
                 keep_sys_da=False,
                 keep_user_da=True,
+                max_hist_num_turns=self.user_max_hist_num_turns,
             )
             messages.append(
                 {
@@ -436,50 +357,31 @@ class ESCChatSystemPlanner(ESCSystemPlanner):
                 }
             )
         else:
-            conversation = self.__proccess_chat_exp(
+            # the branch that actually runs: build_agents leaves infer_user_da at its default.
+            # The window matters here -- unwindowed this was the one prompt that grew with the
+            # whole dialogue, past vicuna's context at 15 turns.
+            conversation = self._process_chat_turns(
                 state,
                 assistant_role=EmotionalSupportGame.USR,
                 keep_sys_da=False,
                 keep_user_da=False,
+                max_hist_num_turns=self.user_max_hist_num_turns,
             )
-            dial = ''
-            for turn in conversation:
-                dial += "\n{}".format(turn['content'])
+            dial = "".join("\n{}".format(turn['content']) for turn in conversation)
             messages = [
                 {"role": "system", "content": "Given a conversation between a Therapist and a Patient, please assess whether the Patient' emotional issue has been solved after the conversation."},
                 {"role": "user", "content": "You can only reply with one of the following sentences: No, the Patient feels worse. No, the Patient feels the same. No, but the Patient feels better. Yes, the Patient's issue has been solved.\n\nThe following is a conversation about %s regarding %s: %s\nQuestion: Has the Patient's issue been solved? Answer: " % (state.emotion_type, state.problem_type, dial)}
             ]
 
-        # inf_args = {
-        #     "max_new_tokens": 12,
-        #     "temperature": 1.1,
-        #     "return_full_text": False,
-        #     "do_sample": True,
-        #     "num_return_sequences": 10,
-        # }
         data = self.generation_model.chat_generate(messages, **self.eval_args)
-        if not self.zero_shot:
-            sampled_das = self._get_user_generated_da(data)
+        if self.infer_user_da:
+            sampled_das = self._parse_free_text_da(data)
         else:
-            sampled_das = self._get_zero_shot_user_da(data)
+            sampled_das = parse_das(data, self.user_dialog_acts)
 
         logger.info(f"patient prompt: {messages}")
         logger.info(f"sampled das: {sampled_das}")
-
-        # heuristic score
-        score = []
-        for da in sampled_das:
-            if da == EmotionalSupportGame.U_FeelWorse:
-                score.append(reward_dict['esc']['worse'])
-            elif da == EmotionalSupportGame.U_FeelTheSame:
-                score.append(reward_dict['esc']['same'])
-            elif da == EmotionalSupportGame.U_FeelBetter:
-                score.append(reward_dict['esc']['better'])
-            elif da == EmotionalSupportGame.U_Solved:
-                score.append(reward_dict['esc']['solved'])
-        v = 0.0 if len(score) == 0 else np.mean(score)
-        logger.info(f"sampled das to v: {v}")
-        return float(v), sampled_das
+        return _mean_reward(sampled_das), sampled_das
 
 
 class TherapistModel(DialogModel):
@@ -490,13 +392,15 @@ class TherapistModel(DialogModel):
         max_hist_num_turns: int = 5,
         conv_examples: List[DialogSession] = [],
         inference_args: dict = {},
-        zero_shot: bool = True,
+        infer_user_da: bool = True,
     ):
         super().__init__()
         self.conv_examples = conv_examples
         self.backbone_model = backbone_model
         self.max_hist_num_turns = max_hist_num_turns
-        self.zero_shot = zero_shot
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the patient's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
         # prompts and DAs
         self.da_prompts_mapping = {
             EmotionalSupportGame.S_Question: "The Therapist asks the Patient to elaborate on the situation they just described.",
@@ -537,20 +441,12 @@ class TherapistModel(DialogModel):
     def process_exp(self):
         prompt_exps = ""
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_exp(exp) + "\n"
+            prompt_exps += self._process_turns(exp) + "\n"
         return prompt_exps.strip()
 
-    def __proccess_exp(self, exp: DialogSession, max_hist_num_turns: int = -1):
+    def _process_turns(self, exp: DialogSession, max_hist_num_turns: int = -1):
         prompt_exp = ""
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
             if role == EmotionalSupportGame.SYS:
                 prompt_exp += f"{self.da_prompts_mapping[da]}\n{role}: {utt}\n"
             else:
@@ -558,7 +454,7 @@ class TherapistModel(DialogModel):
         return prompt_exp.strip()
 
     def get_utterance(self, state: DialogSession, action: int, mode: str = 'train') -> str:
-        # planner gives an action, state is history, you need to produce a response accrd to the action
+        """Realize the act the planner chose as an utterance."""
         da = self.dialog_acts[action]
         da_prompt = self.da_prompts_mapping[da]
         if len(state) == 0:
@@ -570,15 +466,13 @@ class TherapistModel(DialogModel):
         else:
             prompt = f"""
             {self.task_prompt}
-            {self.__proccess_exp(state, max_hist_num_turns=self.max_hist_num_turns)}
+            {self._process_turns(state, max_hist_num_turns=self.max_hist_num_turns)}
             {da_prompt}
             {EmotionalSupportGame.SYS}:
             """
         prompt = prompt.replace("\t", "").strip()
-        # produce a response
         data = self.backbone_model.generate(prompt, **self.inference_args)
-        sys_resp = self.backbone_model._cleaned_resp(data, prompt)[0]  # TODO
-        return sys_resp
+        return self.backbone_model._cleaned_resp(data, prompt)[0]
 
     def get_utterance_w_da(self, state: DialogSession, action) -> Tuple[str, str]:
         raise NotImplementedError
@@ -592,7 +486,7 @@ class TherapistChatModel(TherapistModel):
         max_hist_num_turns: int = 5,
         conv_examples: List[DialogSession] = [],
         inference_args: dict = {},
-        zero_shot = True,
+        infer_user_da = True,
     ):
         super().__init__(
             dialog_acts=dialog_acts,
@@ -601,8 +495,10 @@ class TherapistChatModel(TherapistModel):
             conv_examples=conv_examples,
             inference_args=inference_args,
         )
-        self.zero_shot = zero_shot
-        if self.zero_shot:
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the patient's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
+        if self.infer_user_da:
             self.task_prompt = "Now enter the role-playing mode. In the following conversation, you will play as a therapist in a counselling conversation with a patient."
         else:
             self.task_prompt = """
@@ -619,40 +515,34 @@ class TherapistChatModel(TherapistModel):
     def process_chat_exp(self):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(exp)
+            prompt_exps += self._process_chat_turns(exp)
             prompt_exps.append({"role": "system", "content": self.new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(self, exp: DialogSession, da_prompt: str = '', max_hist_num_turns: int = -1, use_role: bool = True):
-        if len(exp) == 0:
+    def _process_chat_turns(self, exp: DialogSession, da_prompt: str = '', max_hist_num_turns: int = -1, use_role: bool = True):
+        """``exp`` as chat messages, each patient turn followed by the instruction for the
+        therapist turn that answers it. The final patient turn is the one being answered now,
+        so it takes ``da_prompt`` -- the act the planner just chose.
+
+        Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+        mid-turn read as empty and dropped the conversation from the prompt.
+        """
+        if len(exp.history) == 0:
             return []
-        # P4G dataset starts with the system
-        assert exp[0][0] == EmotionalSupportGame.SYS
+        assert exp[0][0] == EmotionalSupportGame.SYS  # dialogues open with the Therapist
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        next_sys_da = EmotionalSupportGame.S_Others
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
+        for i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            prefix = f"{role}: " if use_role else ""
             if role == EmotionalSupportGame.SYS:
-                content = f"{utt}".strip() if not use_role else f"{role}: {utt}".strip()
-                prompt_messages.append(
-                    {"role": "assistant", "content": content}
-                )
-            else:
-                if i + 1 < len(exp.history):
-                    next_sys_da = exp[i + 1][1]
-                    content = f"{utt}\n{self.da_prompts_mapping[next_sys_da]}".strip() if not use_role else f"{role}: {utt}\n{self.da_prompts_mapping[next_sys_da]}".strip()
-                else:
-                    content = f"{utt}\n{da_prompt}".strip() if not use_role else f"{role}: {utt}\n{da_prompt}".strip()
-                prompt_messages.append(
-                    {"role": "user", "content": content}
-                )
+                prompt_messages.append({"role": "assistant", "content": f"{prefix}{utt}".strip()})
+                continue
+            is_last = i + 1 >= len(exp.history)
+            instruction = da_prompt if is_last else self.da_prompts_mapping[exp[i + 1][1]]
+            prompt_messages.append({
+                "role": "user",
+                "content": f"{prefix}{utt}\n{instruction}".strip(),
+            })
         return prompt_messages
 
     def get_utterance(self, state: DialogSession, action: int, mode='train') -> str:
@@ -663,7 +553,7 @@ class TherapistChatModel(TherapistModel):
     ) -> List[str]:
         da = self.dialog_acts[action]
         da_prompt = self.da_prompts_mapping[da]
-        if self.zero_shot:
+        if self.infer_user_da:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 {"role": "user", "content": "You are the therapist who is trying to help the patient reduce their emotional distress and help them understand and work through the challenges. Please reply with only one short and succinct sentence. %s" % da_prompt}
@@ -675,19 +565,16 @@ class TherapistChatModel(TherapistModel):
                 {"role": "system", "content": self.new_task_prompt},
             ]
         if len(state) == 0:
-            content = f"Hello.\n{da_prompt}" if self.zero_shot else f"{EmotionalSupportGame.USR}: Hello.\n{da_prompt}"
+            content = f"Hello.\n{da_prompt}" if self.infer_user_da else f"{EmotionalSupportGame.USR}: Hello.\n{da_prompt}"
             messages.append(
                 {"role": "user", "content": content,}
             )
         else:
             assert state[-1][0] == EmotionalSupportGame.USR
-            messages += self.__proccess_chat_exp(
-                state, da_prompt, max_hist_num_turns=self.max_hist_num_turns, use_role=not self.zero_shot
+            messages += self._process_chat_turns(
+                state, da_prompt, max_hist_num_turns=self.max_hist_num_turns, use_role=not self.infer_user_da
             )
-        gen_args = {
-            **self.inference_args,
-            "num_return_sequences": batch,  # this will be changed to n inside chat_generate
-        }
+        gen_args = {**self.inference_args, "num_return_sequences": batch}
         if mode != 'train':
             gen_args['temperature'] = 0.0
         data = self.backbone_model.chat_generate(messages, **gen_args)
@@ -710,7 +597,7 @@ class PatientModel(DialogModel):
         backbone_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
         max_hist_num_turns=5,
-        zero_shot=True,
+        infer_user_da=True,
     ):
         super().__init__()
         self.conv_examples = conv_examples
@@ -729,7 +616,9 @@ class PatientModel(DialogModel):
 		"""
         self.task_prompt = self.task_prompt.replace("\t", "").strip()
         self.inference_args = inference_args
-        self.zero_shot = zero_shot
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the patient's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
         return
 
     def process_exp(self):
@@ -776,7 +665,7 @@ class PatientChatModel(PatientModel):
         backbone_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
         max_hist_num_turns=5,
-        zero_shot = True,
+        infer_user_da = True,
     ):
         super().__init__(
             dialog_acts=dialog_acts,
@@ -784,10 +673,10 @@ class PatientChatModel(PatientModel):
             backbone_model=backbone_model,
             conv_examples=conv_examples,
             max_hist_num_turns=max_hist_num_turns,
-            zero_shot=zero_shot,
+            infer_user_da=infer_user_da,
         )
         self.inference_args = inference_args
-        if self.zero_shot:
+        if self.infer_user_da:
             self.task_prompt = "Now enter the role-playing mode. In the following conversation, you will play as a patient in a counselling conversation with a therapist."
         else:
             self.task_prompt = f"""
@@ -809,67 +698,60 @@ class PatientChatModel(PatientModel):
     def process_chat_exp(self):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(exp)
+            prompt_exps += self._process_chat_turns(exp)
             prompt_exps.append({"role": "system", "content": self.new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(self, exp: DialogSession, max_hist_num_turns: int = -1, use_da: bool = True, use_role: bool = True):
-        if len(exp) == 0:
+    def _process_chat_turns(self, exp: DialogSession, max_hist_num_turns: int = -1, use_da: bool = True, use_role: bool = True):
+        """``exp`` as chat messages with the patient -- the simulator itself -- as assistant.
+
+        Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+        mid-turn, which is exactly what the simulator is asked about, read as empty and
+        dropped the conversation from the prompt.
+        """
+        if len(exp.history) == 0:
             return []
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-            if role == EmotionalSupportGame.SYS:
-                content = f"{role}: {utt}".strip() if use_role else f"{utt}".strip()
-                prompt_messages.append(
-                    {"role": "user", "content": content}
-                )
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            if not use_role:
+                content = f"{utt}".strip()
+            elif role == EmotionalSupportGame.SYS or not use_da:
+                content = f"{role}: {utt}".strip()
             else:
-                if use_role:
-                    content = f"{role}: [{da}] {utt}".strip() if use_da else f"{role}: {utt}".strip()
-                else:
-                    content = f"{utt}".strip()
-                prompt_messages.append(
-                    {
-                        "role": "assistant",  # assistant is the user simulator
-                        "content": content,
-                    }
-                )
+                content = f"{role}: [{da}] {utt}".strip()
+            speaker = "user" if role == EmotionalSupportGame.SYS else "assistant"
+            prompt_messages.append({"role": speaker, "content": content})
         return prompt_messages
 
     def get_utterance(self, state: DialogSession, action=None, mode='train') -> str:
         assert state[-1][0] == EmotionalSupportGame.SYS  # next turn is user's turn
-        if self.zero_shot:
+        if self.infer_user_da:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 {"role": "user", "content": "You are the patient who is looking for the help from the therapist, because you have the emotional issue about %s regarding %s. Please reply with only one short and succinct sentence." % (state.emotion_type, state.problem_type)}
             ]
             state_ = state.copy()
             state_.history = state_.history[1:]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state_, max_hist_num_turns=self.max_hist_num_turns, use_da=False, use_role=False,
             )
         else:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 *self.prompt_examples,
-                {"role": "system", "content": self.new_task_prompt},
+                {"role": "system", "content": f"{self.new_task_prompt}\n{esc_patient_scenario(state)}"},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state, max_hist_num_turns=self.max_hist_num_turns,
             )
 
+        # copy, never mutate: build_agents shares self.inference_args across every player, so
+        # assigning into it made one mode!='train' call switch the whole run to greedy decoding.
+        gen_args = dict(self.inference_args)
         if mode != 'train':
-            self.inference_args['temperature'] = 0.0
-        # produce a response
-        data = self.backbone_model.chat_generate(messages, **self.inference_args)
+            gen_args['temperature'] = 0.0
+        data = self.backbone_model.chat_generate(messages, **gen_args)
         user_resp = self.backbone_model._cleaned_chat_resp(
             data,
             assistant_role=f"{EmotionalSupportGame.USR}:",
@@ -888,11 +770,10 @@ class PatientChatModel(PatientModel):
                 *self.prompt_examples,
                 {"role": "system", "content": self.new_task_prompt},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state, max_hist_num_turns=self.max_hist_num_turns
             )
             all_prompts.append(messages)
-        # produce a response
         datas = self.backbone_model.chat_generate_batched(
             all_prompts, **self.inference_args
         )
@@ -909,81 +790,53 @@ class PatientChatModel(PatientModel):
     def get_utterance_w_da_from_batched_states(
         self, states: List[DialogSession], action=None
     ):
-        gen_user_resps = self.get_utterance_from_batched_states(states, action)
-        das = []
-        user_resps = []
-        # extract da
-        for user_resp in gen_user_resps:
-            start_idx = user_resp.find("[")
-            end_idx = user_resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                da = EmotionalSupportGame.U_FeelTheSame
-            else:
-                da = user_resp[start_idx + 1 : end_idx]
-                user_resp = user_resp.replace(f"[{da}]", "", 1).strip()
-                if da not in self.dialog_acts:
-                    da = EmotionalSupportGame.U_FeelTheSame
-            das.append(da)
-            user_resps.append(user_resp)
+        split = [
+            split_da(resp, self.dialog_acts, EmotionalSupportGame.U_FeelTheSame)
+            for resp in self.get_utterance_from_batched_states(states, action)
+        ]
+        das = [da for da, _ in split]
+        user_resps = [utt for _, utt in split]
         return das, user_resps
 
-    def __process_heuristics_chat_exp(self, dialog: DialogSession):
+    def _heuristics_qa_pair(self, dialog: DialogSession):
+        """One (dialogue, act) demonstration for predict_da: the turns as a single question,
+        answered by the act the closing patient turn actually carried."""
         if len(dialog) == 0:
             return []
-        # assumes you start with the system
-        # and ends with a user utterance to predict
         assert dialog[0][0] == EmotionalSupportGame.SYS
         assert dialog[-1][0] == EmotionalSupportGame.USR
 
-        prompt_messages = []
-        input_context = []
-        answer_da = dialog[-1][1]
-        for i, (role, da, utt) in enumerate(dialog):
-            # if assistant is the Persuader, then current data is also Persuader -> then it is of role "system"
-            # treat this as a task
-            content = f"{role}: {utt}".strip()
-            input_context.append(content)
-        input_context.append(f"{dialog.USR} feeling:")
+        lines = [f"{role}: {utt}".strip() for role, _da, utt in dialog]
+        lines.append(f"{dialog.USR} feeling:")
+        return [
+            {"role": "user", "content": "\n".join(lines)},
+            {"role": "assistant", "content": f"{dialog[-1][1]}"},
+        ]
 
-        prompt_q = "\n".join(input_context)
-        prompt_messages.append({"role": "user", "content": prompt_q})
-        prompt_messages.append({"role": "assistant", "content": f"{answer_da}"})
-        return prompt_messages
-
-    def __truncate_heuristics_dialog(self, dialog: DialogSession, pred_end_idx=-1):
+    def _heuristics_window(self, dialog: DialogSession, pred_end_idx=-1):
+        """``dialog`` cut to the last few turns, ending on the patient turn to predict."""
         max_history_length = self.heuristic_args["max_hist_num_turns"]
         if pred_end_idx == -1:
             pred_end_idx = len(dialog.history) - 1
-        new_sys_start_idx = max(0, pred_end_idx - (max_history_length * 2 - 1))
-        new_history = []
-        for j, (role, da, utt) in enumerate(dialog):
-            if j >= new_sys_start_idx:
-                new_history.append((role, da, utt))
-            if j == pred_end_idx:
-                # user's utternace to predict
-                break
-        new_dialog_session = DialogSession(dialog.SYS, dialog.USR).from_history(
-            new_history
-        )
-        return new_dialog_session
+        start_idx = max(0, pred_end_idx - (max_history_length * 2 - 1))
+        new_history = [turn for j, turn in enumerate(dialog) if start_idx <= j <= pred_end_idx]
+        return DialogSession(dialog.SYS, dialog.USR).from_history(new_history)
 
     def process_heurstics_chat_exp(self, new_task_prompt: str):
         prompt_exps = []
         for i, exp in enumerate(self.conv_examples):
-            pred_end_turns: List[int] = self.heuristic_args["example_pred_turn"][i]
-            # make a new dialogue session until that pred_idx with max max_history_length turns
-            for pred_end_turn in pred_end_turns:
-                pred_end_idx = pred_end_turn * 2 + 1
-                new_dialog_session = self.__truncate_heuristics_dialog(
-                    exp, pred_end_idx
-                )
-                prompt_exps += self.__process_heuristics_chat_exp(new_dialog_session)
+            for pred_end_turn in self.heuristic_args["example_pred_turn"][i]:
+                window = self._heuristics_window(exp, pred_end_turn * 2 + 1)
+                prompt_exps += self._heuristics_qa_pair(window)
                 prompt_exps.append({"role": "system", "content": new_task_prompt})
         return prompt_exps[:-1]
 
     def predict_da(self, state: DialogSession, never_end=True) -> str:
-        # never_end=True  during real chat, let user choose to terminate, not this function
-        # insert prop to donate, and compute the likelihood of user simulator agreeing to donate
+        """The patient act for the last user turn, by majority vote over 5 samples.
+
+        ``never_end`` keeps the terminal act out of the vote so a live chat ends when the
+        human says so, not when the classifier does.
+        """
         assert state[-1][0] == EmotionalSupportGame.USR
 
         messages = [
@@ -991,10 +844,8 @@ class PatientChatModel(PatientModel):
             *self.process_heurstics_chat_exp(new_task_prompt=self.new_task_prompt),
             {"role": "system", "content": self.new_task_prompt},
         ]
-        new_dialog_session = self.__truncate_heuristics_dialog(state, -1)
-        messages += self.__process_heuristics_chat_exp(new_dialog_session)[:-1]
+        messages += self._heuristics_qa_pair(self._heuristics_window(state, -1))[:-1]
 
-        # majority vote, same as value function
         inf_args = {
             "max_new_tokens": 5,
             "temperature": 0.7,
@@ -1003,7 +854,6 @@ class PatientChatModel(PatientModel):
             "num_return_sequences": 5,
         }
         datas = self.backbone_model.chat_generate(messages, **inf_args)
-        # process into das
         sampled_das: list = []
         for resp in datas:
             user_da = resp["generated_text"].strip()
@@ -1017,7 +867,5 @@ class PatientChatModel(PatientModel):
             else:
                 sampled_das.append(user_da)
         logger.info(f"sampled das: {sampled_das}")
-        # majority vote
-        counted_das = Counter(sampled_das)
-        user_da = counted_das.most_common(1)[0][0]
+        user_da = Counter(sampled_das).most_common(1)[0][0]
         return user_da

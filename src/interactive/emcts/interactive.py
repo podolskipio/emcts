@@ -98,7 +98,7 @@ def build_game(backbone_model, args, *, sys_inference_args=None, usr_inference_a
 		backbone_model,
 		conv_examples=[example],
 		inference_args=sys_inference_args or {},
-		zero_shot=args.zero_shot,
+		infer_user_da=args.infer_user_da,
 	)
 	user = cfg.usr_chat_cls(
 		user_da,
@@ -111,7 +111,7 @@ def build_game(backbone_model, args, *, sys_inference_args=None, usr_inference_a
 		},
 		backbone_model=backbone_model,
 		conv_examples=[example],
-		zero_shot=args.zero_shot,
+		infer_user_da=args.infer_user_da,
 	)
 	planner = cfg.chat_planner_cls(
 		dialog_acts=system.dialog_acts,
@@ -121,7 +121,7 @@ def build_game(backbone_model, args, *, sys_inference_args=None, usr_inference_a
 		generation_model=backbone_model,
 		conv_examples=[example],
 	)
-	game = cfg.game_cls(system, user, planner, zero_shot=args.zero_shot)
+	game = cfg.game_cls(system, user, planner, infer_user_da=args.infer_user_da)
 	return game, system, user, planner
 
 
@@ -225,7 +225,7 @@ def play_raw_prompt(backbone_model, args):
 		prior, _v = planner.predict(state)
 		best_action = int(np.argmax(prior))
 		greedy_da = system.dialog_acts[best_action]
-		next_best_state, _ = game.get_next_state(state, best_action)
+		next_best_state = game.state_of(game.get_next_state(state, best_action))
 		# get_next_state appends [system_turn, simulated_user_turn]; we want the system utterance
 		greedy_resp = next_best_state.history[-2][2]
 
@@ -269,8 +269,10 @@ if __name__ == "__main__":
 						help="which dialog game to play")
 	parser.add_argument("--algo", type=str, default="gdpzero", choices=["gdpzero", "raw-prompt"],
 						help="planning algorithm")
-	parser.add_argument("--zero_shot", type=int, default=0, choices=[0, 1],
-						help="0 (default, GDPZero-faithful): use the user model's get_utterance_w_da; 1: simulate the user with the user LLM + planner heuristic")
+	parser.add_argument("--infer_user_da", "--zero_shot", type=int, default=0, choices=[0, 1],
+						help="who assigns the user's dialog act. 0 (default, GDPZero-faithful): the "
+						     "user model tags its own turn, via get_utterance_w_da. 1: the user model "
+						     "writes only the utterance and the planner's critic infers the act from it")
 	# backbone LLM
 	parser.add_argument("--llm", type=str, default="gpt-3.5-turbo",
 						choices=["code-davinci-002", "gpt-3.5-turbo", "text-davinci-002", "chatgpt", "ollama"],
@@ -296,7 +298,7 @@ if __name__ == "__main__":
 	parser.add_argument("--cb_seller_price", type=float, default=150.0, help="[cb] price the seller is asking")
 	args = parser.parse_args()
 
-	args.zero_shot = bool(args.zero_shot)
+	args.infer_user_da = bool(args.infer_user_da)
 	logging.basicConfig(level=args.log)
 	logger.setLevel(args.log)
 

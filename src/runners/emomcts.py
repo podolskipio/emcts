@@ -3,9 +3,10 @@
 Same evaluation loop as ``runners/gdpzero.py`` but swaps ``OpenLoopMCTS`` for
 ``EmotionAwareOpenLoopMCTS``. Run it against an emotion-aware task (``--game emo_p4g``, the
 default): those tasks are registered in ``runners/_common.py`` so ``build_agents`` returns a game
-whose ``init_dialog`` yields an ``EmotionAwareDialogSession`` and attaches the task's emotion
-classifier to the game (read here via ``game.emotion_classifier``). The output pickle is the same
-per-turn schema as ``gdpzero.py``, so ``evaluators/run_judge.py`` can compare the two head-to-head.
+whose ``init_dialog`` yields an ``EmotionAwareDialogSession``. The classifier that game labels user
+reactions with is built once here (``make_emotion_classifier``) and handed to every dialog. The
+output pickle is the same per-turn schema as ``gdpzero.py``, so ``evaluators/run_judge.py`` can
+compare the two head-to-head.
 
     cd src
     python runners/gdpzero.py  --game p4g     --output outputs/gdpzero_p4g.pkl
@@ -29,8 +30,15 @@ from tqdm.auto import tqdm
 
 from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
-from mcts.emotion_mcts import EmotionAwareMultiObjectiveQ
-from runners._common import TASKS, make_backbone_model, build_agents, load_dialogs, dump_emotion_records, dump_da_emotion_records, add_common_args, finalize_args, setup_output_dir
+from mcts.emotion_mcts import (
+	EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
+)
+from runners._common import (
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	load_p4g_personas, apply_seed, dump_emotion_records, dump_da_emotion_records,
+	add_common_args, finalize_args, setup_output_dir, subtree_emo_stats,
+	build_subtree_records, write_subtree_ndjson,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -84,12 +92,6 @@ def _compute_counterfactual_das(dialog_planner, state, system) -> dict:
 	                          THIS post-search state. Approximates "vanilla next move
 	                          from here" (NOT a full vanilla re-search; Q itself already
 	                          carries the penalty's contribution).
-
-	Caveat: the penalty lives in Q (mixed in during search across all visits) and is
-	NOT cleanly recoverable post-hoc. ``puct_vanilla`` therefore approximates "vanilla
-	choice given the Q values we ended up with" rather than "vanilla choice from a
-	parallel vanilla search." For the latter, run GDPZero in parallel and diff via the
-	run_judge --h2h metadata. This counterfactual is the cheap in-run proxy.
 	"""
 	hashable_state = dialog_planner._to_string_rep(state)
 	if hashable_state not in dialog_planner.Q:
@@ -130,8 +132,9 @@ def _compute_counterfactual_das(dialog_planner, state, system) -> dict:
 
 def main(cmd_args):
 	cfg = TASKS[cmd_args.game]
+	check_emo_signal_flags(cmd_args.emo_signal)
+	apply_seed(cmd_args)
 
-	# load agents from TASKS for the chosen dataset
 	backbone_model, family = make_backbone_model(
 		llm=cmd_args.llm,
 		gen_sentences=cmd_args.gen_sentences,
@@ -139,30 +142,31 @@ def main(cmd_args):
 		ollama_host=cmd_args.ollama_host,
 		sglang_model=cmd_args.sglang_model,
 	)
-	game, system, user, planner = build_agents(
-		cmd_args.game, backbone_model, family,
-		llm_prior_topk=getattr(cmd_args, "llm_prior_topk", None),
-	)
-
-	emotion_classifier = getattr(game, "emotion_classifier", None)
+	# One classifier for the whole run: every dialog's game gets this same instance, so the
+	# run's utterance -> emotion records (runner seeding + everything the MCTS classifies)
+	# land in one place. None on a task that has no emotion channel, which emomcts refuses.
+	emotion_classifier = make_emotion_classifier(cmd_args.game, cmd_args.emotion_classifier, backbone_model)
 	if emotion_classifier is None:
 		raise ValueError(
-			f"--game {cmd_args.game!r} is not emotion-aware, so no emotion classifier was attached. "
+			f"--game {cmd_args.game!r} is not emotion-aware, so there is no emotion classifier. "
 			f"Run emomcts with an emotion-aware task (e.g. --game emo_p4g)."
 		)
-	# #7: swap to the encoder-based HF classifier if requested. Drop-in interface — the rest of
-	# the runner / MCTS sees the same methods. Done after build_agents so the classifier slot on
-	# the game is replaced consistently (game.get_next_state reads from there too).
-	if getattr(cmd_args, "emotion_classifier", "llm") == "hf":
-		from emotion_classifiers.hf_emotion import HFEmotionClassifier
-		print(f"swapping classifier -> HFEmotionClassifier ({HFEmotionClassifier.DEFAULT_MODEL})")
-		emotion_classifier = HFEmotionClassifier()
-		game.emotion_classifier = emotion_classifier
+	# Every dialog builds its own agents from these (see run_one_dialog), so two concurrent
+	# workers never touch the same game / planner / user simulator.
+	agent_kwargs = dict(
+		llm_prior_topk=cmd_args.llm_prior_topk,
+		logit_scoring=cmd_args.logit_scoring,
+		explicit_value_labels=cmd_args.explicit_value_labels,
+		emotion_classifier=emotion_classifier,
+	)
 
-	print(f"System dialog acts: {system.dialog_acts}")
-	print(f"User dialog acts: {user.dialog_acts}")
+	ontology = cfg.game_cls.get_game_ontology()
+	print(f"System dialog acts: {ontology['system']['dialog_acts']}")
+	print(f"User dialog acts: {ontology['user']['dialog_acts']}")
 
-	all_dialogs = load_dialogs(cmd_args.game, cmd_args, system)
+	all_dialogs = load_dialogs(cmd_args.game, cmd_args)
+	# {} unless --p4g_persona; see load_p4g_personas / utils.p4g_personas
+	persona_texts = load_p4g_personas(cmd_args)
 
 	num_dialogs = cmd_args.num_dialogs
 	args = dotdict({
@@ -171,6 +175,9 @@ def main(cmd_args):
 		"Q_0": cmd_args.Q_0,
 		"max_realizations": cmd_args.max_realizations,
 		"beta_emo": cmd_args.beta_emo,
+		"emo_risk_lambda": cmd_args.emo_risk_lambda,
+		"emo_signal": cmd_args.emo_signal,
+		"emo_valence_table": cmd_args.emo_valence_table,
 	})
 	# Emotion-aware planner: the parallel multi-objective Q (EmotionAwareMultiObjectiveQ),
 	# which scores actions by Q + beta_emo*Q_emo + cpuct*P*sqrt(N)/(1+Nsa). beta_emo weights
@@ -188,8 +195,8 @@ def main(cmd_args):
 	# --num_workers > 1 evaluates several dialogs at once so SGLang can batch the requests: the
 	# runner is otherwise one dependent chain of short requests with the GPU idle in between (see
 	# the '[cache:...] N% of wall' line). Threads, not processes — the time goes on waiting for
-	# HTTP, and the agents/games hold no mutable state outside __init__, so sharing them is safe.
-	# Each turn still builds its own MCTS object, so no search state is shared between dialogs.
+	# HTTP. Each dialog builds its own agents and each turn its own MCTS object, so concurrent
+	# workers share only the backbone model (an HTTP client) and the emotion classifier.
 	# Per-turn records are collected per dialog and merged in dialog order on every dump, so the
 	# output pickle does not depend on which dialog happens to finish first.
 	finished = []            # (dialog index, per-turn records{}), guarded by results_lock
@@ -199,8 +206,17 @@ def main(cmd_args):
 		nonlocal num_done
 		idx, dialog = indexed_dialog
 		dialog_output = []   # this dialog's records; merged into `output` under the lock
+		dialog_subtree = []   # frozen-schema subtree records for this dialogue (task 1.5)
 		dialog_da_counts = []  # per-turn DA->emotion snapshots, merged with the records
 		did = dialog["id"]
+		# Agents are per dialog, so each worker thread owns its own: building them is pure
+		# object construction (no I/O), and --p4g_persona conditions the user simulator and the
+		# planner's value estimator on THIS dialogue's persuadee. The run-wide emotion
+		# classifier is passed in, so every game classifies through the same instance.
+		game, system, user, planner = build_agents(
+			cmd_args.game, backbone_model, family,
+			persona=persona_texts.get(did), **agent_kwargs,
+		)
 		turns = dialog["turns"]
 		print("evaluating dialog id: ", did)
 		context = ""
@@ -242,6 +258,9 @@ def main(cmd_args):
 				args,
 				emotion_classifier,
 				beta_emo=cmd_args.beta_emo,
+				emo_risk_lambda=cmd_args.emo_risk_lambda,
+				emo_signal=cmd_args.emo_signal,
+				emo_valence_table=cmd_args.emo_valence_table,
 			)
 			for _ in tqdm(range(args.num_MCTS_sims)):
 				dialog_planner.search(state)
@@ -259,6 +278,11 @@ def main(cmd_args):
 			next_sys_da = next_turn["sys_da"]
 
 			# logging for debug
+			_m2_emo, _sigma_emo = subtree_emo_stats(dialog_planner)
+			# frozen NDJSON subtree schema (task 1.5): one record per edge, per turn.
+			dialog_subtree += build_subtree_records(
+				dialog_planner, dlg_id=did, turn=t, root_state=state,
+				seed=cmd_args.seed)
 			debug_data = {
 				"probs": mcts_policy,
 				"da": mcts_policy_next_da,
@@ -268,6 +292,11 @@ def main(cmd_args):
 					"Q": dialog_planner.Q,
 					"P": dialog_planner.P,
 					"Vs": dialog_planner.Vs,
+					# Welford variance of the emotion channel, per edge. Written by every
+					# runner in every run (schema freeze): planners with no emotion channel
+					# report 0.0 on every edge rather than omitting the field.
+					"M2_emo": _m2_emo,
+					"sigma_emo": _sigma_emo,
 					"realizations": dialog_planner.realizations,
 					"realizations_Vs": dialog_planner.realizations_Vs,
 					"realizations_Ns": dialog_planner.realizations_Ns,
@@ -315,6 +344,9 @@ def main(cmd_args):
 				print("human da: ", next_sys_da)
 				print("mcts resp: ", mcts_pred_rep)
 				print("mcts da: ", mcts_policy_next_da)
+		# one gzipped NDJSON per dialogue, written once the dialogue is done so
+		# concurrent workers never share a file.
+		write_subtree_ndjson(dialog_subtree, cmd_args.output, did)
 		with results_lock:
 			finished.append((idx, dialog_output, dialog_da_counts))
 			output[:] = [rec for entry in sorted(finished, key=lambda t: t[0]) for rec in entry[1]]
@@ -354,20 +386,37 @@ if __name__ == "__main__":
 	parser.add_argument('--max_realizations', type=int, default=3, help='number of realizations per mcts state')
 	parser.add_argument('--Q_0', type=float, default=0.0, help='initial Q value for unitialized states. to control exploration')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
-	parser.add_argument('--num_workers', type=int, default=1,
-						help='evaluate this many dialogs concurrently (threads). 1 = the old '
-						     'sequential behaviour. Higher values keep several requests in flight '
-						     'so SGLang can batch them; the GPU is otherwise idle between calls. '
-						     '4-8 suits a single local server. Records stay in dialog order.')
-	parser.add_argument('--emotion_classifier', choices=['llm', 'hf'], default='llm',
-						help='which emotion classifier to use. '
-							 '"llm" = prompt-based (shares the system backbone; uses few-shot + low temp + cache). '
-							 '"hf" = j-hartmann/emotion-english-distilroberta-base (deterministic encoder, no LLM cost).')
 	parser.add_argument('--beta_emo', type=float, default=0.0,
 						help='weight on the parallel Q_emo channel in PUCT (EmotionAwareMultiObjectiveQ). '
 							 'Tracks the task value Q and the emotion-valence value Q_emo separately and '
 							 'scores actions by Q + β·Q_emo + cpuct·P·√N/(1+Nsa). 0.0 recovers the '
 							 'task-only open-loop search; sweep {0.3, 0.7, 1.0}.')
+	parser.add_argument('--emo_risk_lambda', '--emo-risk-lambda', type=float, default=0.0,
+						help='risk aversion on the emotion channel: selection uses '
+							 'Q_emo - λ·σ_emo in place of Q_emo, where σ_emo is the Welford '
+							 'standard deviation of the z values backed up into that edge. '
+							 'DEFAULT 0.0, which reduces the expression to Q_emo exactly '
+							 '(x - 0.0*σ is bit-identical to x), i.e. the pre-change rule. '
+							 'Instrumentation for a later Tier-C experiment; not swept now.')
+	parser.add_argument('--emo_signal', '--emo-signal', choices=list(EMO_SIGNALS), default='level',
+						help='what the emotion channel backs up. '
+							 '"level" (DEFAULT, unchanged behaviour): z = ν(d_s′), the absolute '
+							 'valence of the user reaction. '
+							 '"delta" (Tier-C): z = (ν(d_s′) - ν(d_parent))/2 -- the CHANGE in '
+							 'valence, a potential-function shaping (Ng, Harada & Russell 1999) that '
+							 'rewards moving the user from worse to better rather than never '
+							 'triggering negative words. The /2 renormalises [-2,+2] back to '
+							 '[-1,+1] so β_emo means the same thing in both arms. z = 0 where the '
+							 'parent carries no emotion distribution (ν(∅) = 0 convention).')
+	parser.add_argument('--emo_valence_table', '--emo-valence-table',
+						choices=list(EMO_VALENCE_TABLES), default='soft',
+						help='which mined w(e) table the emotion channel scores nu(d) with. '
+							 '"soft" (DEFAULT, deployed): mined crediting every emotion its posterior '
+							 'mass, T(e)+=d(e) -- matches what the planner consumes. '
+							 '"argmax": the same corpus/base rate/shrinkage but crediting only '
+							 'argmax_e Phi(e|u); retained as the ablation for that mismatch. Both are '
+							 'mined on all 300 ANNOTATED dialogs, so evaluate on non-annotated data '
+							 '(see REPLAY_DATA in scripts/run_paper_experiments.sh).')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)
 

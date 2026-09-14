@@ -99,6 +99,7 @@ def main():
     ap.add_argument("--cache", default="outputs/gdpzero_user_emocache.json")
     ap.add_argument("--out", default="outputs/emotion_conditioned_actions_40s.png")
     ap.add_argument("--csv", default="")
+    ap.add_argument("--title", default="Action choice conditioned on the user's last emotion (40 sims)")
     args = ap.parse_args()
 
     gd = load(args.gdpzero if os.path.exists(args.gdpzero) else _find(args.gdpzero))
@@ -126,7 +127,7 @@ def main():
         bottom += F[:, j]
     ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=8)
     ax.set_ylabel("fraction of next system actions"); ax.set_ylim(0, 1.08)
-    ax.set_title("Action choice conditioned on the user's last emotion (40 sims)", fontsize=11, pad=14)
+    ax.set_title(args.title, fontsize=11, pad=14)
     for i, n in enumerate(ns):
         ax.text(i, 1.015, f"n={n}", ha="center", va="bottom", fontsize=7, color="gray")
     ax.axvline(1.5, color="gray", lw=0.6, ls="--")

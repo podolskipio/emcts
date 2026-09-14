@@ -38,12 +38,18 @@ ESConv_EXP_DIALOG = [
 
 
 CB_EXP_DIALOG = [
-	# extracted from 479th dialog in ESConv
- 	# (EmotionalSupportGame.USR, EmotionalSupportGame.U_FeelTheSame,				"Hello.",),
-	(CBGame.SYS, CBGame.S_Greet,				"Hello!",),
-	(CBGame.USR, CBGame.U_No_deal,				"Hello. I am not feeling very good about myself lately",),
-	(CBGame.SYS, CBGame.S_Counter,	"Why are you not feeling very good about yourself, lately?",),
-	(CBGame.USR, CBGame.U_No_deal,				"I am a single mother, and I dont recieve any support from my childs father. I am struggling mentaly because I have no one to talk to. I have lost all of my friends since becoming a mom.",),
-	(CBGame.SYS, CBGame.S_Agree,	"I understand how you feel. All will be well, you are going to be okay.",),
-	(CBGame.USR, CBGame.U_Deal,		"Thank you, but I feel like everyone says that.",),
+	(CBGame.SYS, CBGame.S_Greet,			"Hi, I am interested in your place.",),
+	(CBGame.USR, CBGame.U_No_deal,			"Hi there sure thing. What do you need to know or any questions?",),
+	(CBGame.SYS, CBGame.S_Inquire,			"Is this a pet friendly building?",),
+	(CBGame.USR, CBGame.U_No_deal,			"No its not unfortunately.",),
+	(CBGame.SYS, CBGame.S_Deny,				"Does that mean even a fish is a no?",),
+	(CBGame.USR, CBGame.U_No_deal,			"No a fish would be okay as far as its not roaming around.",),
+	(CBGame.SYS, CBGame.S_Inquire,			"Ok great. I was also wondering about parking, what is the situation with that?",),
+	(CBGame.USR, CBGame.U_No_deal,			"Its a gated parking for the residents.",),
+	(CBGame.SYS, CBGame.S_Confirm,			"So it is included in the price?",),
+	(CBGame.USR, CBGame.U_No_deal,			"Yes it is.",),
+	(CBGame.SYS, CBGame.S_Propose,			"Would you be willing to take 1850 for it?",),
+	(CBGame.USR, CBGame.U_No_deal,			"That's too low. The last I can do is $2000.",),
+	(CBGame.SYS, CBGame.S_Agree,			"Hmm, I guess since you allowed my fish to come, I could agree to $2000.",),
+	(CBGame.USR, CBGame.U_Deal,				"Okay then we got a deal!",),
 ]

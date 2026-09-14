@@ -26,7 +26,11 @@ from tqdm.auto import tqdm
 from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
 from mcts.mcts import MCTS
-from runners._common import TASKS, make_backbone_model, build_agents, load_dialogs, add_common_args, finalize_args, setup_output_dir
+from runners._common import (
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	apply_seed, add_common_args, finalize_args, setup_output_dir, subtree_emo_stats,
+	build_subtree_records, write_subtree_ndjson,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -34,9 +38,8 @@ logger.setLevel(logging.DEBUG)
 
 def main(cmd_args):
 	cfg = TASKS[cmd_args.game]
+	apply_seed(cmd_args)
 
-	# load agents from TASKS for the chosen dataset; closed loop -> deterministic user simulator,
-	# system uses the model's built-in inference defaults
 	backbone_model, family = make_backbone_model(
 		llm=cmd_args.llm,
 		gen_sentences=cmd_args.gen_sentences,
@@ -44,19 +47,25 @@ def main(cmd_args):
 		ollama_host=cmd_args.ollama_host,
 		sglang_model=cmd_args.sglang_model,
 	)
-	game, system, user, planner = build_agents(
-		cmd_args.game, backbone_model, family,
+	# One classifier for the whole run (None unless --game is emotion-aware): every dialog's
+	# game gets this same instance, so the run's utterance -> emotion records stay in one place.
+	emotion_classifier = make_emotion_classifier(cmd_args.game, cmd_args.emotion_classifier, backbone_model)
+	# Closed loop -> deterministic user simulator, and the system model keeps its built-in
+	# inference defaults. Every dialog builds its own agents from these (see run_one_dialog).
+	agent_kwargs = dict(
 		sys_inference_args={},
 		usr_inference_args={
 			"max_new_tokens": 128, "temperature": 1.0, "repetition_penalty": 1.0,
 			"do_sample": False, "return_full_text": False,
 		},
+		emotion_classifier=emotion_classifier,
 	)
 
-	print(f"System dialog acts: {system.dialog_acts}")
-	print(f"User dialog acts: {user.dialog_acts}")
+	ontology = cfg.game_cls.get_game_ontology()
+	print(f"System dialog acts: {ontology['system']['dialog_acts']}")
+	print(f"User dialog acts: {ontology['user']['dialog_acts']}")
 
-	all_dialogs = load_dialogs(cmd_args.game, cmd_args, system)
+	all_dialogs = load_dialogs(cmd_args.game, cmd_args)
 
 	num_dialogs = cmd_args.num_dialogs
 	args = dotdict({
@@ -73,8 +82,8 @@ def main(cmd_args):
 	# --num_workers > 1 evaluates several dialogs at once so SGLang can batch the requests: the
 	# runner is otherwise one dependent chain of short requests with the GPU idle in between (see
 	# the '[cache:...] N% of wall' line). Threads, not processes — the time goes on waiting for
-	# HTTP, and the agents/games hold no mutable state outside __init__, so sharing them is safe.
-	# Each turn still builds its own MCTS object, so no search state is shared between dialogs.
+	# HTTP. Each dialog builds its own agents and each turn its own MCTS object, so concurrent
+	# workers share only the backbone model (an HTTP client) and the emotion classifier.
 	# Per-turn records are collected per dialog and merged in dialog order on every dump, so the
 	# output pickle does not depend on which dialog happens to finish first.
 	finished = []            # (dialog index, per-turn records{}), guarded by results_lock
@@ -84,7 +93,11 @@ def main(cmd_args):
 		nonlocal num_done
 		idx, dialog = indexed_dialog
 		dialog_output = []   # this dialog's records; merged into `output` under the lock
+		dialog_subtree = []   # frozen-schema subtree records for this dialogue (task 1.5)
 		did = dialog["id"]
+		# Agents are per dialog, so each worker thread owns its own; building them is pure
+		# object construction (no I/O).
+		game, system, user, planner = build_agents(cmd_args.game, backbone_model, family, **agent_kwargs)
 		turns = dialog["turns"]
 		print("evaluating dialog id: ", did)
 		context = ""
@@ -122,7 +135,7 @@ def main(cmd_args):
 			mcts_policy_next_da = system.dialog_acts[np.argmax(mcts_policy)]
 
 			# fetch the generated utterance from simulation
-			next_best_state, _ = game.get_next_state(state, np.argmax(mcts_policy))
+			next_best_state = game.get_next_state(state, np.argmax(mcts_policy))
 			mcts_pred_rep = next_best_state.history[-2][2]
 
 			# next ground truth utterance
@@ -130,6 +143,11 @@ def main(cmd_args):
 			next_sys_da = next_turn["sys_da"]
 
 			# logging for debug
+			_m2_emo, _sigma_emo = subtree_emo_stats(dialog_planner)
+			# frozen NDJSON subtree schema (task 1.5): one record per edge, per turn.
+			dialog_subtree += build_subtree_records(
+				dialog_planner, dlg_id=did, turn=t, root_state=state,
+				seed=cmd_args.seed)
 			debug_data = {
 				"probs": mcts_policy,
 				"da": mcts_policy_next_da,
@@ -139,6 +157,11 @@ def main(cmd_args):
 					"Q": dialog_planner.Q,
 					"P": dialog_planner.P,
 					"Vs": dialog_planner.Vs,
+					# Welford variance of the emotion channel, per edge. Written by every
+					# runner in every run (schema freeze): planners with no emotion channel
+					# report 0.0 on every edge rather than omitting the field.
+					"M2_emo": _m2_emo,
+					"sigma_emo": _sigma_emo,
 				},
 			}
 
@@ -153,6 +176,9 @@ def main(cmd_args):
 				"debug": debug_data,
 			}
 			dialog_output.append(cmp_data)
+		# one gzipped NDJSON per dialogue, written once the dialogue is done so
+		# concurrent workers never share a file.
+		write_subtree_ndjson(dialog_subtree, cmd_args.output, did)
 		with results_lock:
 			finished.append((idx, dialog_output))
 			output[:] = [rec for entry in sorted(finished, key=lambda t: t[0]) for rec in entry[1]]
@@ -182,11 +208,6 @@ if __name__ == "__main__":
 	add_common_args(parser, default_output="outputs/gdpzero_noopenloop.pkl")
 	parser.add_argument('--num_mcts_sims', type=int, default=20, help='number of mcts simulations')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
-	parser.add_argument('--num_workers', type=int, default=1,
-						help='evaluate this many dialogs concurrently (threads). 1 = the old '
-						     'sequential behaviour. Higher values keep several requests in flight '
-						     'so SGLang can batch them; the GPU is otherwise idle between calls. '
-						     '4-8 suits a single local server. Records stay in dialog order.')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)
 

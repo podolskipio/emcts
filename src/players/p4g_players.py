@@ -1,4 +1,6 @@
 import logging
+import re
+
 import numpy as np
 
 from typing import List, Tuple
@@ -9,9 +11,20 @@ from utils.gen_models import GenerationModel, DialogModel
 from games import PersuasionGame
 from collections import Counter
 from utils.rewards import reward_dict
+from utils.role_profiler import (
+	role, POLICY_PRIOR, VALUE_ESTIMATOR, USER_SIMULATOR, SYSTEM_UTTERANCE
+)
+from utils.p4g_personas import persona_suffix
+from players.prompting import parse_das, recent_turns, split_da
 
 
 logger = logging.getLogger(__name__)
+
+
+def _mean_reward(sampled_das) -> float:
+	"""Mean reward over the persuadee acts that carry one; 0.0 if none of them do."""
+	scores = [reward_dict['p4g'][da] for da in sampled_das if da in reward_dict['p4g']]
+	return float(np.mean(scores)) if scores else 0.0
 
 
 class P4GSystemPlanner(DialogPlanner):
@@ -22,9 +35,11 @@ class P4GSystemPlanner(DialogPlanner):
 			user_dialog_acts,
 			user_max_hist_num_turns,
 			generation_model:GenerationModel, 
-			conv_examples: List[DialogSession]=None
+			conv_examples: List[DialogSession]=None,
+			persona: str = None,
 	):
 		super().__init__()
+		self.persona = persona or None
 		self.dialog_acts = dialog_acts
 		self.max_hist_num_turns = max_hist_num_turns  # used in prompting next da
 		self.user_dialog_acts = user_dialog_acts
@@ -68,23 +83,7 @@ class P4GSystemPlanner(DialogPlanner):
 	def get_utterance(self, state, action) -> str:
 		return ""  # should not be called
 
-	def _get_generated_da(self, data) -> list:
-		# convert generated responses to DA
-		pred_da = []
-		for resp in data:
-			resp = resp['generated_text'].strip()
-			start_idx = resp.find("[")
-			end_idx = resp.find("]")
-			if start_idx == -1 or end_idx == -1:
-				continue
-			found_da = resp[start_idx + 1: end_idx].strip()
-			if found_da in self.dialog_acts:
-				pred_da.append(found_da)
-		return pred_da
-
 	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-		# test k times and compute prob. See num_return_sequences in the API
-		# the value would be our objective function
 		if len(state) == 0:
 			prompt = f"""
 			{self.task_prompt}
@@ -99,33 +98,20 @@ class P4GSystemPlanner(DialogPlanner):
 		prompt = prompt.replace("\t", "").strip()
 		logger.debug(prompt)
 		data = self.generation_model.generate(prompt, **self.inf_args)
-		sampled_das = self._get_generated_da(data)
+		sampled_das = parse_das(data, self.dialog_acts)
 		logger.debug(f"sampled das: {sampled_das}")
-		# convert to prob distribution
-		prob = np.zeros(len(self.dialog_acts))
-		prob += self.smoothing
+		return self._histogram(sampled_das)
+
+	def _histogram(self, sampled_das) -> "np.ndarray":
+		"""Sampled acts as a distribution, with `self.smoothing` added so an act that happened
+		not to be drawn is not assigned probability zero."""
+		prob = np.zeros(len(self.dialog_acts)) + self.smoothing
 		for da in sampled_das:
 			prob[self.dialog_acts.index(da)] += 1
-		prob /= prob.sum()
-		v, _ = self.heuristic(state)
-		return prob, v
-
-	def _get_user_generated_da(self, data) -> list:
-		# convert generated responses to DA
-		pred_da = []
-		for resp in data:
-			resp = resp['generated_text'].strip()
-			start_idx = resp.find("[")
-			end_idx = resp.find("]")
-			if start_idx == -1 or end_idx == -1:
-				continue
-			found_da = resp[start_idx + 1: end_idx].strip()
-			if found_da in self.user_dialog_acts:
-				pred_da.append(found_da)
-		return pred_da
+		return prob / prob.sum()
 
 	def heuristic(self, state:DialogSession) -> float:
-		# insert prop to donate, and compute the likelihood of user simulator agreeing to donate
+		"""Ask the persuadee simulator the donation question outright; score its answer."""
 		assert(state[-1][0] == PersuasionGame.USR)
 		prompt = f"""
 		The following is background information about task. 
@@ -134,7 +120,7 @@ class P4GSystemPlanner(DialogPlanner):
 		{" ".join([f"[{da}]" for da in self.user_dialog_acts])}
 		The following is a conversation between a Persuader and	a Persuadee about a charity called Save the Children. 
 		{self.process_exp(keep_sys_da=False, keep_user_da=True)}
-		The following is a new conversation between another Persuader and Persuadee.
+		The following is a new conversation between another Persuader and Persuadee.{persona_suffix(self.persona, prefix=" The Persuadee: ")}
 		{state.to_string_rep(keep_user_da=True, max_turn_to_display=self.user_max_hist_num_turns)}
 		Persuader: Would you be interested in donating to Save the Children?
 		Persuadee:
@@ -149,16 +135,11 @@ class P4GSystemPlanner(DialogPlanner):
 			"num_return_sequences": 10,
 		}
 		data = self.generation_model.generate(prompt, **inf_args)
-		sampled_das = self._get_user_generated_da(data)
+		sampled_das = parse_das(data, self.user_dialog_acts)
 
 		logger.debug(f"persuadee prompt: {prompt}")
 		logger.debug(f"sampled das: {sampled_das}")
-
-		# heuristic score: map each sampled persuadee dialog act to a reward (see reward_dict['p4g'])
-		score = [reward_dict['p4g'][da] for da in sampled_das if da in reward_dict['p4g']]
-		v = 0.0 if len(score) == 0 else np.mean(score)
-		logger.debug(f"sampled das to v: {v}")
-		return float(v), sampled_das
+		return _mean_reward(sampled_das), sampled_das
 
 
 class P4GChatSystemPlanner(P4GSystemPlanner):
@@ -171,11 +152,14 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 		generation_model:GenerationModel,
 		conv_examples: List[DialogSession] = [],
 		llm_prior_topk: int | None = None,
+		logit_scoring: "str | bool" = False,
+		explicit_value_labels: bool = False,
+		persona: str = None,
 	) -> None:
 		super().__init__(
 			dialog_acts, max_hist_num_turns,
 			user_dialog_acts, user_max_hist_num_turns,
-			generation_model, conv_examples
+			generation_model, conv_examples, persona=persona,
 		)
 		self.task_prompt = f"""
 		Save the Children is head-quartered in London, and they work to help fight poverty around the world. Children need help in developing countries and war zones. Small donations like $1 or $2 go a long way to help.
@@ -193,19 +177,28 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			"do_sample": True,
 			"num_return_sequences": 15,
 		}
-		# When set to an int K, predict() routes through _predict_topk_prior: a single
-		# LLM call that, given dialog history + DAs played so far, returns the top-K
-		# most promising next persuader DAs. The K actions get harmonic-decay weights
-		# as the prior; non-listed actions get a smoothing floor. Saves ~14 LLM calls
-		# per prior computation vs the default 15-sample histogram path. None
-		# preserves legacy behaviour.
-		#
-		# Emotion conditioning is intentionally NOT part of this prior — that signal
-		# lives in the PUCT bonus (EmotionGuidedDiscountQOpenLoopMCTS), so the two
-		# concerns stay separated and independently tunable.
+		# Ask for the K most promising acts in one call instead of histogramming 15 samples.
 		self.llm_prior_topk = llm_prior_topk
-		# Inference args for the single top-K call — lower temperature (we want a
-		# considered answer, not samples), more tokens to fit a numbered list.
+		# Read the value and/or the prior off the logits instead of sampling them. Both are
+		# closed-label questions, so the logits give exactly what the samples estimate.
+		# Needs a backbone that can score a continuation (SGLang); off everywhere else.
+		mode = {False: "off", True: "both", None: "off"}.get(logit_scoring, logit_scoring)
+		if mode not in ("off", "value", "prior", "both"):
+			raise ValueError(f"logit_scoring must be off/value/prior/both, got {mode!r}")
+		if mode != "off" and not generation_model.supports_label_scoring():
+			logger.warning(
+				f"--logit_scoring {mode} requested but {type(generation_model).__name__} cannot "
+				f"score labels; falling back to the sampling paths."
+			)
+			mode = "off"
+		self.logit_scoring = mode
+		self.logit_value = mode in ("value", "both")
+		self.logit_prior = mode in ("prior", "both")
+		# Restate the donation labels where the answer is read rather than only in the leading
+		# system message (paper §W5). Off by default: it moves the leaf value of every p4g run,
+		# so turning it on breaks comparison with the rows already in W5_COST_TABLE.md.
+		self.explicit_value_labels = bool(explicit_value_labels)
+		# One considered answer, long enough for a numbered list -- not samples.
 		self.topk_inf_args = {
 			"max_new_tokens": 256,
 			"temperature": 0.3,
@@ -221,100 +214,39 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			keep_sys_da=True, keep_user_da=False):
 		prompt_exps = []
 		for exp in self.conv_examples:
-			prompt_exps += self.__proccess_chat_exp(exp, keep_sys_da, keep_user_da, assistant_role)
+			prompt_exps += self._process_chat_turns(exp, keep_sys_da, keep_user_da, assistant_role)
 			prompt_exps.append({
 				"role":"system", "content": new_task_prompt
 			})
 		return prompt_exps[:-1]
 
-	def __proccess_chat_exp(self,
+	def _process_chat_turns(self,
 			exp:DialogSession, 
 			keep_sys_da, keep_user_da,
 			assistant_role=PersuasionGame.SYS,
 			max_hist_num_turns: int = -1):
-		if len(exp) == 0:
+		"""``exp`` as chat messages, with whichever speaker ``assistant_role`` names cast as
+		the assistant. Guarded on the raw history, not ``len(exp)``: that counts turns, so a
+		state ending mid-turn -- exactly what the user simulator is asked about -- read as
+		empty and dropped the whole conversation from the prompt."""
+		if len(exp.history) == 0:
 			return []
-		# P4G dataset starts with the system/Persuader
-		assert(exp[0][0] == PersuasionGame.SYS)
+		assert(exp[0][0] == PersuasionGame.SYS)  # P4G dialogues open with the Persuader
 
 		prompt_messages = []
-		num_turns_to_truncate = 0
-		if max_hist_num_turns > 0:
-			num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-		
-		# init with user
-		# if assistant_role == PersuasionGame.SYS:
-		# 	if keep_user_da:
-		# 		prompt_messages.append({
-		# 			"role": "user",
-		# 			"content": f"{PersuasionGame.USR}: [{PersuasionGame.U_Neutral}] Hello.".strip()
-		# 		})
-		# 	else:
-		# 		prompt_messages.append({
-		# 			"role": "user",
-		# 			"content": f"{PersuasionGame.USR}: Hello.".strip()
-		# 		})
-		# all the rest
-		for i, (role, da, utt) in enumerate(exp):
-			# truncate to reduce the size of the prompt
-			if (i // 2) < num_turns_to_truncate:
-				continue
-			# if assistant is the Persuader, then current data is also Persuader -> then it is of role "system"
-			if role == PersuasionGame.SYS:
-				if keep_sys_da:
-					content = f"{role}: [{da}] {utt}".strip()
-				else:
-					content = f"{role}: {utt}".strip()
-				if assistant_role == PersuasionGame.SYS:
-					prompt_role = "assistant"
-				else:
-					prompt_role = "user"
-			else:
-				if keep_user_da:
-					content = f"{role}: [{da}] {utt}".strip()
-				else:
-					content = f"{role}: {utt}".strip()
-				if assistant_role == PersuasionGame.USR:
-					prompt_role = "assistant"
-				else:
-					prompt_role = "user"
-			
+		for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+			keep_da = keep_sys_da if role == PersuasionGame.SYS else keep_user_da
+			content = f"{role}: [{da}] {utt}" if keep_da else f"{role}: {utt}"
 			prompt_messages.append({
-				"role": prompt_role,
-				"content": content
+				"role": "assistant" if role == assistant_role else "user",
+				"content": content.strip(),
 			})
 		return prompt_messages
 
-	def get_valid_moves(self, state):
-		# 1 if the i-th dialog act is valid, 0 otherwise
-		turn = len(state)
-		if turn < 1:
-			return np.array([1 if da == PersuasionGame.S_Greeting else 0 for da in self.dialog_acts])
-		return np.array([1 for _ in self.dialog_acts])
-
-	def get_utterance(self, state, action) -> str:
-		return ""  # should not be called
-
-	def _get_generated_da(self, data) -> list:
-		# convert generated responses to DA
-		pred_da = []
-		for resp in data:
-			resp = resp['generated_text'].strip()
-			start_idx = resp.find("[")
-			end_idx = resp.find("]")
-			if start_idx == -1 or end_idx == -1:
-				continue
-			found_da = resp[start_idx + 1: end_idx].strip()
-			if found_da in self.dialog_acts:
-				pred_da.append(found_da)
-		return pred_da
-
-	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-		# Route to the single-call top-K path when configured.
-		if self.llm_prior_topk is not None and self.llm_prior_topk > 0:
-			return self._predict_topk_prior(state, self.llm_prior_topk)
-
-		# Legacy path: 15 sampling calls with sequence histogram + smoothing.
+	def _build_prior_messages(self, state:DialogSession) -> list:
+		"""The prompt the policy prior answers: task + few-shot demo + the live dialogue, with
+		the model left to continue as `Persuader: [<dialog act>] ...`. Shared by the sampling
+		path (which histograms 15 completions) and the logit path (which scores the 13 acts)."""
 		messages = [
 			{'role': 'system', 'content': self.task_prompt},
 			*self.prompt_examples,
@@ -324,49 +256,49 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			messages.append({'role': 'user', 'content': f'{PersuasionGame.USR}: Hello.'})
 		else:
 			assert(state[-1][0] == PersuasionGame.USR)
-			messages += self.__proccess_chat_exp(state, keep_sys_da=True, keep_user_da=False)
-		# produce a response
-		data = self.generation_model.chat_generate(messages, **self.inf_args)
+			messages += self._process_chat_turns(
+				state, keep_sys_da=True, keep_user_da=False,
+				max_hist_num_turns=self.max_hist_num_turns,
+			)
+		return messages
 
-		sampled_das = self._get_generated_da(data)
-		logger.debug(f"sampled das: {sampled_das}")
-		# convert to prob distribution
-		prob = np.zeros(len(self.dialog_acts))
-		prob += self.smoothing
-		for da in sampled_das:
-			prob[self.dialog_acts.index(da)] += 1
-		prob /= prob.sum()
+	def predict(self, state:DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
+		"""(prior over the persuader's acts, leaf value). The logit prior replaces the top-K
+		call rather than preceding it: it already returns the full distribution, which MCTS
+		then prunes to the K best."""
+		if self.logit_prior:
+			return self._predict_logit_prior(state)
+		if self.llm_prior_topk is not None and self.llm_prior_topk > 0:
+			return self._predict_topk_prior(state, self.llm_prior_topk)
+		prob = self.sample_prior_probs(state)
 		v, _ = self.heuristic(state)
 		return prob, v
 
+	def sample_prior_probs(self, state:DialogSession) -> "np.ndarray":
+		"""The generation-based prior: 15 sampled persuader turns, histogrammed over the acts.
+		Public so the logit path can be validated against it."""
+		messages = self._build_prior_messages(state)
+		with role(POLICY_PRIOR):
+			data = self.generation_model.chat_generate(messages, **self.inf_args)
+
+		sampled_das = parse_das(data, self.dialog_acts)
+		logger.debug(f"sampled das: {sampled_das}")
+		return self._histogram(sampled_das)
+
 	# ---------------------------------------------------------------------
-	# Single-call top-K prior (emotion-agnostic — emotion lives in the PUCT bonus)
+	# Single-call top-K prior. Emotion is deliberately absent: that signal is the PUCT
+	# bonus's job, and keeping the two apart is what makes them separately ablatable.
 	# ---------------------------------------------------------------------
 
 	def _format_history_for_topk(self, state: DialogSession) -> str:
-		"""Format the dialog history showing the DA played at each turn. Emotions are
-		deliberately omitted — emotion conditioning is the PUCT bonus's job, not the
-		prior's. Keeping them separated means we can A/B the two signals cleanly.
-
-		Handles both plain DialogSession turns (3-tuples ``(role, da, utt)``) and
-		EmotionAwareDialogSession's ``EmotionalHistoryRecord`` dataclass (has
-		``.role`` / ``.da`` / ``.utt`` attributes but no ``__len__``)."""
+		"""The dialogue as ``Speaker [act]: text`` lines, windowed like every other role."""
 		lines = []
-		for rec in state.history:
-			if hasattr(rec, "role"):
-				# EmotionalHistoryRecord — use attribute access.
-				role, da, utt = rec.role, rec.da, rec.utt
-			else:
-				# plain (role, da, utt) tuple from DialogSession.
-				role, da, utt = rec[0], rec[1], rec[-1]
-			if role == PersuasionGame.SYS:
-				lines.append(f"{role} [{da or 'other'}]: {utt}")
-			else:
-				lines.append(f"{role} [{da or 'neutral'}]: {utt}")
+		for _i, (role, da, utt) in recent_turns(state, self.max_hist_num_turns):
+			default_da = 'other' if role == PersuasionGame.SYS else 'neutral'
+			lines.append(f"{role} [{da or default_da}]: {utt}")
 		return "\n".join(lines).strip()
 
 	def _build_topk_messages(self, state: DialogSession, k: int) -> list:
-		"""Build the messages for the single-call top-K prior prompt."""
 		history_block = self._format_history_for_topk(state) or "(no conversation yet — this is the opening turn)"
 		action_list = ", ".join(f"[{da}]" for da in self.dialog_acts)
 		instruction = (
@@ -379,137 +311,129 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			f"Output a numbered list of exactly {k} actions, one per line, in the form:\n"
 			f"1. [action]\n2. [action]\n... (up to {k})"
 		)
+		# The instruction must be a *user* message: as a trailing system message vicuna's
+		# template renders it as plain text and the model carries on role-playing instead of
+		# answering, which collapsed the prior onto one action.
 		return [
 			{"role": "system", "content": self.task_prompt},
 			*self.prompt_examples,
-			{"role": "system", "content": instruction},
+			{"role": "user", "content": instruction},
 		]
 
 	def _parse_topk_response(self, response_text: str, k: int) -> list:
-		"""Extract up to K DAs from the LLM's numbered list. Preserves order,
-		deduplicates, and tolerates several output formats:
-		  * "1. [action]\\n2. [action] ..."     (canonical)
-		  * "1. action"                          (no brackets)
-		  * loose mention of any valid DA name anywhere in the text
+		"""Up to K acts from the model's numbered list, in the order it ranked them.
+
+		Three passes, each more forgiving than the last: bracketed names, then bare
+		numbered-list lines, then any mention of an act anywhere in the text.
 		"""
-		import re
 		text = response_text or ""
-		# First pass: bracketed mentions in order of appearance.
 		picked = []
-		for m in re.finditer(r"\[([^\]]+)\]", text):
-			candidate = m.group(1).strip().lower()
-			# match against valid DA names case-insensitively
+
+		def take(candidate) -> bool:
 			for da in self.dialog_acts:
 				if da.lower() == candidate and da not in picked:
 					picked.append(da)
-					break
+					return True
+			return False
+
+		for m in re.finditer(r"\[([^\]]+)\]", text):
+			take(m.group(1).strip().lower())
 			if len(picked) >= k:
-				break
-		# Second pass: numbered-list lines without brackets.
-		if len(picked) < k:
-			for line in text.splitlines():
-				stripped = re.sub(r"^\s*\d+[\.\):]\s*", "", line).strip().lower()
-				for da in self.dialog_acts:
-					if da.lower() == stripped and da not in picked:
-						picked.append(da)
-						break
+				return picked[:k]
+		for line in text.splitlines():
+			take(re.sub(r"^\s*\d+[\.\):]\s*", "", line).strip().lower())
+			if len(picked) >= k:
+				return picked[:k]
+		# longest names first, so "proposition of donation" wins over a shorter substring
+		for da in sorted(self.dialog_acts, key=len, reverse=True):
+			if da.lower() in text.lower() and da not in picked:
+				picked.append(da)
 				if len(picked) >= k:
 					break
-		# Third pass: any in-text mention of a valid DA name (longest names first
-		# so "proposition of donation" matches before "personal story" etc.)
-		if len(picked) < k:
-			lower_text = text.lower()
-			for da in sorted(self.dialog_acts, key=len, reverse=True):
-				if da.lower() in lower_text and da not in picked:
-					picked.append(da)
-					if len(picked) >= k:
-						break
 		return picked[:k]
 
 	def _predict_topk_prior(self, state: DialogSession, k: int) -> "Tuple[np.ndarray, float]":
-		"""Single-call top-K prior. Replaces the 15-sample histogram with one chat
-		call asking for the top K actions given conversation history + DAs played.
+		prob = self.topk_prior_probs(state, k)
+		v, _ = self.heuristic(state)
+		return prob, v
 
-		Emotion conditioning is intentionally NOT in this prompt — that signal lives
-		in the PUCT bonus (EmotionGuidedDiscountQOpenLoopMCTS). Two reasons to keep
-		them separated:
-		  * Independently tunable / ablatable: swap one signal in/out without affecting
-		    the other; the A/B grid is cleaner.
-		  * Different abstraction levels: the prior is "which actions are coherent
-		    with the conversation"; the bonus is "given the user's emotional state,
-		    which actions pay off." Forcing both into one prompt couples them.
+	def topk_prior_probs(self, state: DialogSession, k: int) -> "np.ndarray":
+		"""The ranking prior on its own, without the leaf value.
 
-		Prior assignment: picked actions get harmonic-decay weights (1/1, 1/2, ...,
-		1/K) then renormalised; non-listed actions get a small smoothing floor so
-		PUCT can still recover from a wrong LLM pick. The smoothing floor is
-		intentionally small (~0.5% per action) so the LLM's ranking dominates but
-		isn't absolute.
+		Ranked acts share the mass by harmonic decay (1/1, 1/2, ... 1/K); every act also keeps
+		a 0.5% floor, small enough that the ranking dominates but non-zero so PUCT can still
+		recover from a bad pick.
 		"""
 		messages = self._build_topk_messages(state, k)
-		data = self.generation_model.chat_generate(messages, **self.topk_inf_args)
-		# chat_generate returns a list of dicts per the underlying API; take the first.
+		with role(POLICY_PRIOR):
+			data = self.generation_model.chat_generate(messages, **self.topk_inf_args)
 		if isinstance(data, list) and data:
 			response_text = data[0].get("generated_text") or data[0].get("content") or str(data[0])
 		else:
 			response_text = str(data)
 		picked = self._parse_topk_response(response_text, k)
-		print(f"top k: {picked}")
 		logger.debug(f"topk-prior picked: {picked} (parsed from: {response_text[:200]!r})")
 
-		prob = np.zeros(len(self.dialog_acts))
-		floor = 0.005  # 0.5% per action smoothing floor — non-zero so PUCT can recover
-		prob += floor
-		if picked:
-			# harmonic-decay weights to encode the LLM's ranking
-			weights = np.array([1.0 / (i + 1) for i in range(len(picked))])
-			weights /= weights.sum()
-			# mass to allocate to the picked actions (rest stays in the floor)
-			mass = 1.0 - floor * len(self.dialog_acts)
-			for da, w in zip(picked, weights):
-				prob[self.dialog_acts.index(da)] += mass * w
-		else:
-			# LLM produced no parseable picks — fall back to uniform over valid actions
+		if not picked:
 			logger.warning("topk-prior parsing returned no actions; using uniform fallback")
-			prob[:] = 1.0 / len(self.dialog_acts)
-		prob /= prob.sum()
-		v, _ = self.heuristic(state)
-		return prob, v
+			return np.ones(len(self.dialog_acts)) / len(self.dialog_acts)
 
-	def _get_user_generated_da(self, data) -> list:
-		# convert generated responses to DA
-		pred_da = []
-		for resp in data:
-			resp = resp['generated_text'].strip()
-			start_idx = resp.find("[")
-			end_idx = resp.find("]")
-			if start_idx == -1 or end_idx == -1:
-				continue
-			found_da = resp[start_idx + 1: end_idx].strip()
-			if found_da in self.user_dialog_acts:
-				pred_da.append(found_da)
-		return pred_da
+		floor = 0.005
+		prob = np.zeros(len(self.dialog_acts)) + floor
+		weights = np.array([1.0 / (i + 1) for i in range(len(picked))])
+		weights /= weights.sum()
+		mass = 1.0 - floor * len(self.dialog_acts)
+		for da, w in zip(picked, weights):
+			prob[self.dialog_acts.index(da)] += mass * w
+		return prob / prob.sum()
 
-	def heuristic(self, state:DialogSession) -> float:
-		# insert prop to donate, and compute the likelihood of user simulator agreeing to donate
+	def _build_value_messages(self, state:DialogSession) -> list:
+		"""The prompt the value estimator answers: the dialogue replayed from the *persuadee's*
+		side, closed with a direct ask, so the model's next turn is `Persuadee: [<label>] ...`
+		and the label is its answer to "would you donate". Shared by the sampling path (10
+		completions, averaged) and the logit path (the 5 labels scored)."""
 		assert(state[-1][0] == PersuasionGame.USR)
 		user_task_prompt = f"""
 		You are a persuadee. A Persuader is trying to persuade you to donate to a charity called Save the Children.
 		You can choose amongst the following actions during a conversation to respond to the Persuader:
 		{" ".join([f"[{da}]" for da in self.user_dialog_acts])}
-		The following is a new conversation between a Persuader and a Persuadee (you).
+		The following is an example conversation between a Persuader and a Persuadee.
 		""".replace("\t", "").strip()
 		user_new_task_prompt = "The following is a new conversation between a Persuader and a Persuadee (you)."
+		# The value estimator role-plays the persuadee, so it takes the same persona as the
+		# rollout simulator. It goes on the live-dialogue marker only: the few-shot demo is a
+		# different persuadee.
+		live_new_task_prompt = user_new_task_prompt + persona_suffix(self.persona)
 
 		messages = [
 			{'role': 'system', 'content': user_task_prompt},
 			*self.process_chat_exp(new_task_prompt=user_new_task_prompt, assistant_role=PersuasionGame.USR, keep_sys_da=False, keep_user_da=True),
-			{'role': 'system', 'content': user_new_task_prompt}
+			{'role': 'system', 'content': live_new_task_prompt}
 		]
-		messages += self.__proccess_chat_exp(state, assistant_role=PersuasionGame.USR, keep_sys_da=False, keep_user_da=True)
+		messages += self._process_chat_turns(
+			state, assistant_role=PersuasionGame.USR, keep_sys_da=False, keep_user_da=True,
+			max_hist_num_turns=self.user_max_hist_num_turns,
+		)
 		messages.append({
 			'role': 'user', 'content': f'{PersuasionGame.SYS}: Would you be interested in donating to Save the Children?'
 		})
+		if self.explicit_value_labels:
+			# The listing alone measured no better than the prompt as it shipped; naming what
+			# the label answers is what carried it. See scripts/explicit_labels_ablation.py.
+			listing = " ".join(f"[{da}]" for da in self.user_dialog_acts)
+			messages[-1] = {**messages[-1], 'content': messages[-1]['content'] + (
+				f"\nAnswer with your reaction to that question, beginning with exactly one of "
+				f"these labels: {listing}. Use [{PersuasionGame.U_Donate}] only if you are "
+				f"agreeing to donate, and [{PersuasionGame.U_NoDonation}] only if you are refusing."
+			)}
+		return messages
 
+	def heuristic(self, state:DialogSession) -> float:
+		"""Ask the persuadee simulator the donation question outright; score its answer."""
+		if self.logit_value:
+			return self._heuristic_logits(state)
+
+		messages = self._build_value_messages(state)
 		inf_args = {
 			"max_new_tokens": 12,
 			"temperature": 1.1,
@@ -517,17 +441,71 @@ class P4GChatSystemPlanner(P4GSystemPlanner):
 			"do_sample": True,
 			"num_return_sequences": 10,
 		}
-		data = self.generation_model.chat_generate(messages, **inf_args)
-		sampled_das = self._get_user_generated_da(data)
+		with role(VALUE_ESTIMATOR):
+			data = self.generation_model.chat_generate(messages, **inf_args)
+		sampled_das = parse_das(data, self.user_dialog_acts)
 
 		logger.debug(f"persuadee prompt: {messages}")
 		logger.debug(f"sampled das: {sampled_das}")
+		return _mean_reward(sampled_das), sampled_das
 
-		# heuristic score: map each sampled persuadee dialog act to a reward (see reward_dict['p4g'])
-		score = [reward_dict['p4g'][da] for da in sampled_das if da in reward_dict['p4g']]
-		v = 0.0 if len(score) == 0 else np.mean(score)
-		logger.debug(f"sampled das to v: {v}")
-		return float(v), sampled_das
+	# ---------------------------------------------------------------------
+	# Logit-scored value and prior (paper §W5) -- see self.logit_scoring
+	# ---------------------------------------------------------------------
+	def score_value_labels(self, state:DialogSession, top_logprobs_num: int = 0):
+		"""P(donation label | dialogue) over the 5 persuadee acts, one prompt, no generation.
+		Returned whole so callers can read P(donate) or the full distribution, not just v."""
+		with role(VALUE_ESTIMATOR):
+			return self.generation_model.score_labels(
+				self._build_value_messages(state),
+				labels=list(self.user_dialog_acts),
+				prefill=f"{PersuasionGame.USR}: [",
+				close="]",
+				top_logprobs_num=top_logprobs_num,
+			)
+
+	@staticmethod
+	def _as_pseudo_samples(scores, n: int = 10) -> list:
+		"""A label distribution as the sample list the sampling path returns.
+
+		`PersuasionGame.map_user_action` reads the modal non-donate act out of the samples, so
+		the logit path has to hand it the same shape. Largest-remainder apportionment of n
+		slots reproduces the histogram the draws were estimating, without the sampling noise.
+		"""
+		exact = scores.probs * n
+		counts = np.floor(exact).astype(int)
+		for idx in np.argsort(-(exact - counts))[: n - counts.sum()]:
+			counts[idx] += 1
+		return [label for label, c in zip(scores.labels, counts) for _ in range(c)]
+
+	def _heuristic_logits(self, state:DialogSession) -> "Tuple[float, list]":
+		assert(state[-1][0] == PersuasionGame.USR)
+		scores = self.score_value_labels(state)
+		# The sampling path's reward table and drop rule, as an exact expectation.
+		v = scores.expectation(reward_dict['p4g'])
+		logger.debug(f"logit-scored value: v={v:.4f} P(donate)={scores.prob_of(PersuasionGame.U_Donate):.4f} "
+					 f"probs={dict(zip(scores.labels, np.round(scores.probs, 4)))}")
+		return float(v), self._as_pseudo_samples(scores)
+
+	def score_prior_labels(self, state:DialogSession, top_logprobs_num: int = 0):
+		"""P(dialog act | dialogue) over the persuader's act set, one prompt, no generation.
+
+		No smoothing floor: a softmax over logprobs is already positive everywhere, so unlike
+		the sampled histogram it cannot shut PUCT out of an action."""
+		with role(POLICY_PRIOR):
+			return self.generation_model.score_labels(
+				self._build_prior_messages(state),
+				labels=list(self.dialog_acts),
+				prefill=f"{PersuasionGame.SYS}: [",
+				close="]",
+				top_logprobs_num=top_logprobs_num,
+			)
+
+	def _predict_logit_prior(self, state:DialogSession) -> "Tuple[np.ndarray, float]":
+		scores = self.score_prior_labels(state)
+		logger.debug(f"logit-scored prior: {dict(zip(scores.labels, np.round(scores.probs, 4)))}")
+		v, _ = self.heuristic(state)
+		return scores.probs, v
 
 
 class PersuaderModel(DialogModel):
@@ -537,25 +515,23 @@ class PersuaderModel(DialogModel):
 			max_hist_num_turns: int = 5,
 			conv_examples: List[DialogSession] = [],
 			inference_args: dict = {},
-			zero_shot: bool = True):
+			infer_user_da: bool = True):
 		super().__init__()
 		self.conv_examples = conv_examples
 		self.backbone_model = backbone_model
 		self.max_hist_num_turns = max_hist_num_turns
-		self.zero_shot = zero_shot
-		# prompts and DAs
+		# accepted for parity with the esc/cb players, which use it to drop the [act]
+		# tags from their prompts. The p4g prompts always show them, so nothing reads it.
+		self.infer_user_da = infer_user_da
 		self.da_prompts_mapping = {
 			PersuasionGame.S_Greeting:	 				"The Persuader greets the Persuadee.",
-			# start of persuasion strategies
 			PersuasionGame.S_CredibilityAppeal:	 		"The Persuader establishes credibility of Save the Children by citing its impact.",
 			PersuasionGame.S_EmotionAppeal:	 			"The Persuader uses an emotion appeal to convince the Persuadee.",
 			PersuasionGame.S_LogicalAppeal:	 			"The Persuader use of reasoning and evidence to convince the Persuadee.",
 			PersuasionGame.S_TaskRelatedInquiry:	 	"The Persuader asks about the Persuadee's knowledge or opinion related to Save the Children.",
 			PersuasionGame.S_PropositionOfDonation:	 	"The Persuader asks if the Persuadee would like to make a small donation.",
-			# end of persuasion strategies
 			PersuasionGame.S_Other:	 					"The Persuader responds to the Persuadee without using any persuaive strategy.",
 		}
-		# only allow da that has the mapping
 		self.dialog_acts = [da for da in dialog_acts if da in self.da_prompts_mapping]
 		
 		logger.debug(self.dialog_acts)
@@ -571,7 +547,7 @@ class PersuaderModel(DialogModel):
 			"max_new_tokens": 128,
 			"temperature": 0.0,
 			"repetition_penalty": 1.0,
-			"do_sample": False,  # otherwise tree will never go to the next level
+			"do_sample": False,  # otherwise the tree never reaches the next level
 			"return_full_text": False,
 			**inference_args
 		}
@@ -580,20 +556,12 @@ class PersuaderModel(DialogModel):
 	def process_exp(self):
 		prompt_exps = ""
 		for exp in self.conv_examples:
-			prompt_exps += self.__proccess_exp(exp) + "\n"
+			prompt_exps += self._process_turns(exp) + "\n"
 		return prompt_exps.strip()
 
-	def __proccess_exp(self, exp:DialogSession, max_hist_num_turns: int = -1):
+	def _process_turns(self, exp:DialogSession, max_hist_num_turns: int = -1):
 		prompt_exp = ""
-		num_turns_to_truncate = 0
-		if max_hist_num_turns > 0:
-			num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-		
-		for i, (role, da, utt) in enumerate(exp):
-			# truncate to reduce the size of the prompt
-			if (i // 2) < num_turns_to_truncate:
-				continue
-			
+		for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
 			if role == PersuasionGame.SYS:
 				prompt_exp += f"{self.da_prompts_mapping[da]}\n{role}: {utt}\n"
 			else:
@@ -601,7 +569,7 @@ class PersuaderModel(DialogModel):
 		return prompt_exp.strip()
 	
 	def get_utterance(self, state:DialogSession, action:int, mode='train') -> str:
-		# planner gives an action, state is history, you need to produce a response accrd to the action
+		"""Realize the act the planner chose as an utterance."""
 		da = self.dialog_acts[action]
 		da_prompt = self.da_prompts_mapping[da]
 		if len(state) == 0:
@@ -613,15 +581,14 @@ class PersuaderModel(DialogModel):
 		else:
 			prompt = f"""
 			{self.task_prompt}
-			{self.__proccess_exp(state, max_hist_num_turns=self.max_hist_num_turns)}
+			{self._process_turns(state, max_hist_num_turns=self.max_hist_num_turns)}
 			{da_prompt}
 			Persuader:
 			"""
 		prompt = prompt.replace("\t", "").strip()
-		# produce a response
-		data = self.backbone_model.generate(prompt, **self.inference_args)
-		sys_resp = self.backbone_model._cleaned_resp(data, prompt)[0]  # TODO
-		return sys_resp
+		with role(SYSTEM_UTTERANCE):
+			data = self.backbone_model.generate(prompt, **self.inference_args)
+		return self.backbone_model._cleaned_resp(data, prompt)[0]
 
 	def get_utterance_w_da(self, state: DialogSession, action) -> Tuple[str, str]:
 		raise NotImplementedError
@@ -634,20 +601,20 @@ class PersuaderChatModel(PersuaderModel):
 			max_hist_num_turns: int = 5,
 			conv_examples: List[DialogSession] = [],
 			inference_args: dict = {},
-			zero_shot: bool = True):
+			infer_user_da: bool = True):
 		super().__init__(
 			dialog_acts=dialog_acts,
 			backbone_model=backbone_model,
 			max_hist_num_turns=max_hist_num_turns,
 			conv_examples=conv_examples,
 			inference_args=inference_args,
-			zero_shot=zero_shot
+			infer_user_da=infer_user_da
 		)
 		self.inference_args = {
 			"max_new_tokens": 128,
 			"temperature": 0.0,
 			"repetition_penalty": 1.0,
-			"do_sample": False,  # otherwise tree will never go to the next level, unless you do OpenLoop search
+			"do_sample": False,  # otherwise the tree never reaches the next level, open-loop search aside
 			"return_full_text": False,
 			**inference_args
 		}
@@ -663,46 +630,36 @@ class PersuaderChatModel(PersuaderModel):
 	def process_chat_exp(self):
 		prompt_exps = []
 		for exp in self.conv_examples:
-			prompt_exps += self.__proccess_chat_exp(exp)
+			prompt_exps += self._process_chat_turns(exp)
 			prompt_exps.append({
 				"role":"system", "content": self.new_task_prompt
 			})
 		return prompt_exps[:-1]
 
-	def __proccess_chat_exp(self, exp:DialogSession, max_hist_num_turns: int = -1):
-		if len(exp) == 0:
+	def _process_chat_turns(self, exp:DialogSession, da_prompt: str = '', max_hist_num_turns: int = -1):
+		"""``exp`` as chat messages, each user turn followed by the instruction for the
+		persuader turn that answers it. The final user turn is the one being answered now, so
+		it takes ``da_prompt`` -- the act the planner just chose -- rather than an act read off
+		the history; without that the persuader saw the same prompt for every action.
+
+		Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+		mid-turn read as empty and dropped the conversation from the prompt.
+		"""
+		if len(exp.history) == 0:
 			return []
-		# P4G dataset starts with the system
-		assert(exp[0][0] == PersuasionGame.SYS)
+		assert(exp[0][0] == PersuasionGame.SYS)  # P4G dialogues open with the Persuader
 
 		prompt_messages = []
-		num_turns_to_truncate = 0
-		if max_hist_num_turns > 0:
-			num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-		
-		
-		next_sys_da = PersuasionGame.S_Greeting
-		for i, (role, da, utt) in enumerate(exp):
-			# truncate to reduce the size of the prompt
-			if (i // 2) < num_turns_to_truncate:
-				continue
+		for i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
 			if role == PersuasionGame.SYS:
-				prompt_messages.append({
-					"role": "assistant",
-					"content": f"{role}: {utt}".strip()
-				})
-			else:
-				if i+1 < len(exp.history):
-					next_sys_da = exp[i+1][1]
-					prompt_messages.append({
-						"role": "user",
-						"content": f"{role}: {utt}\n{self.da_prompts_mapping[next_sys_da]}".strip()
-					})
-				else:
-					prompt_messages.append({
-						"role": "user",
-						"content": f"{role}: {utt}".strip()
-					})
+				prompt_messages.append({"role": "assistant", "content": f"{role}: {utt}".strip()})
+				continue
+			is_last = i + 1 >= len(exp.history)
+			instruction = da_prompt if is_last else self.da_prompts_mapping[exp[i + 1][1]]
+			prompt_messages.append({
+				"role": "user",
+				"content": f"{role}: {utt}\n{instruction}".strip(),
+			})
 		return prompt_messages
 	
 	def get_utterance(self, state:DialogSession, action:int, mode='train') -> str:
@@ -720,12 +677,10 @@ class PersuaderChatModel(PersuaderModel):
 			messages.append({'role': 'user', 'content': f'{PersuasionGame.USR}: Hello.\n{da_prompt}'})
 		else:
 			assert(state[-1][0] == PersuasionGame.USR)
-			messages += self.__proccess_chat_exp(state, max_hist_num_turns=self.max_hist_num_turns)
-		gen_args = {
-			**self.inference_args,
-			"num_return_sequences": batch,  # this will be changed to n inside chat_generate
-		}
-		data = self.backbone_model.chat_generate(messages, **gen_args)
+			messages += self._process_chat_turns(state, da_prompt, max_hist_num_turns=self.max_hist_num_turns)
+		gen_args = {**self.inference_args, "num_return_sequences": batch}
+		with role(SYSTEM_UTTERANCE):
+			data = self.backbone_model.chat_generate(messages, **gen_args)
 		sys_resps = self.backbone_model._cleaned_chat_resp(
 			data, assistant_role=f"{PersuasionGame.SYS}:", user_role=f"{PersuasionGame.USR}:"
 		)
@@ -742,15 +697,20 @@ class PersuadeeModel(DialogModel):
 			backbone_model:GenerationModel,
 			conv_examples: List[DialogSession] = [],
 			max_hist_num_turns=5,
-			zero_shot: bool = True
+			infer_user_da: bool = True,
+			persona: str = None,
 	):
 		super().__init__()
+		# Who this persuadee is, from the p4g pre-task survey (utils/p4g_personas.py);
+		# None gives the unconditioned simulator.
+		self.persona = persona or None
 		self.conv_examples = conv_examples
 		self.backbone_model = backbone_model
 		self.dialog_acts = dialog_acts
 		self.max_hist_num_turns = max_hist_num_turns
-		self.zero_shot = zero_shot
-		# prompts
+		# accepted for parity with the esc/cb players, which use it to drop the [act]
+		# tags from their prompts. The p4g prompts always show them, so nothing reads it.
+		self.infer_user_da = infer_user_da
 		self.task_prompt = f"""
 		The following is background information about task. 
 		The Persuader is trying to persuade the Persuadee to donate to Save the Children.
@@ -763,7 +723,7 @@ class PersuadeeModel(DialogModel):
 		self.task_prompt = self.task_prompt.replace("\t", "").strip()
 		self.inference_args = inference_args
 		return
-	
+
 	def process_exp(self):
 		prompt_exps = ""
 		for exp in self.conv_examples:
@@ -772,30 +732,20 @@ class PersuadeeModel(DialogModel):
 	
 	def get_utterance(self, state:DialogSession, action=None, mode='train') -> str:
 		assert(state[-1][0] == PersuasionGame.SYS)
+		persona_line = persona_suffix(self.persona, prefix="\nThe Persuadee: ")
 		prompt = f"""
-		{self.task_prompt}
+		{self.task_prompt}{persona_line}
 		{state.to_string_rep(keep_user_da=True, max_turn_to_display=self.max_hist_num_turns)}
 		Persuadee:
 		"""
 		prompt = prompt.replace("\t", "").strip()
-		# produce a response
-		data = self.backbone_model.generate(prompt, **self.inference_args)
-		user_resp = self.backbone_model._cleaned_resp(data, prompt)[0]
-		return user_resp
+		with role(USER_SIMULATOR):
+			data = self.backbone_model.generate(prompt, **self.inference_args)
+		return self.backbone_model._cleaned_resp(data, prompt)[0]
 
 	def get_utterance_w_da(self, state:DialogSession, action=None, mode='train') -> "Tuple[str, str]":
 		user_resp = self.get_utterance(state, action, mode=mode)
-		# extract da
-		start_idx = user_resp.find("[")
-		end_idx = user_resp.find("]")
-		if start_idx == -1 or end_idx == -1:
-			da = PersuasionGame.U_Neutral
-		else:
-			da = user_resp[start_idx+1:end_idx]
-			user_resp = user_resp.replace(f"[{da}]", "", 1).strip()
-			if da not in self.dialog_acts:
-				da = PersuasionGame.U_Neutral
-		return da, user_resp
+		return split_da(user_resp, self.dialog_acts, PersuasionGame.U_Neutral)
 
 
 class PersuadeeChatModel(PersuadeeModel):
@@ -805,14 +755,16 @@ class PersuadeeChatModel(PersuadeeModel):
 			backbone_model:GenerationModel,
 			conv_examples: List[DialogSession] = [],
 			max_hist_num_turns=5,
-			zero_shot: bool = True):
+			infer_user_da: bool = True,
+			persona: str = None):
 		super().__init__(
 			dialog_acts=dialog_acts,
 			inference_args=inference_args,
 			backbone_model=backbone_model,
 			conv_examples=conv_examples,
 			max_hist_num_turns=max_hist_num_turns,
-			zero_shot=zero_shot
+			infer_user_da=infer_user_da,
+			persona=persona,
 		)
 		self.inference_args = inference_args
 		self.task_prompt = f"""
@@ -828,40 +780,44 @@ class PersuadeeChatModel(PersuadeeModel):
 		}
 		self.prompt_examples = self.process_chat_exp()
 		return
-	
+
+	def live_task_prompt(self) -> str:
+		"""``new_task_prompt`` plus this persuadee's persona, if it has one.
+
+		This is the message that hands over to the live dialogue, so the persona describes the
+		persuadee being replayed. ``prompt_examples`` stays unconditioned: the demo is someone
+		else.
+		"""
+		return self.new_task_prompt + persona_suffix(self.persona)
+
 	def process_chat_exp(self):
 		prompt_exps = []
 		for exp in self.conv_examples:
-			prompt_exps += self.__proccess_chat_exp(exp)
+			prompt_exps += self._process_chat_turns(exp)
 			prompt_exps.append({
 				"role":"system", "content": self.new_task_prompt
 			})
 		return prompt_exps[:-1]
 
-	def __proccess_chat_exp(self, exp:DialogSession, max_hist_num_turns: int = -1):
-		if len(exp) == 0:
+	def _process_chat_turns(self, exp:DialogSession, max_hist_num_turns: int = -1):
+		"""``exp`` as chat messages with the persuadee -- the simulator itself -- as assistant.
+
+		Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+		mid-turn, which is exactly what the simulator is asked about, read as empty and
+		dropped the conversation from the prompt.
+		"""
+		if len(exp.history) == 0:
 			return []
-		# P4G dataset starts with the system
-		assert(exp[0][0] == PersuasionGame.SYS)
+		assert(exp[0][0] == PersuasionGame.SYS)  # P4G dialogues open with the Persuader
 
 		prompt_messages = []
-		num_turns_to_truncate = 0
-		if max_hist_num_turns > 0:
-			num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-		
-		for i, (role, da, utt) in enumerate(exp):
-			# truncate to reduce the size of the prompt
-			if (i // 2) < num_turns_to_truncate:
-				continue
+		for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
 			if role == PersuasionGame.SYS:
-				prompt_messages.append({
-					"role": "user",
-					"content": f"{role}: {utt}".strip()
-				})
+				prompt_messages.append({"role": "user", "content": f"{role}: {utt}".strip()})
 			else:
 				prompt_messages.append({
-					"role": "assistant",  # assistant is the user simulator
-					"content": f"{role}: [{da}] {utt}".strip()
+					"role": "assistant",
+					"content": f"{role}: [{da}] {utt}".strip(),
 				})
 		return prompt_messages
 	
@@ -870,12 +826,11 @@ class PersuadeeChatModel(PersuadeeModel):
 		messages = [
 			{'role': 'system', 'content': self.task_prompt},
 			*self.prompt_examples,
-			{'role': 'system', 'content': self.new_task_prompt}
+			{'role': 'system', 'content': self.live_task_prompt()}
 		]
-		messages += self.__proccess_chat_exp(state, max_hist_num_turns=self.max_hist_num_turns)
-
-		# produce a response
-		data = self.backbone_model.chat_generate(messages, **self.inference_args)
+		messages += self._process_chat_turns(state, max_hist_num_turns=self.max_hist_num_turns)
+		with role(USER_SIMULATOR):
+			data = self.backbone_model.chat_generate(messages, **self.inference_args)
 		user_resp = self.backbone_model._cleaned_chat_resp(
 			data, assistant_role=f"{PersuasionGame.USR}:", user_role=f"{PersuasionGame.SYS}:"
 		)[0]
@@ -888,12 +843,12 @@ class PersuadeeChatModel(PersuadeeModel):
 			messages = [
 				{'role': 'system', 'content': self.task_prompt},
 				*self.prompt_examples,
-				{'role': 'system', 'content': self.new_task_prompt}
+				{'role': 'system', 'content': self.live_task_prompt()}
 			]
-			messages += self.__proccess_chat_exp(state, max_hist_num_turns=self.max_hist_num_turns)
+			messages += self._process_chat_turns(state, max_hist_num_turns=self.max_hist_num_turns)
 			all_prompts.append(messages)
-		# produce a response
-		datas = self.backbone_model.chat_generate_batched(all_prompts, **self.inference_args)
+		with role(USER_SIMULATOR):
+			datas = self.backbone_model.chat_generate_batched(all_prompts, **self.inference_args)
 		user_resps = []
 		for data in datas:
 			user_resp = self.backbone_model._cleaned_chat_resp(
@@ -903,85 +858,53 @@ class PersuadeeChatModel(PersuadeeModel):
 		return user_resps
 	
 	def get_utterance_w_da_from_batched_states(self, states:List[DialogSession], action=None):
-		gen_user_resps = self.get_utterance_from_batched_states(states, action)
-		das = []
-		user_resps = []
-		# extract da
-		for user_resp in gen_user_resps:
-			start_idx = user_resp.find("[")
-			end_idx = user_resp.find("]")
-			if start_idx == -1 or end_idx == -1:
-				da = PersuasionGame.U_Neutral
-			else:
-				da = user_resp[start_idx+1:end_idx]
-				user_resp = user_resp.replace(f"[{da}]", "", 1).strip()
-				if da not in self.dialog_acts:
-					da = PersuasionGame.U_Neutral
-			das.append(da)
-			user_resps.append(user_resp)
+		split = [
+			split_da(resp, self.dialog_acts, PersuasionGame.U_Neutral)
+			for resp in self.get_utterance_from_batched_states(states, action)
+		]
+		das = [da for da, _ in split]
+		user_resps = [utt for _, utt in split]
 		return das, user_resps
 
-	def __process_heuristics_chat_exp(self, dialog:DialogSession):
+	def _heuristics_qa_pair(self, dialog:DialogSession):
+		"""One (dialogue, act) demonstration for predict_da: the turns as a single question,
+		answered by the act the closing user turn actually carried."""
 		if len(dialog) == 0:
 			return []
-		# assumes you start with the system
-		# and ends with a user utterance to predict
 		assert(dialog[0][0] == PersuasionGame.SYS)
 		assert(dialog[-1][0] == PersuasionGame.USR)
 
-		prompt_messages = []
-		input_context = []
-		answer_da = dialog[-1][1]
-		for i, (role, da, utt) in enumerate(dialog):
-			# if assistant is the Persuader, then current data is also Persuader -> then it is of role "system"
-			# treat this as a task
-			content = f"{role}: {utt}".strip()
-			input_context.append(content)
-		input_context.append(f"{dialog.USR} feeling:")
+		lines = [f"{role}: {utt}".strip() for role, _da, utt in dialog]
+		lines.append(f"{dialog.USR} feeling:")
+		return [
+			{"role": 'user', "content": "\n".join(lines)},
+			{"role": 'assistant', "content": f"{dialog[-1][1]}"},
+		]
 
-		prompt_q = "\n".join(input_context)
-		prompt_messages.append({
-			"role": 'user',
-			"content": prompt_q
-		})
-		prompt_messages.append({
-			"role": 'assistant',
-			"content": f"{answer_da}"
-		})
-		return prompt_messages
-	
-	def __truncate_heuristics_dialog(self, dialog:DialogSession, pred_end_idx=-1):
+	def _heuristics_window(self, dialog:DialogSession, pred_end_idx=-1):
+		"""``dialog`` cut to the last few turns, ending on the user turn to predict."""
 		max_history_length = self.heuristic_args['max_hist_num_turns']
 		if pred_end_idx == -1:
 			pred_end_idx = len(dialog.history) - 1
-		new_sys_start_idx = max(0, pred_end_idx - (max_history_length * 2 - 1))
-		new_history = []
-		for j, (role, da, utt) in enumerate(dialog):
-			if j >= new_sys_start_idx:
-				new_history.append((role, da, utt))
-			if j == pred_end_idx:
-				# user's utternace to predict
-				break
-		new_dialog_session = DialogSession(dialog.SYS, dialog.USR).from_history(new_history)
-		return new_dialog_session
-	
+		start_idx = max(0, pred_end_idx - (max_history_length * 2 - 1))
+		new_history = [turn for j, turn in enumerate(dialog) if start_idx <= j <= pred_end_idx]
+		return DialogSession(dialog.SYS, dialog.USR).from_history(new_history)
+
 	def process_heurstics_chat_exp(self, new_task_prompt: str):
 		prompt_exps = []
 		for i, exp in enumerate(self.conv_examples):
-			pred_end_turns: List[int] = self.heuristic_args['example_pred_turn'][i]
-			# make a new dialogue session until that pred_idx with max max_history_length turns
-			for pred_end_turn in pred_end_turns:
-				pred_end_idx = pred_end_turn * 2 + 1
-				new_dialog_session = self.__truncate_heuristics_dialog(exp, pred_end_idx)
-				prompt_exps += self.__process_heuristics_chat_exp(new_dialog_session)
-				prompt_exps.append({
-					"role":"system", "content": new_task_prompt
-				})
+			for pred_end_turn in self.heuristic_args['example_pred_turn'][i]:
+				window = self._heuristics_window(exp, pred_end_turn * 2 + 1)
+				prompt_exps += self._heuristics_qa_pair(window)
+				prompt_exps.append({"role": "system", "content": new_task_prompt})
 		return prompt_exps[:-1]
 
 	def predict_da(self, state:DialogSession, never_end=True) -> str:
-		# never_end=True  during real chat, let user choose to terminate, not this function
-		# insert prop to donate, and compute the likelihood of user simulator agreeing to donate
+		"""The persuadee act for the last user turn, by majority vote over 5 samples.
+
+		``never_end`` keeps the terminal acts out of the vote so a live chat ends when the
+		human says so, not when the classifier does.
+		"""
 		assert(state[-1][0] == PersuasionGame.USR)
 
 		messages = [
@@ -989,10 +912,8 @@ class PersuadeeChatModel(PersuadeeModel):
 			*self.process_heurstics_chat_exp(new_task_prompt=self.new_task_prompt),
 			{'role': 'system', 'content': self.new_task_prompt}
 		]
-		new_dialog_session = self.__truncate_heuristics_dialog(state, -1)
-		messages += self.__process_heuristics_chat_exp(new_dialog_session)[:-1]
+		messages += self._heuristics_qa_pair(self._heuristics_window(state, -1))[:-1]
 
-		# majority vote, same as value function
 		inf_args = {
 			"max_new_tokens": 5,
 			"temperature": 0.7,
@@ -1000,8 +921,8 @@ class PersuadeeChatModel(PersuadeeModel):
 			"do_sample": True,
 			"num_return_sequences": 5,
 		}
-		datas = self.backbone_model.chat_generate(messages, **inf_args)
-		# process into das
+		with role(USER_SIMULATOR):
+			datas = self.backbone_model.chat_generate(messages, **inf_args)
 		sampled_das: list = []
 		for resp in datas:
 			user_da = resp['generated_text'].strip()
@@ -1017,7 +938,5 @@ class PersuadeeChatModel(PersuadeeModel):
 			else:
 				sampled_das.append(user_da)
 		logger.info(f"sampled das: {sampled_das}")
-		# majority vote
-		counted_das = Counter(sampled_das)
-		user_da = counted_das.most_common(1)[0][0]
+		user_da = Counter(sampled_das).most_common(1)[0][0]
 		return user_da

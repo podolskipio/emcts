@@ -27,13 +27,14 @@ MAX_REALIZATIONS="${MAX_REALIZATIONS:-3}"
 Q_0="${Q_0:-0.0}"
 LAMBDA_EMO="${LAMBDA_EMO:-0.3}"             # 0.0 = GDPZero-equivalent
 GEN_SENTENCES="${GEN_SENTENCES:--1}"
+EMOTION_CLASSIFIER="${EMOTION_CLASSIFIER:-llm}"  # 'llm' (prompt) or 'hf' (j-hartmann encoder)
 
 # default run-id encodes the key knobs so two runs don't collide
-RUN_ID="${RUN_ID:-emomcts_${GAME}_${LLM}_d${NUM_DIALOGS}_s${NUM_MCTS_SIMS}_lambda${LAMBDA_EMO}}"
+RUN_ID="${RUN_ID:-emomcts_${GAME}_${LLM}_d${NUM_DIALOGS}_s${NUM_MCTS_SIMS}_lambda${LAMBDA_EMO}_clf${EMOTION_CLASSIFIER}}"
 OUTPUT="${OUTPUT:-outputs/${RUN_ID}.pkl}"
 
 echo "=== emomcts / ChatGPT ==="
-echo "  llm=${LLM}  game=${GAME}  num_dialogs=${NUM_DIALOGS}  num_mcts_sims=${NUM_MCTS_SIMS}  lambda_emo=${LAMBDA_EMO}"
+echo "  llm=${LLM}  game=${GAME}  num_dialogs=${NUM_DIALOGS}  num_mcts_sims=${NUM_MCTS_SIMS}  lambda_emo=${LAMBDA_EMO}  classifier=${EMOTION_CLASSIFIER}"
 echo "  output=${OUTPUT}"
 echo
 
@@ -45,6 +46,7 @@ exec python runners/emomcts.py \
     --max_realizations "${MAX_REALIZATIONS}" \
     --Q_0 "${Q_0}" \
     --lambda_emo "${LAMBDA_EMO}" \
+    --emotion_classifier "${EMOTION_CLASSIFIER}" \
     --gen_sentences "${GEN_SENTENCES}" \
     --output "${OUTPUT}" \
     "$@"

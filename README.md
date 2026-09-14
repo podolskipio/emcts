@@ -35,7 +35,7 @@ score(a) = Q[s][a] + β · Q_emo[s][a] + c_puct · P[s][a] · √N(s) / (1 + N(s
 
 The valence weights `w(e)` per emotion are **mined from the PersuasionForGood corpus**,
 not hand-set: `w(e) ∝ P(donate | user emotion = e) − base_rate`
-(`scripts/mine_emotion_donation_p4g.py`). The mined weights overturn naive affective
+(`src/emotion_mining/mine_emotion_donation_p4g.py`). The mined weights overturn naive affective
 valence — *fear* is the strongest positive predictor of donation, while *neutral*
 (apathy) is the main negative signal.
 
@@ -86,7 +86,9 @@ src/
   evaluators/   resp_ranker + {p4g,esc,cb}_evaluator + run_judge.py   pairwise LLM judge
 scripts/
   mine_emotion_donation_p4g.py   mine the emotion-valence map from the corpus
-  run_sweep_experiments.sh       simulation-budget sweep (SR/AT)
+  run_sweep_experiments.sh       Grid A: 3 models x 2 persona x 3 methods factorial (SR/AT)
+  gridA_report.py                Grid A analysis -> gridA/RESULTS.md (SR, AvgT, delta, McNemar)
+  gridA_cache_hit.py             realization-cache hit rate (Grid A stop condition)
   sweep_judge.sh                 sweep + LLM-judge comparison (vs human / raw / gdpzero)
   plot_da_histogram.py           per-turn dialogue-act distribution figure
   plot_emotion_conditioned_actions.py   action choice vs. user emotion figure
@@ -230,10 +232,14 @@ summary (`--out_json` dumps the summary; `--limit N` caps records;
 
 ```bash
 # 1. Mine the emotion-valence map from the corpus (writes outputs/emotion_donation_analysis.json)
-python scripts/mine_emotion_donation_p4g.py
+python src/emotion_mining/mine_emotion_donation_p4g.py
 
-# 2. Simulation-budget sweep: gdpzero / gdpzero+topk / emomcts across num_sims (SR / AT)
-scripts/run_sweep_experiments.sh
+# 2. Grid A -- the factorial evaluation grid (3 AWQ models x 2 persona conditions x 3 methods,
+#    n_sims=50, 100 dialogues each; 3 seeds on the Vicuna / no-persona anchor cell).
+#    One SGLang server serves one model, so run it once per backbone:
+MODEL=TheBloke/vicuna-13B-v1.5-AWQ scripts/serve_sglang.sh &      # terminal 1
+MODELS=vicuna scripts/run_sweep_experiments.sh                     # terminal 2
+python3 scripts/gridA_report.py                                    # -> gridA/RESULTS.md
 
 # 3. Sweep + LLM-judge comparison (emomcts vs human / raw / gdpzero), judged with gpt-3.5
 scripts/sweep_judge.sh
@@ -243,9 +249,11 @@ python scripts/plot_da_histogram.py                  # dialogue-act distribution
 python scripts/plot_emotion_conditioned_actions.py   # action choice vs. user emotion
 ```
 
-Each script is env-overridable (e.g. `SIMS="20 50" NUM_DIALOGS=100 scripts/run_sweep_experiments.sh`).
-Per-run outputs land under `src/outputs/<run-id>/` with a `metadata.json` snapshot of the
-exact arguments, so any run is reproducible from its directory.
+Each script is env-overridable (e.g. `NUM_DIALOGS=20 STAGES=a1 scripts/run_sweep_experiments.sh`),
+though Grid A's *frozen* parameters are guarded: changing one mid-grid aborts the sweep rather
+than mixing two batches. Grid A runs land under `gridA/runs/<run-id>/`, everything else under
+`src/outputs/<run-id>/`, each with a `metadata.json` snapshot of the exact arguments, so any run
+is reproducible from its directory.
 
 ## Interactive demo
 

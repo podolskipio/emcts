@@ -5,13 +5,46 @@ import torch
 from typing import List, Tuple
 
 from players.planner import DialogPlanner
-from utils.sessions import DialogSession, CBDialogSession
+from utils.sessions import DialogSession
 from utils.gen_models import GenerationModel, DialogModel
 from utils.rewards import reward_dict
 from games import CBGame
+from players.prompting import parse_das, recent_turns
+
+
+_CB_DESC_MAX_CHARS = 1200  # longest listing in cb-valid.txt is 1419 chars; keep prompts bounded
+
+
+def _clip_desc(desc) -> str:
+    desc = " ".join(str(desc or "").split())
+    return desc if len(desc) <= _CB_DESC_MAX_CHARS else desc[:_CB_DESC_MAX_CHARS].rstrip() + " ..."
+
+
+def cb_buyer_scenario(state) -> str:
+    return (
+        "You are the buyer who is trying to buy the %s at the lowest price you can, "
+        "and you cannot pay more than %s. Product description: %s"
+        % (getattr(state, "item_name", "item"), getattr(state, "buyer_price", "?"),
+           _clip_desc(getattr(state, "buyer_item_description", "")))
+    )
+
+
+def cb_seller_scenario(state) -> str:
+    return (
+        "You are the seller who is trying to sell the %s at the highest price you can, "
+        "and it is listed at %s. Product description: %s"
+        % (getattr(state, "item_name", "item"), getattr(state, "seller_price", "?"),
+           _clip_desc(getattr(state, "seller_item_description", "")))
+    )
 
 
 logger = logging.getLogger(__name__)
+
+
+def _mean_reward(sampled_das) -> float:
+    """Mean reward over the seller acts that carry one; 0.0 if none of them do."""
+    scores = [reward_dict['cb'][da] for da in sampled_das if da in reward_dict['cb']]
+    return float(np.mean(scores)) if scores else 0.0
 
 
 class CBSystemPlanner(DialogPlanner):
@@ -74,23 +107,7 @@ class CBSystemPlanner(DialogPlanner):
     def get_utterance(self, state, action) -> str:
         return ""  # should not be called
 
-    def _get_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
-
     def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-        # test k times and compute prob. See num_return_sequences in the API
-        # the value would be our objective function
         if len(state) == 0:
             prompt = f"""
             {self.task_prompt}
@@ -105,33 +122,21 @@ class CBSystemPlanner(DialogPlanner):
         prompt = prompt.replace("\t", "").strip()
         logger.debug(prompt)
         data = self.generation_model.generate(prompt, **self.inf_args)
-        sampled_das = self._get_generated_da(data)
+        sampled_das = parse_das(data, self.dialog_acts)
         logger.debug(f"sampled das: {sampled_das}")
-        # convert to prob distribution
-        prob = np.zeros(len(self.dialog_acts))
-        prob += self.smoothing
+        v, _ = self.heuristic(state)
+        return self._histogram(sampled_das), v
+
+    def _histogram(self, sampled_das) -> "np.ndarray":
+        """Sampled acts as a distribution, with `self.smoothing` added so an act that happened
+        not to be drawn is not assigned probability zero."""
+        prob = np.zeros(len(self.dialog_acts)) + self.smoothing
         for da in sampled_das:
             prob[self.dialog_acts.index(da)] += 1
-        prob /= prob.sum()
-        v, _ = self.heuristic(state)
-        return prob, v
-
-    def _get_user_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.user_dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
+        return prob / prob.sum()
 
     def heuristic(self, state: DialogSession) -> float:
-        # ask the seller simulator whether it would close the deal at this point in the conversation
+        """Ask the seller simulator whether it would close the deal now; score its answer."""
         assert state[-1][0] == CBGame.USR
         prompt = f"""
         The following is background information about the task.
@@ -155,16 +160,11 @@ class CBSystemPlanner(DialogPlanner):
             "num_return_sequences": 10,
         }
         data = self.generation_model.generate(prompt, **inf_args)
-        sampled_das = self._get_user_generated_da(data)
+        sampled_das = parse_das(data, self.user_dialog_acts)
 
         logger.debug(f"seller prompt: {prompt}")
         logger.debug(f"sampled das: {sampled_das}")
-
-        # heuristic score: map each sampled seller dialog act to a reward (see reward_dict['cb'])
-        score = [reward_dict['cb'][da] for da in sampled_das if da in reward_dict['cb']]
-        v = 0.0 if len(score) == 0 else np.mean(score)
-        logger.debug(f"sampled das to v: {v}")
-        return float(v), sampled_das
+        return _mean_reward(sampled_das), sampled_das
 
 
 class CBChatSystemPlanner(CBSystemPlanner):
@@ -176,7 +176,7 @@ class CBChatSystemPlanner(CBSystemPlanner):
         user_max_hist_num_turns,
         generation_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
-        zero_shot = True,
+        infer_user_da = True,
         use_policy_prior = True,
         action_temperature = 1.0,
         action_num_return_sequences = 15,
@@ -192,7 +192,9 @@ class CBChatSystemPlanner(CBSystemPlanner):
             generation_model,
             conv_examples,
         )
-        self.zero_shot = zero_shot
+        # True makes the critic below ask its question in plain English instead of with
+        # the [act] labels, and read the verdict out of the answer's wording.
+        self.infer_user_da = infer_user_da
         self.use_policy_prior = use_policy_prior
         self.task_prompt = f"""
         Now enter the role-playing mode. In the following conversation, you will play as a buyer negotiating with a seller to buy an item on an online marketplace.
@@ -229,13 +231,13 @@ class CBChatSystemPlanner(CBSystemPlanner):
     ):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(
+            prompt_exps += self._process_chat_turns(
                 exp, keep_sys_da, keep_user_da, assistant_role
             )
             prompt_exps.append({"role": "system", "content": new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(
+    def _process_chat_turns(
         self,
         exp: DialogSession,
         keep_sys_da,
@@ -243,88 +245,28 @@ class CBChatSystemPlanner(CBSystemPlanner):
         assistant_role=CBGame.SYS,
         max_hist_num_turns: int = -1,
     ):
-        if len(exp) == 0:
+        """``exp`` as chat messages, with whichever speaker ``assistant_role`` names cast as
+        the assistant. Guarded on the raw history, not ``len(exp)``: that counts turns, so a
+        state ending mid-turn read as empty and dropped the conversation from the prompt."""
+        if len(exp.history) == 0:
             return []
-        # the conversation always starts with the system/Buyer
-        assert exp[0][0] == CBGame.SYS
+        assert exp[0][0] == CBGame.SYS  # the conversation always opens with the Buyer
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        # all the rest
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-            # if the assistant role is the Buyer and the current turn is the Buyer's, it maps to role "assistant"
-            if role == CBGame.SYS:
-                if keep_sys_da:
-                    content = f"{role}: [{da}] {utt}".strip()
-                else:
-                    content = f"{role}: {utt}".strip()
-                if assistant_role == CBGame.SYS:
-                    prompt_role = "assistant"
-                else:
-                    prompt_role = "user"
-            else:
-                if keep_user_da:
-                    content = f"{role}: [{da}] {utt}".strip()
-                else:
-                    content = f"{role}: {utt}".strip()
-                if assistant_role == CBGame.USR:
-                    prompt_role = "assistant"
-                else:
-                    prompt_role = "user"
-
-            prompt_messages.append({"role": prompt_role, "content": content})
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            keep_da = keep_sys_da if role == CBGame.SYS else keep_user_da
+            content = f"{role}: [{da}] {utt}" if keep_da else f"{role}: {utt}"
+            prompt_messages.append({
+                "role": "assistant" if role == assistant_role else "user",
+                "content": content.strip(),
+            })
         return prompt_messages
 
-    def get_valid_moves(self, state):
-        # 1 if the i-th dialog act is valid, 0 otherwise
-        turn = len(state)
-        if turn < 1:
-            return np.array(
-                [
-                    1 if da == CBGame.S_Greet else 0
-                    for da in self.dialog_acts
-                ]
-            )
-        return np.array([1 for _ in self.dialog_acts])
-
-    def get_utterance(self, state, action) -> str:
-        return ""  # should not be called
-
-    def _get_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        action_list = [CBGame.S_Affirm, CBGame.S_Agree, CBGame.S_Confirm, CBGame.S_Counter, 
-                       CBGame.S_Counter_noprice, CBGame.S_Deny, CBGame.S_Disagree, CBGame.S_Greet, 
-                       CBGame.S_Information, CBGame.S_Inquire, CBGame.S_Propose]
-        pred_da = []
-        for resp in data:
-            resp = resp["generated_text"].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1 : end_idx].strip()
-            if found_da in self.dialog_acts:
-                pred_da.append(found_da)
-            # for action in action_list:
-            #     if action.lower() in resp.lower():
-            #         pred_da.append(action)
-            #         break
-        return pred_da
-
     def predict(self, state: DialogSession, policy=None, ent_bound=None) -> "Tuple[np.ndarray, float]":
-        # test k times and compute prob. See num_return_sequences in the API
-        # the value would be our objective function
         if self.use_policy_prior and policy is not None:
             logger.info('Apply policy model to calculate prior')
             with torch.no_grad():
                 agent_dist, _ = policy.apply_policy(state.to_chat_messages())
-            # agent_dist = torch.ones(len(self.dialog_acts)).to(policy.device) / len(self.dialog_acts)
             logger.info('Apply the policy network (Roberta-large) to predict prior distribution.')
             if len(agent_dist.shape) > 1:
                 agent_dist = agent_dist.squeeze(dim=0)
@@ -342,42 +284,20 @@ class CBChatSystemPlanner(CBSystemPlanner):
                 )
             else:
                 assert state[-1][0] == CBGame.USR
-                messages += self.__proccess_chat_exp(
-                    state, keep_sys_da=True, keep_user_da=False
+                messages += self._process_chat_turns(
+                    state, keep_sys_da=True, keep_user_da=False,
+                    max_hist_num_turns=self.max_hist_num_turns,
                 )
-            # produce a response
             data = self.generation_model.chat_generate(messages, **self.inf_args)
-
-            sampled_das = self._get_generated_da(data)
+            sampled_das = parse_das(data, self.dialog_acts)
             logger.info(f"sampled das: {sampled_das}")
-            # convert to prob distribution
-            prob = np.zeros(len(self.dialog_acts))
-            prob += self.smoothing
-            for da in sampled_das:
-                try:
-                    prob[self.dialog_acts.index(da)] += 1
-                except:
-                    continue
-            prob /= prob.sum()
+            prob = self._histogram(sampled_das)
         v, _ = self.heuristic(state)
         return prob, v
 
-    def _get_user_generated_da(self, data) -> list:
-        # convert generated responses to DA
-        pred_da = []
-        for resp in data:
-            resp = resp['generated_text'].strip()
-            start_idx = resp.find("[")
-            end_idx = resp.find("]")
-            if start_idx == -1 or end_idx == -1:
-                continue
-            found_da = resp[start_idx + 1: end_idx].strip()
-            if found_da in self.user_dialog_acts:
-                pred_da.append(found_da)
-        return pred_da
-
-    def _get_zero_shot_user_da(self, data) -> list:
-        # convert generated responses to DA
+    def _parse_free_text_da(self, data) -> list:
+        """Read the deal verdict out of a free-text answer, for the zero-shot prompt that
+        asks the question in plain English instead of with act labels."""
         pred_da = []
         for resp in data:
             resp = resp['generated_text'].lower()
@@ -388,9 +308,9 @@ class CBChatSystemPlanner(CBSystemPlanner):
         return pred_da
 
     def heuristic(self, state: DialogSession) -> float:
-        # ask the simulator whether the buyer and seller have reached a deal at this point
+        """Ask whether the two sides have closed; score the deal price against the spread."""
         assert state[-1][0] == CBGame.USR
-        if not self.zero_shot:
+        if not self.infer_user_da:
             user_task_prompt = f"""
             Given a conversation between a Buyer and a Seller, please decide whether the Buyer and the Seller have reached a deal at the end of the conversation. If they have reached a deal, also extract the deal price as [price]. You can only reply with one of the following sentences: They have reached a deal at [price]. They have not reached a deal.
             The following is an example conversation between a Buyer and a Seller.
@@ -409,11 +329,12 @@ class CBChatSystemPlanner(CBSystemPlanner):
                 ),
                 {"role": "system", "content": user_new_task_prompt},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state,
                 assistant_role=CBGame.USR,
                 keep_sys_da=False,
                 keep_user_da=False,
+                max_hist_num_turns=self.user_max_hist_num_turns,
             )
             messages.append(
                 {
@@ -422,52 +343,45 @@ class CBChatSystemPlanner(CBSystemPlanner):
                 }
             )
         else:
-            conversation = self.__proccess_chat_exp(
+            conversation = self._process_chat_turns(
                 state,
                 assistant_role=CBGame.USR,
                 keep_sys_da=False,
                 keep_user_da=False,
+                max_hist_num_turns=self.user_max_hist_num_turns,
             )
-            dial = ''
-            for turn in conversation:
-                dial += "\n{}".format(turn['content'])
+            dial = "".join("\n{}".format(turn['content']) for turn in conversation)
             messages = [
                 {"role": "system", "content": "Given a conversation between a Buyer and a Seller, please decide whether the Buyer and the Seller have reached a deal at the end of the conversation."},
                 {"role": "user", "content": "Please decide whether the Buyer and the Seller have reached a deal at the end of the conversation. If they have reached a deal, please extract the deal price as [price]. You can only reply with one of the following sentences: They have reached a deal at [price]. They have not reached a deal.\n\nThe following is the conversation: Buyer: Can we meet in the middle at $15? Seller: Sure, let's meet at $15 for this high-quality balloon.\nQuestion: Have they reached a deal? Answer: They have reached a deal at $15.\n\nThe following is the conversation: Buyer: That's still a bit high, can you go any lower? Seller: Alright, I can sell it to you for $15.\nQuestion: Have they reached a deal? Answer: They have not reached a deal.\n\nThe following is the conversation: %s\nQuestion: Have they reached a deal? Answer: " % dial}
             ]
 
         data = self.generation_model.chat_generate(messages, **self.eval_args)
-        # if not self.zero_shot:
-        #     sampled_das = self._get_user_generated_da(data)
-        # else:
-        #     sampled_das = self._get_zero_shot_user_da(data)
-
         logger.info(f"deal-eval prompt: {messages}")
-        # logger.info(f"sampled das: {sampled_das}")
-        
+
+        # The answer is free text ("They have reached a deal at $15"), so read the verdict and
+        # the price out of the wording. Any sample saying no deal vetoes the whole batch.
         deals, rewards, sampled_das = [], [], []
         for resp in data:
-            if 'have not' in resp['generated_text'].lower():
+            text = resp['generated_text'].lower()
+            if 'have not' in text:
                 deals.append(-1)
                 sampled_das.append('no deal')
-            elif 'have reached' in resp['generated_text'].lower():
+            elif 'have reached' in text:
                 deals.append(1)
                 sampled_das.append('deal')
-            
-            prices = re.findall(r"[-+]?\d*\.?\d+", resp['generated_text'].replace(",",""))
-            if len(prices) > 0:
+
+            prices = re.findall(r"[-+]?\d*\.?\d+", resp['generated_text'].replace(",", ""))
+            if prices:
                 deal_price = float(prices[0])
-                reward = (deal_price - state.seller_price) / (state.buyer_price - state.seller_price)
-                rewards.append(reward)
+                rewards.append((deal_price - state.seller_price) / (state.buyer_price - state.seller_price))
 
         if -1 in deals:
-            reward = self.neg_reward
+            v = self.neg_reward
+        elif not rewards:
+            v = 0
         else:
-            if len(rewards) == 0:
-                reward = 0
-            else:
-                reward = max(set(rewards), key = rewards.count)
-        v = reward
+            v = max(set(rewards), key=rewards.count)  # modal price across the samples
         logger.info(f"sampled das to v: {v}")
         return float(v), sampled_das
 
@@ -480,14 +394,15 @@ class BuyerModel(DialogModel):
         max_hist_num_turns: int = 5,
         conv_examples: List[DialogSession] = [],
         inference_args: dict = {},
-        zero_shot: bool = True,
+        infer_user_da: bool = True,
     ):
         super().__init__()
         self.conv_examples = conv_examples
         self.backbone_model = backbone_model
         self.max_hist_num_turns = max_hist_num_turns
-        self.zero_shot = zero_shot
-        # prompts and DAs
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the seller's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
         self.da_prompts_mapping = {
             CBGame.S_Greet: 'Please say hello or chat randomly.',
             CBGame.S_Inquire: 'Please ask any question about product, year, price, usage, etc.',
@@ -501,7 +416,6 @@ class BuyerModel(DialogModel):
             CBGame.S_Agree: 'Please agree with the proposed price.',
             CBGame.S_Disagree: 'Please disagree with the proposed price.'
         }
-        # only allow da that has a prompt in the mapping above
         self.dialog_acts = sorted([da for da in dialog_acts if da in self.da_prompts_mapping])
 
         logger.debug(self.dialog_acts)
@@ -518,7 +432,7 @@ class BuyerModel(DialogModel):
             "max_new_tokens": 128,
             "temperature": 0.0,
             "repetition_penalty": 1.0,
-            "do_sample": False,  # otherwise tree will never go to the next level
+            "do_sample": False,  # otherwise the tree never reaches the next level
             "return_full_text": False,
             **inference_args,
         }
@@ -527,20 +441,12 @@ class BuyerModel(DialogModel):
     def process_exp(self):
         prompt_exps = ""
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_exp(exp) + "\n"
+            prompt_exps += self._process_turns(exp) + "\n"
         return prompt_exps.strip()
 
-    def __proccess_exp(self, exp: DialogSession, max_hist_num_turns: int = -1):
+    def _process_turns(self, exp: DialogSession, max_hist_num_turns: int = -1):
         prompt_exp = ""
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
             if role == CBGame.SYS:
                 prompt_exp += f"{self.da_prompts_mapping[da]}\n{role}: {utt}\n"
             else:
@@ -548,7 +454,7 @@ class BuyerModel(DialogModel):
         return prompt_exp.strip()
 
     def get_utterance(self, state: DialogSession, action: int, mode: str = 'train') -> str:
-        # planner gives an action, state is history, you need to produce a response accrd to the action
+        """Realize the act the planner chose as an utterance."""
         da = self.dialog_acts[action]
         da_prompt = self.da_prompts_mapping[da]
         if len(state) == 0:
@@ -560,15 +466,13 @@ class BuyerModel(DialogModel):
         else:
             prompt = f"""
             {self.task_prompt}
-            {self.__proccess_exp(state, max_hist_num_turns=self.max_hist_num_turns)}
+            {self._process_turns(state, max_hist_num_turns=self.max_hist_num_turns)}
             {da_prompt}
             {CBGame.SYS}:
             """
         prompt = prompt.replace("\t", "").strip()
-        # produce a response
         data = self.backbone_model.generate(prompt, **self.inference_args)
-        sys_resp = self.backbone_model._cleaned_resp(data, prompt)[0]  # TODO
-        return sys_resp
+        return self.backbone_model._cleaned_resp(data, prompt)[0]
 
     def get_utterance_w_da(self, state: DialogSession, action) -> Tuple[str, str]:
         raise NotImplementedError
@@ -582,7 +486,7 @@ class BuyerChatModel(BuyerModel):
         max_hist_num_turns: int = 5,
         conv_examples: List[DialogSession] = [],
         inference_args: dict = {},
-        zero_shot = True,
+        infer_user_da = True,
     ):
         super().__init__(
             dialog_acts=dialog_acts,
@@ -591,8 +495,10 @@ class BuyerChatModel(BuyerModel):
             conv_examples=conv_examples,
             inference_args=inference_args,
         )
-        self.zero_shot = zero_shot
-        if self.zero_shot:
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the seller's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
+        if self.infer_user_da:
             self.task_prompt = "Now enter the role-playing mode. In the following conversation, you will play as a buyer in a price bargaining game."
         else:
             self.task_prompt = """
@@ -609,40 +515,34 @@ class BuyerChatModel(BuyerModel):
     def process_chat_exp(self):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(exp)
+            prompt_exps += self._process_chat_turns(exp)
             prompt_exps.append({"role": "system", "content": self.new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(self, exp: DialogSession, da_prompt: str = '', max_hist_num_turns: int = -1, use_role: bool = True):
-        if len(exp) == 0:
+    def _process_chat_turns(self, exp: DialogSession, da_prompt: str = '', max_hist_num_turns: int = -1, use_role: bool = True):
+        """``exp`` as chat messages, each seller turn followed by the instruction for the buyer
+        turn that answers it. The final seller turn is the one being answered now, so it takes
+        ``da_prompt`` -- the act the planner just chose.
+
+        Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+        mid-turn read as empty and dropped the conversation from the prompt.
+        """
+        if len(exp.history) == 0:
             return []
-        # the conversation always starts with the system/Buyer
-        assert exp[0][0] == CBGame.SYS
+        assert exp[0][0] == CBGame.SYS  # the conversation always opens with the Buyer
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        next_sys_da = CBGame.S_Greet
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
+        for i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            prefix = f"{role}: " if use_role else ""
             if role == CBGame.SYS:
-                content = f"{utt}".strip() if not use_role else f"{role}: {utt}".strip()
-                prompt_messages.append(
-                    {"role": "assistant", "content": content}
-                )
-            else:
-                if i + 1 < len(exp.history):
-                    next_sys_da = exp[i + 1][1]
-                    content = f"{utt}\n{self.da_prompts_mapping[next_sys_da]}".strip() if not use_role else f"{role}: {utt}\n{self.da_prompts_mapping[next_sys_da]}".strip()
-                else:
-                    content = f"{utt}\n{da_prompt}".strip() if not use_role else f"{role}: {utt}\n{da_prompt}".strip()
-                prompt_messages.append(
-                    {"role": "user", "content": content}
-                )
+                prompt_messages.append({"role": "assistant", "content": f"{prefix}{utt}".strip()})
+                continue
+            is_last = i + 1 >= len(exp.history)
+            instruction = da_prompt if is_last else self.da_prompts_mapping[exp[i + 1][1]]
+            prompt_messages.append({
+                "role": "user",
+                "content": f"{prefix}{utt}\n{instruction}".strip(),
+            })
         return prompt_messages
 
     def get_utterance(self, state: DialogSession, action: int, mode='train') -> str:
@@ -653,7 +553,7 @@ class BuyerChatModel(BuyerModel):
     ) -> List[str]:
         da = self.dialog_acts[action]
         da_prompt = self.da_prompts_mapping[da]
-        if self.zero_shot:
+        if self.infer_user_da:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 {"role": "user", "content": "You are the buyer who is trying to buy the %s with the price of %s. Product description: %s\nPlease reply with only one short and succinct sentence. %s Now start the game." % (state.item_name, state.buyer_price, state.buyer_item_description, da_prompt)}
@@ -662,22 +562,19 @@ class BuyerChatModel(BuyerModel):
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 *self.prompt_examples,
-                {"role": "system", "content": self.new_task_prompt},
+                {"role": "system", "content": f"{self.new_task_prompt}\n{cb_buyer_scenario(state)}"},
             ]
         if len(state) == 0:
-            content = f"Hello.\n{da_prompt}" if self.zero_shot else f"{CBGame.USR}: Hello.\n{da_prompt}"
+            content = f"Hello.\n{da_prompt}" if self.infer_user_da else f"{CBGame.USR}: Hello.\n{da_prompt}"
             messages.append(
                 {"role": "user", "content": content,}
             )
         else:
             assert state[-1][0] == CBGame.USR
-            messages += self.__proccess_chat_exp(
-                state, da_prompt, max_hist_num_turns=self.max_hist_num_turns, use_role=not self.zero_shot
+            messages += self._process_chat_turns(
+                state, da_prompt, max_hist_num_turns=self.max_hist_num_turns, use_role=not self.infer_user_da
             )
-        gen_args = {
-            **self.inference_args,
-            "num_return_sequences": batch,  # this will be changed to n inside chat_generate
-        }
+        gen_args = {**self.inference_args, "num_return_sequences": batch}
         if mode != 'train':
             gen_args['temperature'] = 0.0
         data = self.backbone_model.chat_generate(messages, **gen_args)
@@ -700,14 +597,13 @@ class SellerModel(DialogModel):
         backbone_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
         max_hist_num_turns=5,
-        zero_shot=True,
+        infer_user_da=True,
     ):
         super().__init__()
         self.conv_examples = conv_examples
         self.backbone_model = backbone_model
         self.dialog_acts = dialog_acts
         self.max_hist_num_turns = max_hist_num_turns
-        # prompts
         self.task_prompt = f"""
 		Now enter the role-playing mode. In the following conversation, you will play as a Seller negotiating with a Buyer who wants to buy your item on an online marketplace.
         You are the seller who wants to sell the item at the highest price you can while still closing a deal.
@@ -719,7 +615,9 @@ class SellerModel(DialogModel):
 		"""
         self.task_prompt = self.task_prompt.replace("\t", "").strip()
         self.inference_args = inference_args
-        self.zero_shot = zero_shot
+        # True drops the few-shot demo and the [act] tags from this agent's prompts,
+        # so the seller's reply carries no act for anyone to read off it.
+        self.infer_user_da = infer_user_da
         return
 
     def process_exp(self):
@@ -736,29 +634,11 @@ class SellerModel(DialogModel):
         {CBGame.USR}:
         """
         prompt = prompt.replace("\t", "").strip()
-        # produce a response
         data = self.backbone_model.generate(prompt, **self.inference_args)
-        user_resp = self.backbone_model._cleaned_resp(data, prompt)[0]
-        return user_resp
+        return self.backbone_model._cleaned_resp(data, prompt)[0]
 
     def get_utterance_w_da(self, state: DialogSession, action=None, mode: str = 'train') -> Tuple[str, str]:
         raise NotImplementedError
-
-    # def get_utterance_w_da(
-    #     self, state: DialogSession, action=None, mode='train
-    # ) -> "Tuple[str, str]":
-    #     user_resp = self.get_utterance(state, action, mode=mode)
-    #     # extract da
-    #     start_idx = user_resp.find("[")
-    #     end_idx = user_resp.find("]")
-    #     if start_idx == -1 or end_idx == -1:
-    #         da = EmotionalSupportGame.U_FeelTheSame
-    #     else:
-    #         da = user_resp[start_idx + 1 : end_idx]
-    #         user_resp = user_resp.replace(f"[{da}]", "", 1).strip()
-    #         if da not in self.dialog_acts:
-    #             da = EmotionalSupportGame.U_FeelTheSame
-    #     return da, user_resp
 
 
 class SellerChatModel(SellerModel):
@@ -769,7 +649,7 @@ class SellerChatModel(SellerModel):
         backbone_model: GenerationModel,
         conv_examples: List[DialogSession] = [],
         max_hist_num_turns=5,
-        zero_shot = True,
+        infer_user_da = True,
     ):
         super().__init__(
             dialog_acts=dialog_acts,
@@ -777,10 +657,10 @@ class SellerChatModel(SellerModel):
             backbone_model=backbone_model,
             conv_examples=conv_examples,
             max_hist_num_turns=max_hist_num_turns,
-            zero_shot=zero_shot,
+            infer_user_da=infer_user_da,
         )
         self.inference_args = inference_args
-        if self.zero_shot:
+        if self.infer_user_da:
             self.task_prompt = "Now enter the role-playing mode. In the following conversation, you will play as a seller in a price bargaining game."
         else:
             self.task_prompt = f"""
@@ -792,91 +672,81 @@ class SellerChatModel(SellerModel):
             ).strip()
         self.new_task_prompt = "The following is a new conversation between a buyer and a seller (you)."
         self.prompt_examples = self.process_chat_exp()
-        
-        self.heuristic_args: dict = {
-            "max_hist_num_turns": 2,
-            "example_pred_turn": [[0, 2, 3, 4]],
-        }
         return
 
     def process_chat_exp(self):
         prompt_exps = []
         for exp in self.conv_examples:
-            prompt_exps += self.__proccess_chat_exp(exp)
+            prompt_exps += self._process_chat_turns(exp)
             prompt_exps.append({"role": "system", "content": self.new_task_prompt})
         return prompt_exps[:-1]
 
-    def __proccess_chat_exp(self, exp: DialogSession, max_hist_num_turns: int = -1, use_da: bool = True, use_role: bool = True):
-        if len(exp) == 0:
+    def _process_chat_turns(self, exp: DialogSession, max_hist_num_turns: int = -1, use_da: bool = True, use_role: bool = True):
+        """``exp`` as chat messages with the seller -- the simulator itself -- as assistant.
+
+        Guarded on the raw history, not ``len(exp)``: that counts turns, so a state ending
+        mid-turn, which is exactly what the simulator is asked about, read as empty and
+        dropped the conversation from the prompt.
+        """
+        if len(exp.history) == 0:
             return []
 
         prompt_messages = []
-        num_turns_to_truncate = 0
-        if max_hist_num_turns > 0:
-            num_turns_to_truncate = max(0, len(exp) // 2 - max_hist_num_turns)
-
-        for i, (role, da, utt) in enumerate(exp):
-            # truncate to reduce the size of the prompt
-            if (i // 2) < num_turns_to_truncate:
-                continue
-            if role == CBGame.SYS:
-                content = f"{role}: {utt}".strip() if use_role else f"{utt}".strip()
-                prompt_messages.append(
-                    {"role": "user", "content": content}
-                )
+        for _i, (role, da, utt) in recent_turns(exp, max_hist_num_turns):
+            if not use_role:
+                content = f"{utt}".strip()
+            elif role == CBGame.SYS or not use_da:
+                content = f"{role}: {utt}".strip()
             else:
-                if use_role:
-                    content = f"{role}: [{da}] {utt}".strip() if use_da else f"{role}: {utt}".strip()
-                else:
-                    content = f"{utt}".strip()
-                prompt_messages.append(
-                    {
-                        "role": "assistant",  # assistant is the user simulator
-                        "content": content,
-                    }
-                )
+                content = f"{role}: [{da}] {utt}".strip()
+            speaker = "user" if role == CBGame.SYS else "assistant"
+            prompt_messages.append({"role": speaker, "content": content})
         return prompt_messages
 
     def get_utterance(self, state: DialogSession, action=None, mode='train') -> str:
         assert state[-1][0] == CBGame.SYS  # next turn is user's turn
-        if self.zero_shot:
+        if self.infer_user_da:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 {"role": "user", "content": "You are the seller who is trying to sell the %s with the price of %s. Product description: %s\nPlease reply with only one short and succinct sentence. Are you ready to play the game?" % (state.item_name, state.seller_price, state.seller_item_description)},
                 {"role": "assistant", "content":"Yes, I'm ready to play the game!"}
             ]
             state_ = state.copy()
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state_, max_hist_num_turns=self.max_hist_num_turns, use_da=False, use_role=False,
             )
         else:
             messages = [
                 {"role": "system", "content": self.task_prompt},
                 *self.prompt_examples,
-                {"role": "system", "content": self.new_task_prompt},
+                {"role": "system", "content": f"{self.new_task_prompt}\n{cb_seller_scenario(state)}"},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state, max_hist_num_turns=self.max_hist_num_turns,
             )
 
+        gen_args = dict(self.inference_args)
         if mode != 'train':
-            self.inference_args['temperature'] = 0.0
-        # produce a response
-        data = self.backbone_model.chat_generate(messages, **self.inference_args)
+            gen_args['temperature'] = 0.0
+        data = self.backbone_model.chat_generate(messages, **gen_args)
         user_resp = self.backbone_model._cleaned_chat_resp(
             data,
             assistant_role=f"{CBGame.USR}:",
             user_role=f"{CBGame.SYS}:",
         )[0]
+        # The few-shot seller turns render as "Seller: [no deal] <text>", so the model emits the
+        # tag too; left in, it leaks into the stored utterance and into every later prompt.
+        # Stripped here, not in get_utterance_w_da, because CBGame.get_next_state takes the
+        # utterance from this method and the label from the critic.
+        start_idx, end_idx = user_resp.find("["), user_resp.find("]")
+        if 0 <= start_idx < end_idx:
+            tag = user_resp[start_idx + 1:end_idx].strip()
+            if tag.lower() in {da.lower() for da in self.dialog_acts}:
+                user_resp = user_resp.replace(f"[{tag}]", "", 1).strip()
         return user_resp
 
     def get_utterance_w_da(self, state: DialogSession, action=None, mode: str = 'train') -> Tuple[str, str]:
         """Generate the seller's reply and classify whether they just accepted the deal.
-
-        Two-step: (1) sample the utterance via :meth:`get_utterance`; (2) ask the same chat
-        backbone a yes/no question over the resulting transcript and map yes -> ``U_Deal`` /
-        no -> ``U_No_deal``. This matches GDP-Zero's contract (the user agent emits its own
-        DA) without depending on the planner's heuristic for termination.
         """
         user_resp = self.get_utterance(state, action, mode=mode)
         # build the truncated dialog snippet (with the just-generated seller turn appended)
@@ -914,11 +784,10 @@ class SellerChatModel(SellerModel):
                 *self.prompt_examples,
                 {"role": "system", "content": self.new_task_prompt},
             ]
-            messages += self.__proccess_chat_exp(
+            messages += self._process_chat_turns(
                 state, max_hist_num_turns=self.max_hist_num_turns
             )
             all_prompts.append(messages)
-        # produce a response
         datas = self.backbone_model.chat_generate_batched(
             all_prompts, **self.inference_args
         )
@@ -931,119 +800,3 @@ class SellerChatModel(SellerModel):
             )
             user_resps.append(user_resp[0])
         return user_resps
-
-    # def get_utterance_w_da_from_batched_states(
-    #     self, states: List[DialogSession], action=None
-    # ):
-    #     gen_user_resps = self.get_utterance_from_batched_states(states, action)
-    #     das = []
-    #     user_resps = []
-    #     # extract da
-    #     for user_resp in gen_user_resps:
-    #         start_idx = user_resp.find("[")
-    #         end_idx = user_resp.find("]")
-    #         if start_idx == -1 or end_idx == -1:
-    #             da = EmotionalSupportGame.U_FeelTheSame
-    #         else:
-    #             da = user_resp[start_idx + 1 : end_idx]
-    #             user_resp = user_resp.replace(f"[{da}]", "", 1).strip()
-    #             if da not in self.dialog_acts:
-    #                 da = EmotionalSupportGame.U_FeelTheSame
-    #         das.append(da)
-    #         user_resps.append(user_resp)
-    #     return das, user_resps
-
-    def __process_heuristics_chat_exp(self, dialog: DialogSession):
-        if len(dialog) == 0:
-            return []
-        # assumes you start with the system
-        # and ends with a user utterance to predict
-        assert dialog[0][0] == CBGame.SYS
-        assert dialog[-1][0] == CBGame.USR
-
-        prompt_messages = []
-        input_context = []
-        answer_da = dialog[-1][1]
-        for i, (role, da, utt) in enumerate(dialog):
-            # if assistant is the Persuader, then current data is also Persuader -> then it is of role "system"
-            # treat this as a task
-            content = f"{role}: {utt}".strip()
-            input_context.append(content)
-        input_context.append(f"{dialog.USR} feeling:")
-
-        prompt_q = "\n".join(input_context)
-        prompt_messages.append({"role": "user", "content": prompt_q})
-        prompt_messages.append({"role": "assistant", "content": f"{answer_da}"})
-        return prompt_messages
-
-    def __truncate_heuristics_dialog(self, dialog: DialogSession, pred_end_idx=-1):
-        max_history_length = self.heuristic_args["max_hist_num_turns"]
-        if pred_end_idx == -1:
-            pred_end_idx = len(dialog.history) - 1
-        new_sys_start_idx = max(0, pred_end_idx - (max_history_length * 2 - 1))
-        new_history = []
-        for j, (role, da, utt) in enumerate(dialog):
-            if j >= new_sys_start_idx:
-                new_history.append((role, da, utt))
-            if j == pred_end_idx:
-                # user's utternace to predict
-                break
-        new_dialog_session = DialogSession(dialog.SYS, dialog.USR).from_history(
-            new_history
-        )
-        return new_dialog_session
-
-    def process_heurstics_chat_exp(self, new_task_prompt: str):
-        prompt_exps = []
-        for i, exp in enumerate(self.conv_examples):
-            pred_end_turns: List[int] = self.heuristic_args["example_pred_turn"][i]
-            # make a new dialogue session until that pred_idx with max max_history_length turns
-            for pred_end_turn in pred_end_turns:
-                pred_end_idx = pred_end_turn * 2 + 1
-                new_dialog_session = self.__truncate_heuristics_dialog(
-                    exp, pred_end_idx
-                )
-                prompt_exps += self.__process_heuristics_chat_exp(new_dialog_session)
-                prompt_exps.append({"role": "system", "content": new_task_prompt})
-        return prompt_exps[:-1]
-
-    # def predict_da(self, state: DialogSession, never_end=True) -> str:
-    #     # never_end=True  during real chat, let user choose to terminate, not this function
-    #     # insert prop to donate, and compute the likelihood of user simulator agreeing to donate
-    #     assert state[-1][0] == CBGame.USR
-
-    #     messages = [
-    #         {"role": "system", "content": self.critic_task_prompt},
-    #         *self.process_heurstics_chat_exp(new_task_prompt=self.new_task_prompt),
-    #         {"role": "system", "content": self.new_task_prompt},
-    #     ]
-    #     new_dialog_session = self.__truncate_heuristics_dialog(state, -1)
-    #     messages += self.__process_heuristics_chat_exp(new_dialog_session)[:-1]
-
-    #     # majority vote, same as value function
-    #     inf_args = {
-    #         "max_new_tokens": 5,
-    #         "temperature": 0.7,
-    #         "return_full_text": False,
-    #         "do_sample": True,
-    #         "num_return_sequences": 5,
-    #     }
-    #     datas = self.backbone_model.chat_generate(messages, **inf_args)
-    #     # process into das
-    #     sampled_das: list = []
-    #     for resp in datas:
-    #         user_da = resp["generated_text"].strip()
-    #         if user_da not in self.dialog_acts:
-    #             sampled_das.append(EmotionalSupportGame.U_FeelTheSame)
-    #         if never_end:
-    #             if user_da == EmotionalSupportGame.U_Solved:
-    #                 sampled_das.append(EmotionalSupportGame.U_FeelBetter)
-    #             else:
-    #                 sampled_das.append(user_da)
-    #         else:
-    #             sampled_das.append(user_da)
-    #     logger.info(f"sampled das: {sampled_das}")
-    #     # majority vote
-    #     counted_das = Counter(sampled_das)
-    #     user_da = counted_das.most_common(1)[0][0]
-    #     return user_da

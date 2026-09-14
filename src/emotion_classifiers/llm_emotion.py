@@ -5,6 +5,7 @@ import numpy as np
 
 from utils.gen_models import GenerationModel
 from utils.sessions import DialogSession, EmotionAwareDialogSession
+from utils.role_profiler import role, EMOTION_CLASSIFIER
 
 
 class Emotions(StrEnum):
@@ -108,7 +109,8 @@ class BaseLLMEmotionClassifier:
 
     def _classify_distribution(self, prompt: str) -> dict:
         """Run the LLM on ``prompt`` and return a normalized {Emotions: probability} dict."""
-        data = self.generation_model.generate(prompt, **self.inf_args)
+        with role(EMOTION_CLASSIFIER):
+            data = self.generation_model.generate(prompt, **self.inf_args)
         sampled_emotions = self._get_generated_emotion(data)
         prob = np.zeros(len(self.emotions))
         prob += self.smoothing

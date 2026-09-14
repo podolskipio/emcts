@@ -1,5 +1,6 @@
 from emotion_classifiers.llm_emotion import Emotions
 from utils.sessions import DialogSession
+from utils.role_profiler import timed, EMOTION_CLASSIFIER
 
 _HF_LABEL_MAP = {
 	"anger": Emotions.Anger,
@@ -31,7 +32,8 @@ class HFEmotionClassifier:
 		"""Return the full {Emotions: probability} dict for a single utterance."""
 		if utterance in self._dist_cache:
 			return self._dist_cache[utterance]
-		scores = self.pipe(utterance)[0]   # list[{label, score}]
+		with timed(EMOTION_CLASSIFIER):   # local model, so nothing downstream records it
+			scores = self.pipe(utterance)[0]   # list[{label, score}]
 		dist = {e: 0.0 for e in self.emotions}
 		for s in scores:
 			mapped = _HF_LABEL_MAP.get(s["label"].lower())

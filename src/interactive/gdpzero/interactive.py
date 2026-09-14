@@ -72,7 +72,7 @@ def play_gdpzero(backbone_model, args):
         generation_model=backbone_model,
         conv_examples=[exp_1]
     )
-    game = PersuasionGame(system, user, planner, zero_shot=False)
+    game = PersuasionGame(system, user, planner, infer_user_da=False)
     state = game.init_dialog()
 
     # init
@@ -152,7 +152,7 @@ def play_raw_prompt(backbone_model):
         generation_model=backbone_model,
         conv_examples=[exp_1]
     )
-    game = PersuasionGame(system, user, planner, zero_shot=False)
+    game = PersuasionGame(system, user, planner, infer_user_da=False)
     state = game.init_dialog()
 
     # init
@@ -174,7 +174,7 @@ def play_raw_prompt(backbone_model):
         # planning
         prior, v = planner.predict(state)
         greedy_policy = system.dialog_acts[np.argmax(prior)]
-        next_best_state, _ = game.get_next_state(state, np.argmax(prior))
+        next_best_state = game.get_next_state(state, np.argmax(prior))
         greedy_pred_resp = next_best_state.history[-2][2]
 
         logging.info(f"sys_da: [{greedy_policy}]")

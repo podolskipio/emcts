@@ -18,11 +18,17 @@ import logging
 import pickle
 import argparse
 
+from multiprocessing.pool import ThreadPool
+from threading import Lock
+
 import numpy as np
 from tqdm.auto import tqdm
 
 from utils.gen_models import OpenAIModel
-from runners._common import TASKS, make_backbone_model, build_agents, load_dialogs, add_common_args, finalize_args, setup_output_dir
+from runners._common import (
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	load_p4g_personas, apply_seed, add_common_args, finalize_args, setup_output_dir,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -30,8 +36,8 @@ logger.setLevel(logging.DEBUG)
 
 def main(cmd_args):
 	cfg = TASKS[cmd_args.game]
+	apply_seed(cmd_args)
 
-	# load agents from TASKS for the chosen dataset; raw prompting uses the system model's defaults
 	backbone_model, family = make_backbone_model(
 		llm=cmd_args.llm,
 		gen_sentences=cmd_args.gen_sentences,
@@ -39,12 +45,20 @@ def main(cmd_args):
 		ollama_host=cmd_args.ollama_host,
 		sglang_model=cmd_args.sglang_model,
 	)
-	game, system, user, planner = build_agents(cmd_args.game, backbone_model, family, sys_inference_args={})
+	# One classifier for the whole run (None unless --game is emotion-aware): every dialog's
+	# game gets this same instance, so the run's utterance -> emotion records stay in one place.
+	emotion_classifier = make_emotion_classifier(cmd_args.game, cmd_args.emotion_classifier, backbone_model)
+	# Raw prompting keeps the system model's built-in inference defaults. Every dialog builds
+	# its own agents from these (see run_one_dialog).
+	agent_kwargs = dict(sys_inference_args={}, emotion_classifier=emotion_classifier)
 
-	print(f"System dialog acts: {system.dialog_acts}")
-	print(f"User dialog acts: {user.dialog_acts}")
+	ontology = cfg.game_cls.get_game_ontology()
+	print(f"System dialog acts: {ontology['system']['dialog_acts']}")
+	print(f"User dialog acts: {ontology['user']['dialog_acts']}")
 
-	all_dialogs = load_dialogs(cmd_args.game, cmd_args, system)
+	all_dialogs = load_dialogs(cmd_args.game, cmd_args)
+	# {} unless --p4g_persona; see load_p4g_personas / utils.p4g_personas
+	persona_texts = load_p4g_personas(cmd_args)
 
 	num_dialogs = cmd_args.num_dialogs
 	setup_output_dir(cmd_args, runner_name="runners/raw_prompting.py",
@@ -53,11 +67,28 @@ def main(cmd_args):
 	output = []  # for evaluation. [{did, context, ori_da, ori_resp, new_da, new_resp, debug}, ...]
 	num_done = 0
 	pbar = tqdm(total=num_dialogs, desc="evaluating")
-	for dialog in all_dialogs:
-		if num_done == num_dialogs:
-			break
+	# --num_workers > 1 evaluates several dialogs at once so SGLang can batch the requests: the
+	# runner is otherwise one dependent chain of short requests with the GPU idle in between (see
+	# the '[cache:...] N% of wall' line). Threads, not processes — the time goes on waiting for
+	# HTTP. Each dialog builds its own agents, so concurrent workers share only the backbone
+	# model (an HTTP client) and the emotion classifier.
+	# Per-turn records are collected per dialog and merged in dialog order on every dump, so the
+	# output pickle does not depend on which dialog happens to finish first.
+	finished = []            # (dialog index, per-turn records[]), guarded by results_lock
+	results_lock = Lock()
 
+	def run_one_dialog(indexed_dialog):
+		nonlocal num_done
+		idx, dialog = indexed_dialog
+		dialog_output = []   # this dialog's records; merged into `output` under the lock
 		did = dialog["id"]
+		# Agents are per dialog, so each worker thread owns its own: building them is pure
+		# object construction (no I/O), and --p4g_persona conditions the user simulator and the
+		# planner's value estimator on THIS dialogue's persuadee.
+		game, system, user, planner = build_agents(
+			cmd_args.game, backbone_model, family,
+			persona=persona_texts.get(did), **agent_kwargs,
+		)
 		turns = dialog["turns"]
 		print("evaluating dialog id: ", did)
 		context = ""
@@ -88,7 +119,7 @@ def main(cmd_args):
 				backbone_model._cached_generate.cache_clear()
 			prior, v = planner.predict(state)
 			greedy_policy = system.dialog_acts[np.argmax(prior)]
-			next_best_state, _ = game.get_next_state(state, np.argmax(prior))
+			next_best_state = game.get_next_state(state, np.argmax(prior))
 			greedy_pred_resp = next_best_state.history[-2][2]
 
 			# next ground truth utterance
@@ -112,11 +143,27 @@ def main(cmd_args):
 				'new_da': greedy_policy,
 				"debug": debug_data,
 			}
-			output.append(cmp_data)
-		with open(cmd_args.output, "wb") as f:
-			pickle.dump(output, f)
-		num_done += 1
-		pbar.update(1)
+			dialog_output.append(cmp_data)
+		with results_lock:
+			finished.append((idx, dialog_output))
+			output[:] = [rec for entry in sorted(finished, key=lambda t: t[0]) for rec in entry[1]]
+			with open(cmd_args.output, "wb") as f:
+				pickle.dump(output, f)
+			num_done += 1
+			pbar.update(1)
+
+	indexed_dialogs = list(enumerate(all_dialogs[:num_dialogs]))
+	workers = max(1, min(cmd_args.num_workers, len(indexed_dialogs)))
+	if workers == 1:
+		# unchanged sequential path, so single-worker runs stay identical to before
+		for indexed_dialog in indexed_dialogs:
+			run_one_dialog(indexed_dialog)
+	else:
+		print(f"evaluating {workers} dialogs concurrently (--num_workers {cmd_args.num_workers})")
+		pool = ThreadPool(processes=workers)
+		pool.map(run_one_dialog, indexed_dialogs)
+		pool.close()
+		pool.join()
 	pbar.close()
 	return
 
