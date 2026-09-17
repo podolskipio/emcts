@@ -1,0 +1,267 @@
+{
+ "model": "Llama-3.1-8B-Instruct",
+ "awq_checkpoint": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+ "n_exact_checked": 20,
+ "n_exact_match": 0,
+ "n_dist": 318,
+ "exact_rows": [
+  {
+   "key": [
+    0,
+    "greeting",
+    0,
+    "persona"
+   ],
+   "recorded": "I'm doing great, thanks for asking. Just got back from a long study session, but I'm trying to reward myself with a nice dinner tonight.",
+   "fresh": "I'm doing great, thanks for asking. I just got back from the most amazing weekend getaway with friends and I'm feeling totally rejuvenated.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "greeting",
+    0,
+    "baseline"
+   ],
+   "recorded": "I'm doing alright, just busy with work and stuff. What's this about?",
+   "fresh": "I'm doing alright, just got back from a long week at work.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "greeting",
+    1,
+    "persona"
+   ],
+   "recorded": "I'm doing great, thanks for asking. Just got back from a late night out with friends and I'm feeling pretty energized.",
+   "fresh": "I'm doing great, thanks for asking. Just got back from a morning run and I'm feeling pretty energized.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "greeting",
+    1,
+    "baseline"
+   ],
+   "recorded": "I'm doing alright, just busy with work and stuff, but thanks for asking.",
+   "fresh": "I'm doing alright, just busy with work and stuff. What's this about?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "greeting",
+    2,
+    "persona"
+   ],
+   "recorded": "I'm doing great, thanks for asking. Just got back from a hike with friends and we had an amazing time.",
+   "fresh": "I'm doing great, thanks for asking. Just got back from a long study session and I'm treating myself to a nice coffee and pastry.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "greeting",
+    2,
+    "baseline"
+   ],
+   "recorded": "I'm doing alright, just got back from a long weekend and trying to catch up on some work.",
+   "fresh": "I'm doing alright, just a bit busy with work and stuff.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    0,
+    "persona"
+   ],
+   "recorded": "That's impressive, I had no idea they'd been around for so long, but I'm more interested in knowing how my donation would directly benefit the kids they're helping.",
+   "fresh": "That's impressive, but I'm more interested in what kind of tangible difference they're making now, not just what they've done in the past.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    0,
+    "baseline"
+   ],
+   "recorded": "That's good to know they're transparent about their work, but what specific initiatives or projects are they focusing on these days?",
+   "fresh": "That sounds impressive, but I'm still not sure how their efforts actually make a tangible difference in the world.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    1,
+    "persona"
+   ],
+   "recorded": "A long history is great, but what really matters to me is what kind of impact they're making now. How do their actions today reflect their values and goals?",
+   "fresh": "That's impressive, I didn't know they'd been around for so long - but what really matters to me is what kind of difference they're making now, not just how long they've been doing it.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    1,
+    "baseline"
+   ],
+   "recorded": "That's impressive, I'm glad they're transparent about their efforts.",
+   "fresh": "That's impressive, but what kind of specific projects or initiatives have they been working on in the past few years that really caught your attention?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    2,
+    "persona"
+   ],
+   "recorded": "That's impressive, I'm always drawn to organizations that have a proven track record, but what kind of specific impact are they making that I should be aware of?",
+   "fresh": "That's impressive, a century of service is definitely something to be proud of, but I'm more interested in knowing what tangible impact they've had in the past year, their most recent report would probably give me a better idea.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "credibility_appeal",
+    2,
+    "baseline"
+   ],
+   "recorded": "That sounds impressive, but how do you know their impact reports are actually reliable and not just a way to make themselves look good?",
+   "fresh": "That's reassuring, I like to support organizations that are transparent about their work.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    0,
+    "persona"
+   ],
+   "recorded": "That's amazing, I can totally get behind supporting kids' education. Can I ask, what kind of impact does Save the Children have on a larger scale?",
+   "fresh": "That's amazing, I'm always up for supporting kids in need - and it's such a small price to pay for making a difference, right?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    0,
+    "baseline"
+   ],
+   "recorded": "That's a great goal, but I'm not sure if I can commit to donating right now, my budget is a bit tight this month.",
+   "fresh": "That sounds amazing, but how many children does a $20 donation help, if it's just $2 for one week of meals?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    1,
+    "persona"
+   ],
+   "recorded": "That's amazing, I can totally see how that would make a huge difference in a child's life.",
+   "fresh": "That's amazing, I can really relate to that - I've had my fair share of struggling to focus in class when I'm hungry, and I know how much of a difference a good meal can make.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    1,
+    "baseline"
+   ],
+   "recorded": "That sounds like a small price to pay for a child to have a meal every day, but $2 doesn't seem like a lot to me.",
+   "fresh": "That's a great idea, but can you tell me more about the kids who need school meals and where exactly Save the Children works?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    2,
+    "persona"
+   ],
+   "recorded": "That's incredible, a week's worth of meals for just two bucks? I have to admit, it's really heartbreaking to think about kids going hungry, especially when it's something so simple to fix.",
+   "fresh": "That's amazing, I can totally see how something like that would make a huge difference in a kid's life, and honestly, it's just a couple of bucks to me, I'd be happy to contribute.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "logical_appeal",
+    2,
+    "baseline"
+   ],
+   "recorded": "That's really impressive, but I'm not sure how much of an impact that would make, considering how many children need help.",
+   "fresh": "That sounds like a great initiative, but $2 might not make a huge difference in the grand scheme of things, right?",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "emotion_appeal",
+    0,
+    "persona"
+   ],
+   "recorded": "I can only imagine how tough it must be for them, losing everything and having to start over from scratch. It's heartbreaking, and I feel like I'd want to help in any way I can.",
+   "fresh": "I know, it's heartbreaking. I've seen pictures of kids living in refugee camps, and it's just unimaginable what they've been through.",
+   "match": false
+  },
+  {
+   "key": [
+    0,
+    "emotion_appeal",
+    0,
+    "baseline"
+   ],
+   "recorded": "I can imagine, it's heartbreaking to think about kids who have been affected by conflict or disaster, but I'm not sure I'm in a position to donate right now.",
+   "fresh": "It's really heartbreaking to think about kids losing their homes and families, but I'm not sure I can donate right now.",
+   "match": false
+  }
+ ],
+ "summary": {
+  "recorded_awq": {
+   "n": 318,
+   "mean_tokens": 28.770440251572328,
+   "neg_fraction": 0.2718206137144549,
+   "neutral": 0.43231543426331626,
+   "mean_dist": {
+    "anger": 0.014684605779369368,
+    "disgust": 0.032131215478747546,
+    "fear": 0.028636399297953037,
+    "happiness": 0.12352863423718116,
+    "neutral": 0.43231543426331626,
+    "sadness": 0.19636839315838492,
+    "surprise": 0.17233531893840143
+   }
+  },
+  "fresh_awq": {
+   "n": 318,
+   "mean_tokens": 28.732704402515722,
+   "neg_fraction": 0.26833728081211755,
+   "neutral": 0.4152806580067413,
+   "mean_dist": {
+    "anger": 0.018119882087152945,
+    "disgust": 0.037804120898052004,
+    "fear": 0.047195926190294626,
+    "happiness": 0.12425994848006598,
+    "neutral": 0.4152806580067413,
+    "sadness": 0.16521735163661797,
+    "surprise": 0.19212211319483355
+   }
+  }
+ },
+ "tests": {
+  "tokens_mannwhitney_p": 0.9282360341579442,
+  "tokens_ks_p": 0.5562105842878962,
+  "neg_mannwhitney_p": 0.704880916767816,
+  "neg_ks_p": 0.6222371514184046
+ }
+}

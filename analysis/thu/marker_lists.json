@@ -1,0 +1,124 @@
+{
+ "lists": {
+  "resistance": {
+   "counterargument": [
+    "\\bbut\\b",
+    "\\bhowever\\b",
+    "\\balthough\\b",
+    "\\bthough\\b",
+    "\\bnevertheless\\b",
+    "\\bon the other hand\\b",
+    "\\bthat said\\b",
+    "\\beven so\\b"
+   ],
+   "deflection": [
+    "\\bmaybe later\\b",
+    "\\bi'?ll think about it\\b",
+    "\\bnot (?:right )?now\\b",
+    "\\bsome other time\\b",
+    "\\banother time\\b",
+    "\\bi'?ll (?:have to )?(?:consider|look into)\\b",
+    "\\bnot (?:really )?(?:interested|sure i)\\b",
+    "\\bi (?:can'?t|cannot) (?:afford|right now)\\b",
+    "\\bi'?m (?:a bit )?(?:tight|broke)\\b",
+    "\\bdon'?t have (?:the )?(?:money|funds|cash)\\b",
+    "\\bi'?ll pass\\b",
+    "\\bno thank(?:s| you)\\b"
+   ],
+   "source_doubt": [
+    "\\bhow do i know\\b",
+    "\\bare you sure\\b",
+    "\\bscam\\b",
+    "\\bfraud\\b",
+    "\\blegit(?:imate)?\\b",
+    "\\btrust(?:worthy)?\\b",
+    "\\bskeptic(?:al)?\\b",
+    "\\bsceptic(?:al)?\\b",
+    "\\bhow much (?:of it |actually )?goes\\b",
+    "\\bwhere does the money go\\b",
+    "\\boverhead\\b",
+    "\\badministrat(?:ive|ion) costs?\\b",
+    "\\bproof\\b",
+    "\\bverify\\b"
+   ],
+   "hedge": [
+    "\\bi guess\\b",
+    "\\bsort of\\b",
+    "\\bkind of\\b",
+    "\\bkinda\\b",
+    "\\bi suppose\\b",
+    "\\bprobably\\b",
+    "\\bperhaps\\b",
+    "\\bmight\\b",
+    "\\bnot sure\\b",
+    "\\bi dunno\\b",
+    "\\bi don'?t know\\b"
+   ]
+  },
+  "receptivity": {
+   "cause_question": [
+    "\\b(?:how|where|what|who|which)\\b[^?]{0,80}\\b(?:charity|children|donate|donation|fund|money|organi[sz]ation|save the children|help|support|cause)\\b[^?]{0,40}\\?",
+    "\\bhow (?:can|do) i (?:help|donate|give|contribute)\\b",
+    "\\btell me more\\b",
+    "\\bi'?d like to (?:know|hear) more\\b"
+   ],
+   "self_disclosure": [
+    "\\bi once\\b",
+    "\\bmy (?:family|mother|father|mom|dad|son|daughter|kids?|children|wife|husband|brother|sister|friend)\\b",
+    "\\bi (?:have|had) (?:a |an )?(?:child|kids?|son|daughter)\\b",
+    "\\bi work (?:with|for|at)\\b",
+    "\\bi volunteer\\b",
+    "\\bwhen i was\\b",
+    "\\bin my (?:own )?experience\\b",
+    "\\bi (?:also )?(?:donate|give|support)(?:d|s)? (?:to|regularly|monthly|every)\\b",
+    "\\bgrew up\\b",
+    "\\bi'?ve been\\b"
+   ],
+   "commitment": [
+    "\\bi will\\b",
+    "\\bi'?ll donate\\b",
+    "\\bi'?d like to\\b",
+    "\\bsign me up\\b",
+    "\\bcount me in\\b",
+    "\\bi'?m in\\b",
+    "\\bi want to (?:help|donate|give|contribute)\\b",
+    "\\bi can (?:donate|give|do)\\b",
+    "\\bput me down\\b",
+    "\\bhappy to (?:help|donate|give)\\b",
+    "\\bi'?ll give\\b",
+    "\\bsounds good\\b",
+    "\\bdefinitely\\b",
+    "\\babsolutely\\b",
+    "\\ball of it\\b",
+    "\\bthe (?:full|whole) (?:amount|two dollars|\\$2)\\b"
+   ]
+  }
+ },
+ "weights_prior": {
+  "res_counterargument": -1.0,
+  "res_deflection": -1.0,
+  "res_source_doubt": -1.0,
+  "res_hedge": -1.0,
+  "rec_cause_question": 1.0,
+  "rec_self_disclosure": 1.0,
+  "rec_commitment": 1.0
+ },
+ "weights_tuned": {
+  "res_counterargument": 1.0,
+  "res_deflection": 0.0,
+  "res_source_doubt": -1.0,
+  "res_hedge": 0.0,
+  "rec_cause_question": -1.0,
+  "rec_self_disclosure": -1.0,
+  "rec_commitment": 1.0
+ },
+ "tuning_gaps_mine200": {
+  "res_counterargument": 0.03545796308954202,
+  "res_deflection": 0.003274853801169591,
+  "res_source_doubt": -0.018183337130705544,
+  "res_hedge": 0.0010594668489405379,
+  "rec_cause_question": -0.057786891471101984,
+  "rec_self_disclosure": -0.007481962481962484,
+  "rec_commitment": 0.016644262170577975
+ }
+}

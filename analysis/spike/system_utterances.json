@@ -1,0 +1,27 @@
+[
+ {
+  "utterance_id": "greeting",
+  "act": "greeting",
+  "text": "Hello! How are you doing today?"
+ },
+ {
+  "utterance_id": "credibility_appeal",
+  "act": "credibility appeal",
+  "text": "Save the Children has operated for over 100 years and publishes annual impact reports."
+ },
+ {
+  "utterance_id": "logical_appeal",
+  "act": "logical appeal",
+  "text": "A $2 donation provides a week of school meals for one child."
+ },
+ {
+  "utterance_id": "emotion_appeal",
+  "act": "emotion appeal",
+  "text": "Some of these children have lost everything. It's hard not to feel for them."
+ },
+ {
+  "utterance_id": "proposition",
+  "act": "proposition of donation",
+  "text": "Would you consider donating a small amount today?"
+ }
+]

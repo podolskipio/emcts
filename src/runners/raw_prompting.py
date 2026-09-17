@@ -50,7 +50,10 @@ def main(cmd_args):
 	emotion_classifier = make_emotion_classifier(cmd_args.game, cmd_args.emotion_classifier, backbone_model)
 	# Raw prompting keeps the system model's built-in inference defaults. Every dialog builds
 	# its own agents from these (see run_one_dialog).
-	agent_kwargs = dict(sys_inference_args={}, emotion_classifier=emotion_classifier)
+	# max_conv_turns is the game's horizon, same as rollout.py's. This runner does no search,
+	# so it only affects get_dialog_ended; passed anyway so every runner defines Tmax identically.
+	agent_kwargs = dict(sys_inference_args={}, emotion_classifier=emotion_classifier,
+						max_conv_turns=cmd_args.max_turns)
 
 	ontology = cfg.game_cls.get_game_ontology()
 	print(f"System dialog acts: {ontology['system']['dialog_acts']}")

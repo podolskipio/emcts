@@ -25,9 +25,9 @@ from tqdm.auto import tqdm
 
 from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
-from mcts.mcts import MCTS
+from mcts.mcts import MCTS, SEARCH_HORIZONS
 from runners._common import (
-	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs, replay_root_is_terminal,
 	apply_seed, add_common_args, finalize_args, setup_output_dir, subtree_emo_stats,
 	build_subtree_records, write_subtree_ndjson,
 )
@@ -59,6 +59,9 @@ def main(cmd_args):
 			"do_sample": False, "return_full_text": False,
 		},
 		emotion_classifier=emotion_classifier,
+		# the game's horizon, same as rollout.py's. Omitting it inherited the game default of
+		# 15 and gave this runner a different environment from the grid's 10.
+		max_conv_turns=cmd_args.max_turns,
 	)
 
 	ontology = cfg.game_cls.get_game_ontology()
@@ -72,6 +75,7 @@ def main(cmd_args):
 		"cpuct": 1.0,
 		"num_MCTS_sims": cmd_args.num_mcts_sims,
 		"Q_0": 0.0,
+		"search_horizon": cmd_args.search_horizon,
 	})
 	setup_output_dir(cmd_args, runner_name="runners/gdpzero_noopenloop.py",
 					 mcts_class="MCTS (closed-loop)", mcts_args=args)
@@ -114,6 +118,12 @@ def main(cmd_args):
 
 			state.add_single(game.SYS, sys_da, sys_utt)
 			state.add_single(game.USR, usr_da, usr_utt)
+
+			# Nothing to plan once the episode is over by the game's own rule: under
+			# --search_horizon episode search would return -1.0 without expanding this root and
+			# get_action_prob would hand back NaN. No-op under legacy. See replay_root_is_terminal.
+			if replay_root_is_terminal(game, state, cmd_args.search_horizon):
+				break
 
 			# update context for evaluation
 			context = f"""
@@ -207,6 +217,8 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	add_common_args(parser, default_output="outputs/gdpzero_noopenloop.pkl")
 	parser.add_argument('--num_mcts_sims', type=int, default=20, help='number of mcts simulations')
+	parser.add_argument('--search_horizon', '--search-horizon', choices=list(SEARCH_HORIZONS), default='legacy',
+						help='which get_dialog_ended values end a simulated branch. "legacy" (DEFAULT, unchanged, GDP-Zero): only success is terminal, so search keeps expanding past the turn limit and after a verbatim stall -- states no real episode reaches. "episode": any non-zero get_dialog_ended is terminal and its value (+1 donate / -1 turn limit or stall) is backed up, so search stops where the episode loop stops. See analysis/phase1/SEARCH_HORIZON_BUG.md.')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)

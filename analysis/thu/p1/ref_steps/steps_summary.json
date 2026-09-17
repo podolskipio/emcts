@@ -1,0 +1,14 @@
+{
+ "run_dir": "analysis/thu/runs/P1_legacy/P1_legacy",
+ "rows": 9372,
+ "rows_before_filter": 9372,
+ "max_child_len": null,
+ "dialogues": 10,
+ "trees": 59,
+ "prefixes": 1019,
+ "edges": 1777,
+ "tau_med": 0.4043355151234159,
+ "fresh_rows": 5253,
+ "unresolved_generating_parent": 0,
+ "turn_records": 69
+}

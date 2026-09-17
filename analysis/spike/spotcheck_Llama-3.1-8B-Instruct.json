@@ -1,0 +1,112 @@
+[
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking. I just got back from the most amazing brunch with my friends, and I'm feeling pretty energized now.",
+  "tok": 32
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, just got back from a long morning run, so I'm feeling a bit worn out.",
+  "tok": 24
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking. Just got back from a morning hike and I'm feeling really energized.",
+  "tok": 25
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, just got back from a busy morning at work.",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking. Just got back from a long study session and I'm treating myself to a nice coffee and pastry.",
+  "tok": 30
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, just got back from a busy morning at work.",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "That's impressive, I'm glad to see that they're transparent about their work and accomplishments. But what really matters to me is that they're actually making a difference in people's lives, can you tell me more about the specific projects they're working on?",
+  "tok": 53
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "That sounds impressive, but I'm not sure how transparent their reports are - can you tell me a bit more about what kind of impact they've been making?",
+  "tok": 33
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "That's impressive, but what really gets to me is that they're still working on the same issues that have been going on for so long - kids should be able to live without fear of hunger or war, it's just heartbreaking.",
+  "tok": 48
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "That sounds impressive, but what kind of specific impact do they have, and how does it really benefit children in need?",
+  "tok": 25
+ }
+]

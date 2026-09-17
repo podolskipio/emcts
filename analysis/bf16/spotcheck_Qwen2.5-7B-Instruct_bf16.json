@@ -1,0 +1,112 @@
+[
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "I'm doing pretty well, thanks for asking. How about you?",
+  "tok": 15
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "I'm doing well, thanks for asking! How about you?",
+  "tok": 14
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "I'm doing well, thanks for asking! Just had a busy day at college, but that's exciting. How about you?",
+  "tok": 27
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "I'm doing pretty well, thanks for asking! How about you?",
+  "tok": 15
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "text": "I'm doing pretty well, thanks for asking! I've been keeping busy and trying to make the most of my time.",
+  "tok": 26
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "baseline"
+  },
+  "text": "I'm doing well, thanks for asking! How about you?",
+  "tok": 14
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "That's impressive! With the work they've been doing for so long, I feel like I could really make a difference by donating and supporting their efforts to help children in need.",
+  "tok": 37
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "That's impressive! How do they use the donations to make a difference?",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "That's impressive, and it's good to know they've been making a difference for a long time. Can you tell me more about how my donation would specifically help?",
+  "tok": 35
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "That's impressive! How do they use the donations to make a difference?",
+  "tok": 16
+ }
+]

@@ -1,0 +1,116 @@
+[
+ {
+  "key": {
+   "model": "Llama-3.1-8B-Instruct",
+   "persona_id": 0,
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "awq": {
+   "text": "I'm doing great, thanks for asking. Just got back from a long study session, but I'm trying to reward myself with a nice dinner tonight.",
+   "tok": 32,
+   "neg": 0.017
+  },
+  "bf16": {
+   "text": "I'm doing great, thanks for asking. I just got back from a fantastic weekend getaway with friends, and I'm feeling pretty energized and ready to tackle the week.",
+   "tok": 36,
+   "neg": 0.004
+  }
+ },
+ {
+  "key": {
+   "model": "Llama-3.1-8B-Instruct",
+   "persona_id": 7,
+   "utterance_id": "emotion_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "awq": {
+   "text": "I can understand that, but I'm not sure I'm comfortable with giving to a charity that might be perpetuating the very systems that created this problem in the first place.",
+   "tok": 36,
+   "neg": 0.662
+  },
+  "bf16": {
+   "text": "I'm sure it is, but what makes you think donating to Save the Children is the best way to help them?",
+   "tok": 25,
+   "neg": 0.075
+  }
+ },
+ {
+  "key": {
+   "model": "Llama-3.1-8B-Instruct",
+   "persona_id": 7,
+   "utterance_id": "emotion_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "awq": {
+   "text": "It is heartbreaking to think about kids losing their homes and families, but how exactly does Save the Children help them?",
+   "tok": 24,
+   "neg": 0.982
+  },
+  "bf16": {
+   "text": "I can imagine how tough it must be for them, but I've been donating to different charities in the past and it feels like there are so many good causes out there, it's hard to know where to start.",
+   "tok": 45,
+   "neg": 0.056
+  }
+ },
+ {
+  "key": {
+   "model": "Qwen2.5-7B-Instruct",
+   "persona_id": 12,
+   "utterance_id": "proposition",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "awq": {
+   "text": "I would definitely consider it. Given my values, supporting a cause that helps people and the environment aligns well with how I live my life.",
+   "tok": 30,
+   "neg": 0.072
+  },
+  "bf16": {
+   "text": "Sure, I would. Supporting causes that help people and the environment is important to me, and it sounds like Save the Children aligns with those values.",
+   "tok": 32,
+   "neg": 0.032
+  }
+ },
+ {
+  "key": {
+   "model": "Qwen2.5-7B-Instruct",
+   "persona_id": 12,
+   "utterance_id": "proposition",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "awq": {
+   "text": "I'm a bit tight on funds right now, but I'll definitely keep them in mind for the future.",
+   "tok": 23,
+   "neg": 0.035
+  },
+  "bf16": {
+   "text": "Sure, I might consider it. What kind of impact would my donation have?",
+   "tok": 17,
+   "neg": 0.059
+  }
+ },
+ {
+  "key": {
+   "model": "Qwen2.5-7B-Instruct",
+   "persona_id": 30,
+   "utterance_id": "logical_appeal",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "awq": {
+   "text": "I understand the importance of helping children, but with my financial situation, I think I'll pass on this one.",
+   "tok": 24,
+   "neg": 0.078
+  },
+  "bf16": {
+   "text": "That sounds like a great way to help, especially since it's such a small amount that can make a big impact.",
+   "tok": 25,
+   "neg": 0.021
+  }
+ }
+]

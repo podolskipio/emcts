@@ -1,0 +1,1019 @@
+{
+ "data_source": {
+  "runs": [
+   "D1",
+   "D2"
+  ],
+  "n_dialogues": 30,
+  "dialogue_ids": [
+   "20180828-185546_199_live",
+   "20180828-220746_854_live",
+   "20180828-175059_983_live",
+   "20180828-191127_844_live",
+   "20180828-162752_771_live",
+   "20180828-162137_37_live",
+   "20180828-191949_798_live",
+   "20180828-155952_523_live",
+   "20180828-191043_249_live",
+   "20180828-171020_885_live",
+   "20180828-230057_631_live",
+   "20180828-180224_618_live",
+   "20180828-150559_96_live",
+   "20180828-192229_245_live",
+   "20180828-215629_975_live",
+   "20180828-204943_168_live",
+   "20180828-194258_519_live",
+   "20180828-151016_679_live",
+   "20180828-200654_46_live",
+   "20180828-182401_548_live",
+   "20180828-191231_142_live",
+   "20180828-202033_549_live",
+   "20180828-155133_109_live",
+   "20180828-192601_768_live",
+   "20180828-150047_923_live",
+   "20180828-220218_164_live",
+   "20180828-144936_260_live",
+   "20180828-150913_399_live",
+   "20180828-161149_939_live",
+   "20180828-182632_141_live"
+  ],
+  "dialogue_positions": "101-130 of the non-annotated p4g pool (eval set = 1-100)",
+  "beta_emo": [
+   0.7,
+   0.0
+  ],
+  "gpu_hours": 5.757,
+  "gpu_hours_detail": {
+   "D1_wall_clock_s": 10707,
+   "D1_gpu_hours": 2.974,
+   "D2_wall_clock_s": 10018,
+   "D2_gpu_hours": 2.783,
+   "note": "1x RTX 4090 serving all roles (SGLang, vicuna-13B-AWQ); HF classifier on CPU in the runner. The stub bit-identity runs, P-RELABEL and all analysis were CPU-only and are not counted.",
+   "total_gpu_hours": 5.757
+  },
+  "from_eval_set": false,
+  "classifier": "hf",
+  "config": "vicuna-13B-v1.5-AWQ via SGLang (all roles one server); logit_scoring off (sampled value + top-K prior); R=max_realizations=4; n_sims 50; K 5; Tmax=max_turns=10; persona; cpuct 1.0; Q_0 0.0; emo_signal level; soft table; 10 workers; seed 0"
+ },
+ "depth_profile": {
+  "visits_by_depth": {
+   "1": 8575,
+   "2": 7284,
+   "3": 5632,
+   "4": 3882,
+   "5": 2597,
+   "6": 1761,
+   "7": 1192,
+   "8": 831,
+   "9": 584,
+   "10": 410,
+   "11": 287,
+   "12": 203,
+   "13": 146,
+   "14": 107,
+   "15": 77,
+   "16": 57,
+   "17": 44,
+   "18": 34,
+   "19": 29,
+   "20": 25,
+   "21": 23,
+   "22": 21,
+   "23": 19,
+   "24": 17,
+   "25": 15,
+   "26": 13,
+   "27": 11,
+   "28": 9,
+   "29": 7,
+   "30": 5,
+   "31": 3,
+   "32": 2,
+   "33": 1
+  },
+  "edges_by_depth": {
+   "1": 650,
+   "2": 1005,
+   "3": 987,
+   "4": 770,
+   "5": 568,
+   "6": 399,
+   "7": 271,
+   "8": 192,
+   "9": 141,
+   "10": 107,
+   "11": 70,
+   "12": 51,
+   "13": 37,
+   "14": 30,
+   "15": 20,
+   "16": 13,
+   "17": 10,
+   "18": 5,
+   "19": 4,
+   "20": 2,
+   "21": 2,
+   "22": 2,
+   "23": 2,
+   "24": 2,
+   "25": 2,
+   "26": 2,
+   "27": 2,
+   "28": 2,
+   "29": 2,
+   "30": 2,
+   "31": 1,
+   "32": 1,
+   "33": 1
+  },
+  "edges_ge_depth2": 4705
+ },
+ "tau_med": 0.3500347478783597,
+ "nodekey": {
+  "restricted_to_depth_ge_2": true,
+  "discordance_rate": 0.3075451647183847,
+  "within_prefix_delta": {
+   "mean": -0.055136418920211885,
+   "ci": [
+    -0.06697310416849164,
+    -0.04333936348597582
+   ],
+   "std_effect": -0.27502671485150615
+  },
+  "pooled_omega2": {
+   "value": 0.08428993982115354,
+   "ci": [
+    0.055409618592805375,
+    0.12736197530193455
+   ]
+  },
+  "boundary_fraction_0.1": 0.22130784886293248,
+  "bucket_depth_r": {
+   "value": -0.29038849503345576,
+   "ci": [
+    -0.3340721056034734,
+    -0.24458209902699707
+   ]
+  },
+  "within_depth_stratified": {
+   "delta_mean": -0.04556864678871611,
+   "omega2": 0.06913711419089522,
+   "definition": "bucket = parent_nu < median(parent_nu | depth)"
+  },
+  "pooled_omega2_edge_demeaned": {
+   "value": 0.006602862610413117,
+   "ci": [
+    0.005407479004241983,
+    0.011321649104879702
+   ],
+   "note": "z minus its own edge mean: the part of pooled omega^2 not attributable to prefix identity"
+  },
+  "post_split_visits_depth_ge_2": {
+   "median": 2.0,
+   "share_ge_3": 0.4322171651495449,
+   "by_depth": {
+    "2": {
+     "median": 2.0,
+     "share_ge_3": 0.4685883222468588,
+     "cells": 1353
+    },
+    "3": {
+     "median": 2.0,
+     "share_ge_3": 0.4251908396946565,
+     "cells": 1310
+    },
+    "4": {
+     "median": 2.0,
+     "share_ge_3": 0.42829827915869984,
+     "cells": 1046
+    },
+    "5": {
+     "median": 2.0,
+     "share_ge_3": 0.41025641025641024,
+     "cells": 741
+    },
+    "6": {
+     "median": 2.0,
+     "share_ge_3": 0.38372093023255816,
+     "cells": 516
+    }
+   }
+  },
+  "fresh_steps_only": {
+   "discordance_rate": 0.27906482465462273,
+   "delta_mean": -0.07896742132797675,
+   "delta_ci": [
+    -0.09524895379114463,
+    -0.062112310828344855
+   ],
+   "omega2": 0.12339001678416456
+  }
+ },
+ "affpool": {
+  "sharing_measured": "within_tree",
+  "n_prefixes_median": 3.0,
+  "evidence_multiplier_median": 2.5941176470588236,
+  "top_prefix_share_median": 0.625,
+  "between_within_ratio": 0.7852253136985968,
+  "depth_keyed": {
+   "evidence_multiplier_median": 1.3333333333333333,
+   "between_within_ratio": 0.5832079821180968
+  }
+ },
+ "splits": {
+  "median": {
+   "occupancy": [
+    0.5000442438722237,
+    0.4999557561277763
+   ]
+  },
+  "label": {
+   "occupancy": [
+    0.9438397781907206,
+    0.05616022180927942
+   ]
+  },
+  "kappa_between_splits": 0.11233920670685107
+ },
+ "channel_dominance": {
+  "argmax_flip_fraction": 0.3161077190809073,
+  "argmax_flip_fraction_exploit_expanded": 0.11546773695585057,
+  "median_ratio": 0.27125597704195303,
+  "flip_kinds_share_of_flips": {
+   "affect_picks_visited_over_unvisited": 0.8280302323411403,
+   "both_visited": 0.17122329009984139,
+   "affect_picks_unvisited_over_visited": 0.000746477559018382
+  }
+ },
+ "sigma": {
+  "ratio_median": 0.44923571550746066,
+  "ratio_p90": 1.4469150112195028,
+  "median_N": 6.0,
+  "note": "supersedes the 1.43 / 9.10 stub-classifier figures, which must not be cited"
+ },
+ "gate_components": {
+  "nodekey": {
+   "discordance_rate_depth_ge_2": {
+    "value": 0.3075451647183847,
+    "ci": [
+     0.283978213384817,
+     0.33790286620435017
+    ],
+    "threshold": ">= 0.30",
+    "met": true
+   },
+   "within_prefix_mean_delta": {
+    "value": -0.055136418920211885,
+    "ci": [
+     -0.06697310416849164,
+     -0.04333936348597582
+    ],
+    "std_effect": -0.27502671485150615,
+    "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+    "met": true
+   },
+   "pooled_omega2": {
+    "value": 0.08428993982115354,
+    "ci": [
+     0.055409618592805375,
+     0.12736197530193455
+    ],
+    "clipped": 0.08462447875309495,
+    "threshold": ">= 0.05 and CI lower > 0",
+    "met": true
+   },
+   "boundary_fraction_0.1": {
+    "value": 0.22130784886293248,
+    "threshold": "<= 0.35",
+    "met": true
+   },
+   "bucket_depth_r": {
+    "value": -0.29038849503345576,
+    "ci": [
+     -0.3340721056034734,
+     -0.24458209902699707
+    ],
+    "threshold": "|r| <= 0.3",
+    "met": true
+   },
+   "n_discordant_edges": {
+    "value": 1447,
+    "stop_if_below": 200
+   }
+  },
+  "affpool": {
+   "n_prefixes_median": {
+    "value": 3.0,
+    "ci": [
+     3.0,
+     3.0
+    ],
+    "threshold": ">= 4",
+    "met": false
+   },
+   "evidence_multiplier_median": {
+    "value": 2.5941176470588236,
+    "ci": [
+     2.0,
+     3.0
+    ],
+    "threshold": ">= 3",
+    "met": false
+   },
+   "top_prefix_share_median": {
+    "value": 0.625,
+    "ci": [
+     0.6,
+     0.6666666666666666
+    ],
+    "threshold": "<= 0.6",
+    "met": false
+   },
+   "between_within_ratio": {
+    "value": 0.7852253136985968,
+    "ci": [
+     0.6941021628616959,
+     0.8613762307855899
+    ],
+    "noise_corrected": 0.31221649197559054,
+    "threshold": "<= 1.0",
+    "met": true
+   }
+  }
+ },
+ "by_run": {
+  "D1": {
+   "gate_components": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.3075451647183847,
+      "ci": [
+       0.283978213384817,
+       0.33790286620435017
+      ],
+      "threshold": ">= 0.30",
+      "met": true
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.055136418920211885,
+      "ci": [
+       -0.06697310416849164,
+       -0.04333936348597582
+      ],
+      "std_effect": -0.27502671485150615,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": true
+     },
+     "pooled_omega2": {
+      "value": 0.08428993982115354,
+      "ci": [
+       0.055409618592805375,
+       0.12736197530193455
+      ],
+      "clipped": 0.08462447875309495,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": true
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.22130784886293248,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.29038849503345576,
+      "ci": [
+       -0.3340721056034734,
+       -0.24458209902699707
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 1447,
+      "stop_if_below": 200
+     }
+    },
+    "affpool": {
+     "n_prefixes_median": {
+      "value": 3.0,
+      "ci": [
+       3.0,
+       3.0
+      ],
+      "threshold": ">= 4",
+      "met": false
+     },
+     "evidence_multiplier_median": {
+      "value": 2.5941176470588236,
+      "ci": [
+       2.0,
+       3.0
+      ],
+      "threshold": ">= 3",
+      "met": false
+     },
+     "top_prefix_share_median": {
+      "value": 0.625,
+      "ci": [
+       0.6,
+       0.6666666666666666
+      ],
+      "threshold": "<= 0.6",
+      "met": false
+     },
+     "between_within_ratio": {
+      "value": 0.7852253136985968,
+      "ci": [
+       0.6941021628616959,
+       0.8613762307855899
+      ],
+      "noise_corrected": 0.31221649197559054,
+      "threshold": "<= 1.0",
+      "met": true
+     }
+    }
+   },
+   "gate_components_fresh_steps_only": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.27906482465462273,
+      "ci": [
+       0.2591843304454282,
+       0.3061831965253346
+      ],
+      "threshold": ">= 0.30",
+      "met": false
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.07896742132797675,
+      "ci": [
+       -0.09524895379114463,
+       -0.062112310828344855
+      ],
+      "std_effect": -0.39533600016636605,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": true
+     },
+     "pooled_omega2": {
+      "value": 0.12339001678416456,
+      "ci": [
+       0.0835307991389342,
+       0.1780666335881033
+      ],
+      "clipped": 0.12388555116420297,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": true
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.22130784886293248,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.29038849503345576,
+      "ci": [
+       -0.3340721056034734,
+       -0.24458209902699707
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 1313,
+      "stop_if_below": 200
+     }
+    }
+   },
+   "gate_components_label_split": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.06099893730074389,
+      "ci": [
+       0.0488162076513743,
+       0.0777159306959258
+      ],
+      "threshold": ">= 0.30",
+      "met": false
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.04208449757247924,
+      "ci": [
+       -0.06850663496860263,
+       -0.0171329902671035
+      ],
+      "std_effect": -0.2099222499430812,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": true
+     },
+     "pooled_omega2": {
+      "value": 0.007304725337098696,
+      "ci": [
+       0.005211821476871787,
+       0.013287123112065617
+      ],
+      "clipped": 0.007634393107926887,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": false
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.22130784886293248,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.10567675518677853,
+      "ci": [
+       -0.13478156949346853,
+       -0.07786096840363728
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 287,
+      "stop_if_below": 200
+     }
+    },
+    "affpool": {
+     "n_prefixes_median": {
+      "value": 2.0,
+      "ci": [
+       2.0,
+       3.0
+      ],
+      "threshold": ">= 4",
+      "met": false
+     },
+     "evidence_multiplier_median": {
+      "value": 2.0,
+      "ci": [
+       2.0,
+       2.1875
+      ],
+      "threshold": ">= 3",
+      "met": false
+     },
+     "top_prefix_share_median": {
+      "value": 0.7142857142857143,
+      "ci": [
+       0.6666666666666666,
+       0.7647058823529411
+      ],
+      "threshold": "<= 0.6",
+      "met": false
+     },
+     "between_within_ratio": {
+      "value": 0.7734556246071298,
+      "ci": [
+       0.710519975567614,
+       0.8741896853544556
+      ],
+      "noise_corrected": 0.32968854028635824,
+      "threshold": "<= 1.0",
+      "met": true
+     }
+    }
+   },
+   "meta": {
+    "wall_clock": "wall_clock_s=10707",
+    "started_at": "2026-09-14T11:37:29+02:00"
+   }
+  },
+  "D2": {
+   "gate_components": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.24857892435505027,
+      "ci": [
+       0.22010684535119568,
+       0.2818950802091246
+      ],
+      "threshold": ">= 0.30",
+      "met": false
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.05464946104233459,
+      "ci": [
+       -0.06940876142771758,
+       -0.03812554753296056
+      ],
+      "std_effect": -0.26834486865365537,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": true
+     },
+     "pooled_omega2": {
+      "value": 0.08337765219375916,
+      "ci": [
+       0.0628465360787891,
+       0.10229888107437983
+      ],
+      "clipped": 0.08366918929594247,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": true
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.21387180489885882,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.23956045339124413,
+      "ci": [
+       -0.28194298448632116,
+       -0.1900766123512743
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 1137,
+      "stop_if_below": 200
+     }
+    },
+    "affpool": {
+     "n_prefixes_median": {
+      "value": 3.0,
+      "ci": [
+       3.0,
+       3.0
+      ],
+      "threshold": ">= 4",
+      "met": false
+     },
+     "evidence_multiplier_median": {
+      "value": 2.5,
+      "ci": [
+       2.0,
+       3.0
+      ],
+      "threshold": ">= 3",
+      "met": false
+     },
+     "top_prefix_share_median": {
+      "value": 0.6428571428571429,
+      "ci": [
+       0.6,
+       0.6666666666666666
+      ],
+      "threshold": "<= 0.6",
+      "met": false
+     },
+     "between_within_ratio": {
+      "value": 0.7827786556271519,
+      "ci": [
+       0.7332006361751894,
+       0.8618070578836505
+      ],
+      "noise_corrected": 0.28563064199871907,
+      "threshold": "<= 1.0",
+      "met": true
+     }
+    }
+   },
+   "gate_components_fresh_steps_only": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.2289024923480542,
+      "ci": [
+       0.20347340715002538,
+       0.26016202690021895
+      ],
+      "threshold": ">= 0.30",
+      "met": false
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.07295018196775721,
+      "ci": [
+       -0.09046828533357605,
+       -0.05275061117507373
+      ],
+      "std_effect": -0.35872327770084794,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": true
+     },
+     "pooled_omega2": {
+      "value": 0.10609063645836955,
+      "ci": [
+       0.08136874230431207,
+       0.12839619526115362
+      ],
+      "clipped": 0.10647758287170661,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": true
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.21387180489885882,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.23956045339124413,
+      "ci": [
+       -0.28194298448632116,
+       -0.1900766123512743
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 1047,
+      "stop_if_below": 200
+     }
+    }
+   },
+   "gate_components_label_split": {
+    "nodekey": {
+     "discordance_rate_depth_ge_2": {
+      "value": 0.05356362046348929,
+      "ci": [
+       0.04136915670849512,
+       0.06928926928787785
+      ],
+      "threshold": ">= 0.30",
+      "met": false
+     },
+     "within_prefix_mean_delta": {
+      "value": -0.035370843359779476,
+      "ci": [
+       -0.05925731934423677,
+       -0.010347990356714484
+      ],
+      "std_effect": -0.1736812062647117,
+      "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+      "met": false
+     },
+     "pooled_omega2": {
+      "value": 0.012267786116923932,
+      "ci": [
+       0.0066463420098343265,
+       0.023786059628058073
+      ],
+      "clipped": 0.012649911113386696,
+      "threshold": ">= 0.05 and CI lower > 0",
+      "met": false
+     },
+     "boundary_fraction_0.1": {
+      "value": 0.21387180489885882,
+      "threshold": "<= 0.35",
+      "met": true
+     },
+     "bucket_depth_r": {
+      "value": -0.08762565475971325,
+      "ci": [
+       -0.11615209544255184,
+       -0.051323737570544474
+      ],
+      "threshold": "|r| <= 0.3",
+      "met": true
+     },
+     "n_discordant_edges": {
+      "value": 245,
+      "stop_if_below": 200
+     }
+    },
+    "affpool": {
+     "n_prefixes_median": {
+      "value": 3.0,
+      "ci": [
+       2.0,
+       3.0
+      ],
+      "threshold": ">= 4",
+      "met": false
+     },
+     "evidence_multiplier_median": {
+      "value": 2.0,
+      "ci": [
+       2.0,
+       3.625
+      ],
+      "threshold": ">= 3",
+      "met": false
+     },
+     "top_prefix_share_median": {
+      "value": 0.7,
+      "ci": [
+       0.64,
+       0.7895285087719298
+      ],
+      "threshold": "<= 0.6",
+      "met": false
+     },
+     "between_within_ratio": {
+      "value": 0.8005898541294991,
+      "ci": [
+       0.7397772245366101,
+       0.8701427231064165
+      ],
+      "noise_corrected": 0.30473789591340616,
+      "threshold": "<= 1.0",
+      "met": true
+     }
+    }
+   },
+   "meta": {
+    "wall_clock": "wall_clock_s=10018",
+    "started_at": "2026-09-14T14:36:37+02:00"
+   }
+  }
+ },
+ "gates_applied": false,
+ "search_horizon_bug": {
+  "doc": "analysis/phase1/SEARCH_HORIZON_BUG.md",
+  "share_steps_child_past_Tmax": {
+   "D1": 0.197,
+   "D2": 0.127
+  },
+  "share_trees_with_impossible_state": {
+   "D1": 0.7542857142857143,
+   "D2": 0.5028248587570622
+  },
+  "note": "all gate components above were computed under the legacy search rule; the block below drops step rows whose child is past Tmax (a lower bound on the bug's effect). Pilot under --search_horizon episode: Thursday 2026-09-17.",
+  "sensitivity_child_len_le_Tmax": {
+   "D1": {
+    "gate_components": {
+     "nodekey": {
+      "discordance_rate_depth_ge_2": {
+       "value": 0.35155001597954616,
+       "ci": [
+        0.32449779173330595,
+        0.38609525432664804
+       ],
+       "threshold": ">= 0.30",
+       "met": true
+      },
+      "within_prefix_mean_delta": {
+       "value": -0.043501769660129794,
+       "ci": [
+        -0.055172904851023365,
+        -0.03127085782846756
+       ],
+       "std_effect": -0.21504043539146875,
+       "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+       "met": true
+      },
+      "pooled_omega2": {
+       "value": 0.04078940369727717,
+       "ci": [
+        0.029337962324850097,
+        0.05744377249785471
+       ],
+       "clipped": 0.04111329182369443,
+       "threshold": ">= 0.05 and CI lower > 0",
+       "met": false
+      },
+      "boundary_fraction_0.1": {
+       "value": 0.22869839870721317,
+       "threshold": "<= 0.35",
+       "met": true
+      },
+      "bucket_depth_r": {
+       "value": -0.21043263892710895,
+       "ci": [
+        -0.25877389588319055,
+        -0.15496124064476355
+       ],
+       "threshold": "|r| <= 0.3",
+       "met": true
+      },
+      "n_discordant_edges": {
+       "value": 1100,
+       "stop_if_below": 200
+      }
+     },
+     "affpool": {
+      "n_prefixes_median": {
+       "value": 3.0,
+       "ci": [
+        2.0,
+        3.0
+       ],
+       "threshold": ">= 4",
+       "met": false
+      },
+      "evidence_multiplier_median": {
+       "value": 2.0,
+       "ci": [
+        1.8998684210526315,
+        2.0
+       ],
+       "threshold": ">= 3",
+       "met": false
+      },
+      "top_prefix_share_median": {
+       "value": 0.709005376344086,
+       "ci": [
+        0.6666666666666666,
+        0.75
+       ],
+       "threshold": "<= 0.6",
+       "met": false
+      },
+      "between_within_ratio": {
+       "value": 0.7029130615798607,
+       "ci": [
+        0.6336810360769777,
+        0.8074546715980635
+       ],
+       "noise_corrected": 0.28499507354655396,
+       "threshold": "<= 1.0",
+       "met": true
+      }
+     }
+    }
+   },
+   "D2": {
+    "gate_components": {
+     "nodekey": {
+      "discordance_rate_depth_ge_2": {
+       "value": 0.27520827348463084,
+       "ci": [
+        0.24717614593203438,
+        0.307546742364479
+       ],
+       "threshold": ">= 0.30",
+       "met": false
+      },
+      "within_prefix_mean_delta": {
+       "value": -0.047199381584626436,
+       "ci": [
+        -0.05981401923642914,
+        -0.034292503438076966
+       ],
+       "std_effect": -0.23242037059904977,
+       "threshold": "CI excludes 0 and |mean|/sd(z) >= 0.2",
+       "met": true
+      },
+      "pooled_omega2": {
+       "value": 0.05748308832544578,
+       "ci": [
+        0.04469550412077623,
+        0.0763530237302816
+       ],
+       "clipped": 0.057732981558515216,
+       "threshold": ">= 0.05 and CI lower > 0",
+       "met": true
+      },
+      "boundary_fraction_0.1": {
+       "value": 0.21765880291732878,
+       "threshold": "<= 0.35",
+       "met": true
+      },
+      "bucket_depth_r": {
+       "value": -0.1660523748262002,
+       "ci": [
+        -0.2281700663034329,
+        -0.10388045523194886
+       ],
+       "threshold": "|r| <= 0.3",
+       "met": true
+      },
+      "n_discordant_edges": {
+       "value": 958,
+       "stop_if_below": 200
+      }
+     },
+     "affpool": {
+      "n_prefixes_median": {
+       "value": 3.0,
+       "ci": [
+        2.0,
+        3.0
+       ],
+       "threshold": ">= 4",
+       "met": false
+      },
+      "evidence_multiplier_median": {
+       "value": 2.0,
+       "ci": [
+        2.0,
+        2.3333333333333335
+       ],
+       "threshold": ">= 3",
+       "met": false
+      },
+      "top_prefix_share_median": {
+       "value": 0.6666666666666666,
+       "ci": [
+        0.6666666666666666,
+        0.75
+       ],
+       "threshold": "<= 0.6",
+       "met": false
+      },
+      "between_within_ratio": {
+       "value": 0.7591832904947841,
+       "ci": [
+        0.6474168153948472,
+        0.853102647270727
+       ],
+       "noise_corrected": 0.25973708150846825,
+       "threshold": "<= 1.0",
+       "met": true
+      }
+     }
+    }
+   }
+  }
+ }
+}

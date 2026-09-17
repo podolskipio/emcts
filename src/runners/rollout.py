@@ -40,13 +40,16 @@ import numpy as np
 from tqdm.auto import tqdm
 
 from utils.utils import dotdict
-from mcts.mcts import OpenLoopMCTS
-from mcts.emotion_mcts import EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
+from mcts.mcts import OpenLoopMCTS, SEARCH_HORIZONS
+from mcts.emotion_mcts import (
+	EmotionAwareMultiObjectiveQ, AFF_POOL_KEYS, EMO_SIGNALS, EMO_VALENCE_TABLES, EMOTION_VALENCE_TABLES, check_emo_signal_flags,
+)
 from utils import role_profiler
 from runners._common import (
 	make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
 	load_p4g_personas, apply_seed, dump_emotion_records, add_common_args, finalize_args,
 	setup_output_dir, build_subtree_records, write_subtree_ndjson,
+	build_simlog_step_records, write_simlog_ndjson,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,6 +98,13 @@ def pick_action(algo, state, *, game, planner, configs, emotion_classifier) -> "
 			emo_risk_lambda=configs.emo_risk_lambda,
 			emo_signal=configs.emo_signal,
 			emo_valence_table=configs.emo_valence_table,
+			aff_pool=configs.aff_pool,
+			aff_pool_bias=configs.aff_pool_bias,
+			aff_pool_tau=configs.aff_pool_tau,
+			aff_pool_key=configs.aff_pool_key,
+			emo_centre=configs.emo_centre,
+			emo_constraint_tau=configs.emo_constraint_tau,
+			emo_constraint_m_warm=configs.emo_constraint_m_warm,
 		)
 		for _ in tqdm(range(configs.num_MCTS_sims), leave=False, desc="emomcts"):
 			dp.search(state)
@@ -123,12 +133,15 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
 				dlg_id=None, seed=None):
 	"""Play one full episode with ``algo`` choosing each system action.
 
-	Returns ``(final_session, subtree_records)``. ``subtree_records`` is the frozen
+	Returns ``(final_session, subtree_records, simlog_records)``. ``subtree_records`` is the frozen
 	NDJSON subtree schema (task 1.5): one record per edge of the tree, for every planned
 	turn of this episode. The caller gzips it to one file per dialogue. Empty for
-	``--algo llm_raw``, which builds no tree and therefore has no edges.
+	``--algo llm_raw``, which builds no tree and therefore has no edges. ``simlog_records`` is
+	the P-VAR simulation-step log (see SIMLOG_DIRNAME in runners/_common.py): the emomcts
+	planner's per-step tape for every planned turn plus one "turn" record per realized turn.
 	"""
 	subtree_records = []
+	simlog_records = []
 	state = game.init_dialog(*scenario)
 	# turn 0: the only valid move at the start is the greeting -> realize it directly
 	valid0 = np.asarray(planner.get_valid_moves(state), dtype=float)
@@ -136,6 +149,8 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
 	# EmotionAwarePersuasionGame.get_next_state returns (state, emotion); base returns state.
 	# Normalize to the state so both shapes work.
 	state = game.state_of(game.get_next_state(state, greeting_idx))
+	simlog_records.append(_simlog_turn_record(game, None, state, dlg_id=dlg_id, turn=0, planned=False,
+											  valence_table=configs.emo_valence_table))
 	# this turn's system-utterance / user-simulator / emotion-classifier calls are already in the
 	# profiler's numerator, so it has to be in the denominator too -- otherwise every calls/turn
 	# figure is inflated by (turns+1)/turns (33% on a 4-turn episode).
@@ -147,9 +162,52 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
 		if dp is not None:
 			subtree_records += build_subtree_records(
 				dp, dlg_id=dlg_id, turn=len(state), root_state=state, seed=seed)
+			simlog_records += build_simlog_step_records(dp, dlg_id=dlg_id, turn=len(state))
+		root_state, turn = state, len(state)
 		state = game.state_of(game.get_next_state(state, action))
+		simlog_records.append(_simlog_turn_record(game, root_state, state, dlg_id=dlg_id, turn=turn, planned=True,
+												  valence_table=configs.emo_valence_table, planner_used=dp))
 		role_profiler.mark_turn()  # denominator for the per-role calls/turn (--profile_roles)
-	return state, subtree_records
+	return state, subtree_records, simlog_records
+
+
+def _simlog_turn_record(game, root_state, new_state, *, dlg_id, turn, planned, valence_table, planner_used=None):
+	"""The simlog "turn" record: the observed search-root affect, the act that was realized,
+	and the user's real reaction to it. Reads states only -- no model calls, no random draws.
+
+	``root_state`` is the observed dialogue the turn's tree was rooted at (None for the
+	unplanned greeting); ``new_state`` is that dialogue after the realized system turn and the
+	simulated user reply."""
+	weights = EMOTION_VALENCE_TABLES[valence_table or "soft"]
+	nu = lambda dist: float(sum(p * weights.get(e, 0.0) for e, p in dist.items())) if dist else 0.0
+	dist_json = lambda dist: {str(e): float(p) for e, p in dist.items()} if dist else {}
+	root_dist = root_state.predicted_distribution() if root_state is not None and root_state.history else None
+	sys_rec, usr_rec = new_state.history[-2], new_state.history[-1]
+	usr_dist = new_state.predicted_distribution()
+	root_visits = {}
+	if planner_used is not None and root_state is not None:
+		root_key = planner_used._to_string_rep(root_state)
+		root_visits = {planner_used.player.dialog_acts[a]: int(n) for a, n in planner_used.Nsa.get(root_key, {}).items()}
+	record = {
+		"record_type": "turn",
+		"dlg_id": dlg_id,
+		"turn_index": int(turn),
+		"planned": bool(planned),
+		"root_nu": nu(root_dist),
+		"root_emotion_dist": dist_json(root_dist),
+		"system_act": sys_rec[1],
+		"system_utterance": sys_rec[-1],
+		"user_act": usr_rec[1],
+		"user_utterance": usr_rec[-1],
+		"user_emotion_dist": dist_json(usr_dist),
+		"user_nu": nu(usr_dist),
+		"outcome": float(game.get_dialog_ended(new_state)),
+		"root_visits": root_visits,
+	}
+	# --emo_constraint_tau: the feasible-set root decision beside the unrestricted argmax N
+	if planner_used is not None and planner_used.root_decision:
+		record["root_constraint"] = planner_used.root_decision
+	return record
 
 
 def make_episode(task, did, game, state, *, algo=None, subtree_log_path=None):
@@ -207,8 +265,10 @@ def main(cmd_args):
 		llm_prior_topk=cmd_args.llm_prior_topk,
 		logit_scoring=cmd_args.logit_scoring,
 		explicit_value_labels=cmd_args.explicit_value_labels,
-		# the rollout loop below stops at --max_turns; give the search the same horizon so it
-		# does not simulate branches past the point the dialogue can reach.
+		success_criterion=cmd_args.p4g_success,
+		# the rollout loop below stops at --max_turns; the game gets the same horizon. Search only
+		# stops there under --search_horizon episode -- the legacy default keeps simulating past it
+		# (analysis/phase1/SEARCH_HORIZON_BUG.md).
 		max_conv_turns=cmd_args.max_turns,
 		emotion_classifier=emotion_classifier,
 	)
@@ -233,6 +293,14 @@ def main(cmd_args):
 		"emo_risk_lambda": cmd_args.emo_risk_lambda,
 		"emo_signal": cmd_args.emo_signal,
 		"emo_valence_table": cmd_args.emo_valence_table,
+		"search_horizon": cmd_args.search_horizon,
+		"aff_pool": cmd_args.aff_pool,
+		"aff_pool_bias": cmd_args.aff_pool_bias,
+		"aff_pool_tau": cmd_args.aff_pool_tau,
+		"aff_pool_key": cmd_args.aff_pool_key,
+		"emo_centre": cmd_args.emo_centre,
+		"emo_constraint_tau": cmd_args.emo_constraint_tau,
+		"emo_constraint_m_warm": cmd_args.emo_constraint_m_warm,
 	})
 	mcts_class_by_algo = {
 		"llm_raw": "(none — llm_raw baseline)",
@@ -277,12 +345,15 @@ def main(cmd_args):
 		game, _system, _user, planner = build_agents(
 			cmd_args.game, backbone_model, family, persona=persona, **agent_kwargs)
 		try:
-			state, subtree_records = rollout_one(game, planner, cmd_args.algo, configs,
+			state, subtree_records, simlog_records = rollout_one(game, planner, cmd_args.algo, configs,
 								 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
 								 dlg_id=did, seed=cmd_args.seed)
 			# one gzipped NDJSON per dialogue, written once the episode is done so
 			# concurrent workers never share a file.
 			subtree_log_path = write_subtree_ndjson(subtree_records, cmd_args.output, did)
+			# the P-VAR simulation-step log sits next to it (<run_dir>/simlog/<did>.ndjson.gz);
+			# its path is derivable from the run dir, so the episode record is left unchanged.
+			write_simlog_ndjson(simlog_records, cmd_args.output, did)
 			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo,
 								   subtree_log_path=subtree_log_path)
 			episode["persona"] = persona
@@ -348,10 +419,14 @@ if __name__ == "__main__":
 		description="self-play rollouts -> episode records for SR / AT / SL. On the p4g tasks "
 					f"--data defaults to {P4G_ROLLOUT_DATA} (the 717 unannotated dialogs) rather "
 					"than the annotated 300 the replay runners use; see _read_p4g_full_csv.")
-	add_common_args(parser, default_output="outputs/rollout.pkl")
-	parser.add_argument("--max_turns", type=int, default=10, help="hard cap on dialog turns per episode")
+	add_common_args(parser, default_output="outputs/rollout.pkl")  # --max_turns is defined there
 	parser.add_argument("--max_conv", type=int, default=20, help="max scenarios to roll out (-1 for all)")
 	parser.add_argument("--raise_errors", action="store_true", help="re-raise instead of skipping a failing rollout")
+	parser.add_argument("--p4g_success", "--p4g-success", choices=["tag", "committed", "amount"], default="tag",
+						help="[p4g] which [donate]-tagged persuadee turns end the episode -- and a search "
+						     "branch -- in success (games/p4g_success.py). tag (DEFAULT, GDP-Zero): the tag "
+						     "alone. committed: no deferral/hedge language in the turn ('I will consider "
+						     "donating' is not a donation). amount: committed and an explicit amount named.")
 	parser.add_argument("--profile_roles", action="store_true",
 						help="record calls, latency and tokens in/out per role (policy prior, value "
 						     "estimator, user simulator, system utterance model, emotion classifier) "
@@ -364,6 +439,8 @@ if __name__ == "__main__":
 	parser.add_argument("--max_realizations", type=int, default=3, help="[--algo gdpzero|emomcts] realizations sampled per state")
 	parser.add_argument("--Q_0", type=float, default=0.0, help="[--algo gdpzero|emomcts] initial Q value for unvisited states")
 	parser.add_argument("--cpuct", type=float, default=1.0, help="[--algo gdpzero|emomcts] UCT exploration constant")
+	parser.add_argument('--search_horizon', '--search-horizon', choices=list(SEARCH_HORIZONS), default='legacy',
+						help='which get_dialog_ended values end a simulated branch. "legacy" (DEFAULT, unchanged, GDP-Zero): only success is terminal, so search keeps expanding past the turn limit and after a verbatim stall -- states no real episode reaches. "episode": any non-zero get_dialog_ended is terminal and its value (+1 donate / -1 turn limit or stall) is backed up, so search stops where the episode loop stops. See analysis/phase1/SEARCH_HORIZON_BUG.md.')
 	# Emotion-aware MCTS hyper-parameters (mirror runners/emomcts.py; only used when --algo emomcts).
 	parser.add_argument('--beta_emo', type=float, default=0.0,
 						help='[--algo emomcts] weight on the parallel Q_emo channel in PUCT '
@@ -390,6 +467,29 @@ if __name__ == "__main__":
 							 'argmax_e Phi(e|u); retained as the ablation for that mismatch. Both are '
 							 'mined on all 300 ANNOTATED dialogs, so evaluate on non-annotated data '
 							 '(see REPLAY_DATA in scripts/run_paper_experiments.sh).')
+	# Wednesday arms (analysis/FREEZE_NOTES.md §8). All default to the shipped behaviour.
+	parser.add_argument('--terminal_on_failure', '--terminal-on-failure', dest='search_horizon',
+						action='store_const', const='episode', default=argparse.SUPPRESS,
+						help='end a simulated branch on -1.0 (turn limit / stall) as well as on +1.0. An alias '
+							 'for --search_horizon episode, the one code path that implements it; off by default.')
+	parser.add_argument('--aff_pool', '--aff-pool', action='store_true',
+						help='[emomcts] AffPool: blend Q with a per-search (bucket, act) pool of task returns, '
+							 'MC-RAVE weight N_pool/(N+N_pool+4*N*N_pool*bias^2). DEFAULT off.')
+	parser.add_argument('--aff_pool_bias', '--aff-pool-bias', type=float, default=0.1,
+						help='[emomcts --aff_pool] RAVE bias b; sweep {0.05, 0.1, 0.25} on non-eval dialogues.')
+	parser.add_argument('--aff_pool_tau', '--aff-pool-tau', type=float, default=0.35,
+						help='[emomcts --aff_pool] bucket threshold: parent nu < tau is bucket 1 (0.35 = D1 tau_med).')
+	parser.add_argument('--aff_pool_key', '--aff-pool-key', choices=list(AFF_POOL_KEYS), default='affect',
+						help='[emomcts --aff_pool] pool key: affect = (K0 bucket, act) = AffPool; act = (act) alone = ActPool.')
+	parser.add_argument('--emo_centre', '--emo-centre', action='store_true',
+						help='[emomcts] CenteredBias: beta*(Q_emo - mu) on expanded edges, mu = mean Q_emo over '
+							 'the expanded siblings; unexpanded edges unchanged. DEFAULT off.')
+	parser.add_argument('--emo_constraint_tau', '--emo-constraint-tau', type=float, default=None,
+						help='[emomcts] Constrain: select (and decide at the root) only among actions with '
+							 'Q_emo >= tau or N < m_warm. Unset (DEFAULT) = off. The spec formula has no beta '
+							 'term: run with --beta_emo 0.0 for it; beta > 0 adds beta*Q_emo inside the mask.')
+	parser.add_argument('--emo_constraint_m_warm', '--emo-constraint-m-warm', type=int, default=3,
+						help='[emomcts --emo_constraint_tau] visits before an action can be masked.')
 	cmd_args = finalize_args(parser.parse_args())
 
 	main(cmd_args)

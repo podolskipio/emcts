@@ -42,3 +42,12 @@ Thumbs.db
 # Unpublished experimental MCTS variants (kept local, not part of the release)
 src/mcts/emotion_mcts_unproven_ideas.py
 src/runners/emomcts_all_approaches.py
+
+# Per-utterance classifier dumps written next to every run (regenerable; several exceed 100 MB)
+*_emotions.json
+# Run output directories written into src/runners by older invocations
+src/runners/rollout_*/
+# Pre-change source copy used only for the Thursday stub regression (reproducible from git history)
+analysis/thu/regression/src_pre/
+# Scratch
+analysis/thu/runs/_*

@@ -1,0 +1,27 @@
+{
+ "n_cell": 100,
+ "adopted_workers": 10,
+ "cells_h": {
+  "8b_nopersona": 1.553,
+  "8b_persona": 3.765,
+  "13b_nopersona_measured": 6.08,
+  "13b_nopersona_plan": 10.0,
+  "13b_persona": 9.118
+ },
+ "factorial_measured_h": 77.5,
+ "factorial_plan_anchor_h": 89.3,
+ "blocks_h": 97,
+ "total_measured_h": 174.5,
+ "total_plan_anchor_h": 186.3,
+ "band_measured": [
+  "< 230 h",
+  "Proceed. Spend slack on a 2nd seed for B2 first."
+ ],
+ "band_plan_anchor": [
+  "< 230 h",
+  "Proceed. Spend slack on a 2nd seed for B2 first."
+ ],
+ "available_h": 280,
+ "plan_estimate_h": 227,
+ "slack_measured_h": 105.5
+}

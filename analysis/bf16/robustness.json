@@ -1,0 +1,76 @@
+{
+ "Llama-3.1-8B-Instruct": {
+  "H1_neurotic_neg": {
+   "partial_rho": 0.0502524737335522,
+   "p_one_sided": 0.3115711158196656,
+   "sig": false
+  },
+  "H2_agreeable_happy": {
+   "partial_rho": 0.33690364618199664,
+   "p_one_sided": 0.0003467695464358947,
+   "sig": true
+  },
+  "H3_open_surprise": {
+   "partial_rho": 0.08650413139010862,
+   "p_one_sided": 0.19851179585151651,
+   "sig": false
+  },
+  "length_standardised_neg": {
+   "persona": 0.2545105672539979,
+   "baseline": 0.32415338728872933,
+   "n_bins": 10,
+   "persona_dstd": 0.25653646241942585,
+   "baseline_dstd": 0.33067737896525573,
+   "raw_ratio": 0.8340851680254906,
+   "corr_tok_neg": 0.07841167960211202,
+   "corr_tok_neg_persona": -0.003213125145759706,
+   "corr_tok_neg_baseline": 0.21190664556280195,
+   "mean_tok_persona": 32.39047619047619,
+   "mean_tok_baseline": 28.59455782312925,
+   "dstd_ratio": 0.7757907820068337,
+   "dstd_ratio_ci": [
+    0.7127300744704465,
+    0.8454819247034399
+   ],
+   "dstd_ratio_boot_median": 0.7756130696001324,
+   "n_boot": 2000
+  }
+ },
+ "Qwen2.5-7B-Instruct": {
+  "H1_neurotic_neg": {
+   "partial_rho": 0.2228782005553816,
+   "p_one_sided": 0.01369555463949919,
+   "sig": true
+  },
+  "H2_agreeable_happy": {
+   "partial_rho": 0.3823905385979548,
+   "p_one_sided": 5.102662139390428e-05,
+   "sig": true
+  },
+  "H3_open_surprise": {
+   "partial_rho": 0.22315163995943751,
+   "p_one_sided": 0.013598623178493021,
+   "sig": true
+  },
+  "length_standardised_neg": {
+   "persona": 0.18033986495069498,
+   "baseline": 0.15433460153224662,
+   "n_bins": 10,
+   "persona_dstd": 0.17631748802936756,
+   "baseline_dstd": 0.15831331846358826,
+   "raw_ratio": 1.3319565815543386,
+   "corr_tok_neg": 0.3403884355398978,
+   "corr_tok_neg_persona": 0.02137371658274184,
+   "corr_tok_neg_baseline": 0.48285779726179956,
+   "mean_tok_persona": 25.54013605442177,
+   "mean_tok_baseline": 18.88231292517007,
+   "dstd_ratio": 1.1137249205594804,
+   "dstd_ratio_ci": [
+    0.9820796286102874,
+    1.2567038018913466
+   ],
+   "dstd_ratio_boot_median": 1.1156018335602966,
+   "n_boot": 2000
+  }
+ }
+}

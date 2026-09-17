@@ -1,0 +1,112 @@
+[
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking - just got back from the best brunch spot downtown and I'm feeling pretty energized.",
+  "tok": 27
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, thanks for asking. It's been a bit of a busy week.",
+  "tok": 20
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking. I just got back from a fun weekend getaway with friends and I'm feeling pretty energized and ready to tackle the week ahead.",
+  "tok": 36
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, just got back from a walk and I'm enjoying the sunshine.",
+  "tok": 19
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "text": "I'm doing great, thanks for asking. Just got back from a morning coffee run and I'm feeling pretty energized for the day ahead.",
+  "tok": 30
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "baseline"
+  },
+  "text": "I'm doing alright, just got back from a busy morning at work.",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "That's great, I'm all about supporting causes that actually make a difference, and if they've been doing it for that long, they must be doing something right.",
+  "tok": 35
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "That sounds impressive, but I'm not sure how much of their money actually goes towards helping the kids, rather than administration costs.",
+  "tok": 27
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "That's impressive, but what really matters to me is how they're actually making a difference in the lives of kids, you know, the ones who are struggling to survive.",
+  "tok": 36
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "That sounds impressive, but what kind of specific projects or causes do they focus on, and how do they measure their success?",
+  "tok": 26
+ }
+]

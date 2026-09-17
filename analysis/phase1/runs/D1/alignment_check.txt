@@ -1,0 +1,32 @@
+20180828-144936_260_live.ndjson.gz: steps=450 edges=37  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-150047_923_live.ndjson.gz: steps=1102 edges=116  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-150559_96_live.ndjson.gz: steps=2454 edges=351  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-150913_399_live.ndjson.gz: steps=297 edges=41  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-151016_679_live.ndjson.gz: steps=773 edges=98  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-155133_109_live.ndjson.gz: steps=483 edges=53  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-155952_523_live.ndjson.gz: steps=1550 edges=339  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-161149_939_live.ndjson.gz: steps=971 edges=117  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-162137_37_live.ndjson.gz: steps=467 edges=57  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-162752_771_live.ndjson.gz: steps=633 edges=77  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-171020_885_live.ndjson.gz: steps=459 edges=35  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-175059_983_live.ndjson.gz: steps=1480 edges=354  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-180224_618_live.ndjson.gz: steps=1874 edges=335  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-182401_548_live.ndjson.gz: steps=1219 edges=251  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-182632_141_live.ndjson.gz: steps=771 edges=120  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-185546_199_live.ndjson.gz: steps=268 edges=25  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-191043_249_live.ndjson.gz: steps=1664 edges=378  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-191127_844_live.ndjson.gz: steps=1356 edges=153  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-191231_142_live.ndjson.gz: steps=2613 edges=251  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-191949_798_live.ndjson.gz: steps=1632 edges=310  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-192229_245_live.ndjson.gz: steps=1953 edges=244  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-192601_768_live.ndjson.gz: steps=1587 edges=366  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-194258_519_live.ndjson.gz: steps=664 edges=73  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-200654_46_live.ndjson.gz: steps=438 edges=46  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-202033_549_live.ndjson.gz: steps=238 edges=19  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-204943_168_live.ndjson.gz: steps=1716 edges=296  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-215629_975_live.ndjson.gz: steps=1283 edges=234  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-220218_164_live.ndjson.gz: steps=1193 edges=223  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-220746_854_live.ndjson.gz: steps=513 edges=56  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-230057_631_live.ndjson.gz: steps=1802 edges=300  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+total steps=33903 edges=5355
+RESULT: PASS

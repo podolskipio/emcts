@@ -3,6 +3,7 @@ from typing import Tuple
 
 from emotion_classifiers.llm_emotion import Emotions
 from games.game import DialogGame
+from games.p4g_success import SUCCESS_CRITERIA, donation_counts
 from utils.gen_models import DialogModel
 from utils.sessions import DialogSession, EmotionAwareDialogSession
 
@@ -42,11 +43,17 @@ class PersuasionGame(DialogGame):
             max_conv_turns=15,
             success_base=0.1,
             end_on_no_donation=False,
+            success_criterion="tag",
     ):
         super().__init__('p4g', PersuasionGame.SYS, system_agent, PersuasionGame.USR, user_agent,
                          planner, infer_user_da, success_base, max_conv_turns)
         # GDP-Zero ended the dialogue in failure as soon as the persuadee said [no donation].
         self.end_on_no_donation = end_on_no_donation
+        # --p4g_success: which [donate]-tagged turns end the episode (and a search branch) in
+        # success. DEFAULT "tag" is GDP-Zero's reading; see games/p4g_success.py.
+        if success_criterion not in SUCCESS_CRITERIA:
+            raise ValueError(f"success_criterion must be one of {SUCCESS_CRITERIA}, got {success_criterion!r}")
+        self.success_criterion = success_criterion
 
     @staticmethod
     def get_game_ontology() -> dict:
@@ -74,10 +81,15 @@ class PersuasionGame(DialogGame):
                                        default_da=PersuasionGame.U_Neutral)
 
     def get_dialog_ended(self, state) -> float:
+        last_user_utt = ""
         for _role, da, _utt in state:
-            if da == PersuasionGame.U_Donate:
+            if da == PersuasionGame.U_Donate and (
+                    self.success_criterion == "tag"
+                    or donation_counts(self.success_criterion, _utt, last_user_utt)):
                 logger.info("p4g: dialog ended with donate")
                 return 1.0
+            if _role == PersuasionGame.USR:
+                last_user_utt = _utt
             if self.end_on_no_donation and da == PersuasionGame.U_NoDonation:
                 logger.info("p4g: dialog ended with no-donation")
                 return -1.0
@@ -120,9 +132,11 @@ class EmotionAwarePersuasionGame(PersuasionGame):
         emotion_classifier,
         max_conv_turns=15,
         success_base=0.1,
+        success_criterion="tag",
     ):
         super().__init__(system_agent, user_agent, planner, infer_user_da,
-                         max_conv_turns=max_conv_turns, success_base=success_base)
+                         max_conv_turns=max_conv_turns, success_base=success_base,
+                         success_criterion=success_criterion)
         self.emotion_classifier = emotion_classifier
 
     def init_dialog(self) -> EmotionAwareDialogSession:

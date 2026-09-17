@@ -1,0 +1,308 @@
+{
+ "runs": {
+  "D1": {
+   "run_dir": "analysis/phase1/runs/D1/D1",
+   "rows": 33903,
+   "selection_rows": 169515,
+   "dialogues": 30,
+   "trees": 175,
+   "edges": 5355,
+   "tau_med": 0.3500347478783597,
+   "delta_terciles": [
+    -0.035333886850836715,
+    0.08499921184762849
+   ],
+   "delta_median": 0.0,
+   "phi_08_median": 0.26579709701112336,
+   "phi_05_median": 0.29294417851731674,
+   "delta_nu_null_rows": 1470,
+   "backup_value_source": [
+    "v (backfilled)"
+   ],
+   "reachable_share": 0.8031147686045482,
+   "turn_records": 205,
+   "check_backfill": {
+    "checked": 33903,
+    "mismatches": 0
+   },
+   "metadata": {
+    "runner": "runners/rollout.py",
+    "mcts_class": "EmotionAwareMultiObjectiveQ",
+    "args": {
+     "game": "emo_p4g",
+     "data": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/phase1/runs/dialogues_101_130.jsonl",
+     "output": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/phase1/runs/D1/D1/D1.pkl",
+     "llm": "sglang",
+     "ollama_model": "llama3.1",
+     "sglang_model": "TheBloke/vicuna-13B-v1.5-AWQ",
+     "ollama_host": null,
+     "gen_sentences": -1,
+     "debug": false,
+     "llm_prior_topk": 5,
+     "explicit_value_labels": false,
+     "logit_scoring": "off",
+     "emotion_classifier": "hf",
+     "seed": 0,
+     "num_workers": 10,
+     "p4g_persona": true,
+     "max_turns": 10,
+     "max_conv": 30,
+     "raise_errors": false,
+     "profile_roles": false,
+     "algo": "emomcts",
+     "num_mcts_sims": 50,
+     "max_realizations": 4,
+     "Q_0": 0.0,
+     "cpuct": 1.0,
+     "beta_emo": 0.7,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft"
+    },
+    "mcts_args": {
+     "cpuct": 1.0,
+     "num_MCTS_sims": 50,
+     "Q_0": 0.0,
+     "max_realizations": 4,
+     "beta_emo": 0.7,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft"
+    }
+   }
+  },
+  "D2": {
+   "run_dir": "analysis/phase1/runs/D2/D2",
+   "rows": 28129,
+   "selection_rows": 140645,
+   "dialogues": 30,
+   "trees": 177,
+   "edges": 5312,
+   "tau_med": 0.3130342410380459,
+   "delta_terciles": [
+    -0.04479706085623222,
+    0.08695803536963748
+   ],
+   "delta_median": 0.0003746598092790876,
+   "phi_08_median": 0.25876100281278663,
+   "phi_05_median": 0.2727734942954002,
+   "delta_nu_null_rows": 1470,
+   "backup_value_source": [
+    "v (backfilled)"
+   ],
+   "reachable_share": 0.8725159088485194,
+   "turn_records": 207,
+   "check_backfill": {
+    "checked": 28129,
+    "mismatches": 0
+   },
+   "metadata": {
+    "runner": "runners/rollout.py",
+    "mcts_class": "EmotionAwareMultiObjectiveQ",
+    "args": {
+     "game": "emo_p4g",
+     "data": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/phase1/runs/dialogues_101_130.jsonl",
+     "output": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/phase1/runs/D2/D2/D2.pkl",
+     "llm": "sglang",
+     "ollama_model": "llama3.1",
+     "sglang_model": "TheBloke/vicuna-13B-v1.5-AWQ",
+     "ollama_host": null,
+     "gen_sentences": -1,
+     "debug": false,
+     "llm_prior_topk": 5,
+     "explicit_value_labels": false,
+     "logit_scoring": "off",
+     "emotion_classifier": "hf",
+     "seed": 0,
+     "num_workers": 10,
+     "p4g_persona": true,
+     "max_turns": 10,
+     "max_conv": 30,
+     "raise_errors": false,
+     "profile_roles": false,
+     "algo": "emomcts",
+     "num_mcts_sims": 50,
+     "max_realizations": 4,
+     "Q_0": 0.0,
+     "cpuct": 1.0,
+     "beta_emo": 0.0,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft"
+    },
+    "mcts_args": {
+     "cpuct": 1.0,
+     "num_MCTS_sims": 50,
+     "Q_0": 0.0,
+     "max_realizations": 4,
+     "beta_emo": 0.0,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft"
+    }
+   }
+  },
+  "D3": {
+   "run_dir": "analysis/wed/runs/D3/D3",
+   "rows": 37700,
+   "selection_rows": 188500,
+   "dialogues": 30,
+   "trees": 153,
+   "edges": 3995,
+   "tau_med": 0.0789236669913129,
+   "delta_terciles": [
+    -0.05255301178101768,
+    0.07745418800555884
+   ],
+   "delta_median": 0.002112217683749938,
+   "phi_08_median": 0.11614049870401663,
+   "phi_05_median": 0.10892889780715467,
+   "delta_nu_null_rows": 1470,
+   "backup_value_source": [
+    "backup_value"
+   ],
+   "reachable_share": 0.7129708222811671,
+   "turn_records": 183,
+   "check_backfill": {
+    "checked": 37700,
+    "mismatches": 0
+   },
+   "metadata": {
+    "runner": "runners/rollout.py",
+    "mcts_class": "EmotionAwareMultiObjectiveQ",
+    "args": {
+     "game": "emo_p4g",
+     "data": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/phase1/runs/dialogues_101_130.jsonl",
+     "output": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/analysis/wed/runs/D3/D3/D3.pkl",
+     "llm": "sglang",
+     "ollama_model": "llama3.1",
+     "sglang_model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+     "ollama_host": null,
+     "gen_sentences": -1,
+     "debug": false,
+     "llm_prior_topk": 5,
+     "explicit_value_labels": false,
+     "logit_scoring": "off",
+     "emotion_classifier": "hf",
+     "seed": 0,
+     "num_workers": 10,
+     "p4g_persona": true,
+     "max_turns": 10,
+     "max_conv": 30,
+     "raise_errors": false,
+     "profile_roles": false,
+     "algo": "emomcts",
+     "num_mcts_sims": 50,
+     "max_realizations": 4,
+     "Q_0": 0.0,
+     "cpuct": 1.0,
+     "search_horizon": "legacy",
+     "beta_emo": 0.7,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft",
+     "aff_pool": false,
+     "aff_pool_bias": 0.1,
+     "aff_pool_tau": 0.35,
+     "emo_centre": false,
+     "emo_constraint_tau": null,
+     "emo_constraint_m_warm": 3
+    },
+    "mcts_args": {
+     "cpuct": 1.0,
+     "num_MCTS_sims": 50,
+     "Q_0": 0.0,
+     "max_realizations": 4,
+     "beta_emo": 0.7,
+     "emo_risk_lambda": 0.0,
+     "emo_signal": "level",
+     "emo_valence_table": "soft",
+     "search_horizon": "legacy",
+     "aff_pool": false,
+     "aff_pool_bias": 0.1,
+     "aff_pool_tau": 0.35,
+     "emo_centre": false,
+     "emo_constraint_tau": null,
+     "emo_constraint_m_warm": 3
+    }
+   }
+  }
+ },
+ "definitions": "Shared preparation (brief \u00a72): Table A (steps), Table B (selections), constants.\n\n    python analysis/wed/scripts/build_tables.py                 # D1, D2 (+ D3 if its simlog exists)\n    python analysis/wed/scripts/build_tables.py --runs D3=analysis/wed/runs/D3/D3\n\nEvery later script reads these files; none recomputes a derived column.\n\nDefinitions (also in constants.json[\"definitions\"]):\n  tree_id        (dialogue_id, turn_index) as \"dlg|turn\"\n  edge_id        tree_id | action_prefix | action        -- a prefix is unique only inside a tree\n  backup_value   the task value backed up into Q on this step. D1/D2 predate the field name; their\n                 simlog `v` is written at the same call site, from the same variable (verified:\n                 check_backfill in this script replays it into every logged sibling Q)\n  nu history     the parent realization's OWN affect history: the observed user turns before the\n                 search root, then every simulated user turn on the chain of realizations that\n                 generated it (each realization id joined to the fresh step that produced it).\n                 The parent is re-sampled from the node pool on every visit, so \"the previous\n                 step of this simulation\" is a different dialogue ~2/3 of the time; the\n                 realization's own history is what the simulated user actually saw.\n  delta_nu       parent_nu - previous nu in that history; null when the history has one entry\n                 (depth 1 at the first planned turn)\n  phi_08/phi_05  normalized EWMA  sum g^(t-k) nu_k / sum g^(t-k)  over the history\n  nu_depth_adj   parent_nu - median(parent_nu at this depth), per run\n  bucket_med     parent_nu < tau_med (median over the run's rows)\n  bucket_lab     parent argmax in {fear, sadness, anger, disgust}\n  reachable      turn_index + depth <= Tmax (10): the child state is one a real episode can reach\n",
+ "config": {
+  "beta_emo": {
+   "D1": 0.7,
+   "D2": 0.0,
+   "D3": 0.7
+  },
+  "R": 4,
+  "K": 5,
+  "n_sims": 50,
+  "Tmax": 10,
+  "classifier": "hf (DistilRoBERTa, 7 emitted labels)",
+  "valence_table": "soft",
+  "value_prior_scoring": "sampled (--logit_scoring off): 10-sample value estimator + top-K ranking-call prior",
+  "search_horizon": "legacy",
+  "seed": 0,
+  "dialogues": "positions 101-130 of the non-annotated pool",
+  "backbone": {
+   "D1": "TheBloke/vicuna-13B-v1.5-AWQ",
+   "D2": "TheBloke/vicuna-13B-v1.5-AWQ",
+   "D3": "Qwen/Qwen2.5-7B-Instruct-AWQ"
+  }
+ },
+ "corpus": {
+  "source": "300 annotated P4G dialogues minus 3 content-filtered; test = first 100 by select_p4g_holdout",
+  "n_dialogues": 297,
+  "n_test_dialogues": 100,
+  "rows": 3041,
+  "system_turns": 2781,
+  "corpus_terciles": {
+   "test100_w200": [
+    -0.06438227516201982,
+    0.06149803008578707
+   ],
+   "all_generic": [
+    -0.08116066607660168,
+    0.08685167831947802
+   ],
+   "all_soft": [
+    -0.05750830998957979,
+    0.058030902854835094
+   ]
+  },
+  "valence_tables": {
+   "w200": {
+    "happiness": 0.41,
+    "sadness": -0.39,
+    "fear": -0.1,
+    "anger": 0.11,
+    "surprise": 0.04,
+    "disgust": 0.04,
+    "neutral": -0.12,
+    "contempt": -0.6
+   },
+   "soft": {
+    "happiness": 0.54,
+    "fear": 0.24,
+    "disgust": 0.13,
+    "anger": 0.11,
+    "surprise": 0.09,
+    "neutral": -0.07,
+    "sadness": -0.14,
+    "contempt": -0.6
+   },
+   "generic": {
+    "happiness": 0.54,
+    "surprise": 0.0,
+    "neutral": 0.0,
+    "sadness": -0.54,
+    "fear": -0.54,
+    "anger": -0.54,
+    "disgust": -0.54,
+    "contempt": -0.6
+   }
+  },
+  "classifier": "j-hartmann/emotion-english-distilroberta-base, whole user turn"
+ }
+}

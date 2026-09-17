@@ -1,0 +1,12 @@
+{
+ "hardware": "1x RTX 4090 (WSL2), SGLang 0.5.9, all roles on one server; HF classifier on CPU",
+ "smoke_attempt_1_vicuna_s": 720,
+ "smoke_attempt_1_note": "4 x 1-dialogue smoke runs; server hung 15:11 (WSL dxgkrnl stall), watchdog kill 15:18; all 4 failed",
+ "smoke_attempt_2_vicuna_s": 660,
+ "affpool_sweep_vicuna_wall_clock_s": 6502,
+ "affpool_sweep_note": "3 arms concurrent, 4 workers each; server hung 17:09 with KV pool nearly full (15,017 tokens), watchdog kill 17:14; 3/10 dialogues lost per arm",
+ "D3_qwen_wall_clock_s": 3579,
+ "server_load_and_switch_s": 300,
+ "total_gpu_hours": 3.27,
+ "cpu_only": "Tables A-C, all analyses (sections 3-8), bit-identity tests, stub regression"
+}

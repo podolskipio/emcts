@@ -1,0 +1,112 @@
+[
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "I'm doing well, thanks for asking. How about you?",
+  "tok": 14
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "I'm doing pretty well, thanks for asking! How about you?",
+  "tok": 15
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "I'm doing pretty well, thanks for asking. Just trying to make the most of my day and take care of the people around me.",
+  "tok": 29
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "I'm doing okay, thanks for asking. How about you?",
+  "tok": 14
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "text": "I'm doing pretty well, just trying to enjoy the little things. How about you?",
+  "tok": 19
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "baseline"
+  },
+  "text": "I'm doing well, thanks for asking! How can I help you today?",
+  "tok": 17
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": "I see, so they've been around for a long time and track their progress. That sounds reliable, but I'm not sure what kind of impact they have on individuals.",
+  "tok": 36
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": "That's impressive; it sounds like they have a long history of making a difference.",
+  "tok": 18
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": "I see, so they've been around for a long time and keep track of their impact. That sounds impressive, but I'm not sure how their work aligns with my values of caring for others and seeking pleasure.",
+  "tok": 45
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": "That's impressive; it sounds like they have a long history of making a difference.",
+  "tok": 18
+ }
+]

@@ -1,0 +1,40 @@
+{
+  "runner": "runners/rollout.py",
+  "mcts_class": "EmotionAwareMultiObjectiveQ",
+  "started_at": "2026-05-31T21:17:49.702277+00:00",
+  "args": {
+    "game": "emo_p4g",
+    "data": null,
+    "output": "outputs/rollout_emo_p4g_multiobjq_beta07_50dialog_40_sims/rollout_emo_p4g_multiobjq_beta07_50dialog_40_sims.pkl",
+    "llm": "ollama",
+    "ollama_model": "vicuna:13b",
+    "ollama_host": null,
+    "gen_sentences": -1,
+    "debug": false,
+    "run_only_decisive_p4g_turns": false,
+    "llm_prior_topk": 5,
+    "max_turns": 10,
+    "max_conv": 50,
+    "raise_errors": false,
+    "algo": "emomcts",
+    "num_mcts_sims": 40,
+    "max_realizations": 3,
+    "Q_0": 0.0,
+    "cpuct": 1.0,
+    "emotion_classifier": "hf",
+    "lambda_emo": 0.0,
+    "c_emo_bonus": 0.0,
+    "alpha_realization_emo": 0.0,
+    "beta_emo": 0.7
+  },
+  "mcts_args": {
+    "cpuct": 1.0,
+    "num_MCTS_sims": 40,
+    "Q_0": 0.0,
+    "max_realizations": 3,
+    "lambda_emo": 0.0,
+    "c_emo_bonus": 0.0,
+    "alpha_realization_emo": 0.0,
+    "beta_emo": 0.7
+  }
+}

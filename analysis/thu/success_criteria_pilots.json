@@ -1,0 +1,363 @@
+{
+ "regex": {
+  "hedge_governs": "\\b(consider(?:ing)?|think(?:ing)? about|maybe|perhaps|possibly|might)\\b(?:\\s+[\\w']+){0,3}?\\s+(?:donat\\w*|giv(?:e|ing)|contribut\\w*)",
+  "deferral": "\\b(look into it|see how I can|check my finances|see what I can afford|be in touch|get back to you|think about it|another time|not (?:right )?now)\\b",
+  "firm": "\\bI(?:'ll| will| would like to|'d like to| want to| have decided to|'ve decided to| am going to|'m going to| am ready to|'m ready to| am also ready to)\\s+(?:(?:definitely|now|also|happily|gladly|go ahead and|really)\\s+)*(?:(?:donat\\w*|giv(?:e|ing)|contribut\\w*)|make a (?:small |one-time )?donation)",
+  "amount": "\\$\\s?(\\d+(?:\\.\\d+)?)|\\b(\\d+(?:\\.\\d+)?)\\s*(dollars?|bucks|cents?)\\b|\\b(one|two|three|four|five|ten|twenty|fifty|hundred|a|half a)\\s+(dollars?|bucks|cents?)\\b"
+ },
+ "runs": {
+  "legacy": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.6,
+    "k": 6,
+    "wilson95": [
+     0.3126695474501864,
+     0.8318224187964902
+    ]
+   },
+   "committed": {
+    "SR": 0.5,
+    "k": 5,
+    "wilson95": [
+     0.23658959361548731,
+     0.7634104063845126
+    ]
+   },
+   "amount": {
+    "SR": 0.3,
+    "k": 3,
+    "wilson95": [
+     0.10778928748621183,
+     0.6032267800204347
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 3,
+    "median": 10.0,
+    "share_le_2": 0.0,
+    "values": [
+     5.0,
+     10.0,
+     50.0
+    ]
+   },
+   "lenient_but_hedged": [
+    {
+     "did": "20180828-190447_206_live",
+     "match": "consider donating",
+     "text": "Thank you for the information. I will definitely consider donating. And thank you for the encouragement."
+    }
+   ]
+  },
+  "noemo": {
+   "n": 10,
+   "lenient": {
+    "SR": 1.0,
+    "k": 10,
+    "wilson95": [
+     0.7224598312333834,
+     1.0
+    ]
+   },
+   "committed": {
+    "SR": 0.9,
+    "k": 9,
+    "wilson95": [
+     0.5958436145024278,
+     0.9821242504842788
+    ]
+   },
+   "amount": {
+    "SR": 0.8,
+    "k": 8,
+    "wilson95": [
+     0.49015684672072335,
+     0.9433190520193067
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 8,
+    "median": 5.0,
+    "share_le_2": 0.0,
+    "values": [
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     10.0,
+     50.0,
+     100.0
+    ]
+   },
+   "lenient_but_hedged": [
+    {
+     "did": "20180828-144300_705_live",
+     "match": "consider donating",
+     "text": "Thank you for the information and for giving me the opportunity to make a difference. I will consider donating and will be in touch with you soon."
+    }
+   ]
+  },
+  "bias": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.9,
+    "k": 9,
+    "wilson95": [
+     0.5958436145024278,
+     0.9821242504842788
+    ]
+   },
+   "committed": {
+    "SR": 0.9,
+    "k": 9,
+    "wilson95": [
+     0.5958436145024278,
+     0.9821242504842788
+    ]
+   },
+   "amount": {
+    "SR": 0.4,
+    "k": 4,
+    "wilson95": [
+     0.16817758120350967,
+     0.6873304525498135
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.1,
+    "k": 1,
+    "wilson95": [
+     0.01787574951572113,
+     0.4041563854975721
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 4,
+    "median": 5.0,
+    "share_le_2": 0.25,
+    "values": [
+     1,
+     5.0,
+     5.0,
+     50.0
+    ]
+   },
+   "lenient_but_hedged": []
+  },
+  "momentum": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.8,
+    "k": 8,
+    "wilson95": [
+     0.49015684672072335,
+     0.9433190520193067
+    ]
+   },
+   "committed": {
+    "SR": 0.7,
+    "k": 7,
+    "wilson95": [
+     0.39677321997956516,
+     0.892210712513788
+    ]
+   },
+   "amount": {
+    "SR": 0.6,
+    "k": 6,
+    "wilson95": [
+     0.3126695474501864,
+     0.8318224187964902
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 6,
+    "median": 7.5,
+    "share_le_2": 0.0,
+    "values": [
+     5.0,
+     5.0,
+     5.0,
+     10.0,
+     20.0,
+     50.0
+    ]
+   },
+   "lenient_but_hedged": [
+    {
+     "did": "20180828-190212_442_live",
+     "match": "consider making a donation",
+     "text": "That's good to know. I appreciate the transparency of the organization. I'll definitely check out their website and consider making a donation. Thank you for bringing this to my attention."
+    }
+   ]
+  },
+  "centre": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.8,
+    "k": 8,
+    "wilson95": [
+     0.49015684672072335,
+     0.9433190520193067
+    ]
+   },
+   "committed": {
+    "SR": 0.8,
+    "k": 8,
+    "wilson95": [
+     0.49015684672072335,
+     0.9433190520193067
+    ]
+   },
+   "amount": {
+    "SR": 0.7,
+    "k": 7,
+    "wilson95": [
+     0.39677321997956516,
+     0.892210712513788
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 7,
+    "median": 20.0,
+    "share_le_2": 0.0,
+    "values": [
+     5.0,
+     10.0,
+     10.0,
+     20.0,
+     25.0,
+     50.0,
+     50.0
+    ]
+   },
+   "lenient_but_hedged": []
+  },
+  "actpool": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.6,
+    "k": 6,
+    "wilson95": [
+     0.3126695474501864,
+     0.8318224187964902
+    ]
+   },
+   "committed": {
+    "SR": 0.6,
+    "k": 6,
+    "wilson95": [
+     0.3126695474501864,
+     0.8318224187964902
+    ]
+   },
+   "amount": {
+    "SR": 0.1,
+    "k": 1,
+    "wilson95": [
+     0.01787574951572113,
+     0.4041563854975721
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 1,
+    "median": 10.0,
+    "share_le_2": 0.0,
+    "values": [
+     10.0
+    ]
+   },
+   "lenient_but_hedged": []
+  },
+  "affpool": {
+   "n": 10,
+   "lenient": {
+    "SR": 0.9,
+    "k": 9,
+    "wilson95": [
+     0.5958436145024278,
+     0.9821242504842788
+    ]
+   },
+   "committed": {
+    "SR": 0.9,
+    "k": 9,
+    "wilson95": [
+     0.5958436145024278,
+     0.9821242504842788
+    ]
+   },
+   "amount": {
+    "SR": 0.5,
+    "k": 5,
+    "wilson95": [
+     0.23658959361548731,
+     0.7634104063845126
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.0,
+    "k": 0,
+    "wilson95": [
+     -2.7755575615628914e-17,
+     0.2775401687666166
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 5,
+    "median": 50.0,
+    "share_le_2": 0.0,
+    "values": [
+     5.0,
+     10.0,
+     50.0,
+     50.0,
+     100.0
+    ]
+   },
+   "lenient_but_hedged": []
+  }
+ }
+}

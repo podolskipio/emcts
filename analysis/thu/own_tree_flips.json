@@ -1,0 +1,58 @@
+{
+ "noemo": {
+  "points": 6360,
+  "flip_rate": {
+   "value": 0.0,
+   "ci": [
+    0.0,
+    0.0
+   ]
+  },
+  "to_visited_over_unvisited": null,
+  "to_unexpanded": null,
+  "between_visited": null,
+  "max_abs_uct_minus_noemo_score": 2.220446049250313e-16
+ },
+ "bias": {
+  "points": 8144,
+  "flip_rate": {
+   "value": 0.2342829076620825,
+   "ci": [
+    0.19884041602993394,
+    0.2721111870557284
+   ]
+  },
+  "to_visited_over_unvisited": 0.7651991614255765,
+  "to_unexpanded": 0.0010482180293501049,
+  "between_visited": 0.23375262054507337,
+  "max_abs_uct_minus_noemo_score": 0.37559336832942813
+ },
+ "momentum": {
+  "points": 7032,
+  "flip_rate": {
+   "value": 0.14448236632536973,
+   "ci": [
+    0.10020635889334988,
+    0.1805228587812619
+   ]
+  },
+  "to_visited_over_unvisited": 0.4251968503937008,
+  "to_unexpanded": 0.08661417322834646,
+  "between_visited": 0.4881889763779528,
+  "max_abs_uct_minus_noemo_score": 0.3708085397137153
+ },
+ "centre": {
+  "points": 7760,
+  "flip_rate": {
+   "value": 0.22603092783505155,
+   "ci": [
+    0.1752264923383861,
+    0.2621939596168873
+   ]
+  },
+  "to_visited_over_unvisited": 0.153363740022805,
+  "to_unexpanded": 0.055872291904218926,
+  "between_visited": 0.7907639680729761,
+  "max_abs_uct_minus_noemo_score": 0.4520783777588828
+ }
+}

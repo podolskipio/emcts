@@ -1,0 +1,4 @@
+20180828-220746_854_live.ndjson.gz: steps=671 edges=45  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-230057_631_live.ndjson.gz: steps=739 edges=69  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+total steps=37700 edges=3995
+RESULT: PASS

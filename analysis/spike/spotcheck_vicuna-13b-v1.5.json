@@ -1,0 +1,112 @@
+[
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": " I'm doing well, thanks for asking. How can I help you today?",
+  "tok": 18
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": " Hello! I'm doing well, thank you. How about you?",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": " I'm doing well, thank you for asking! I'm always looking for ways to help others and make a difference in the world.",
+  "tok": 30
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": " I'm doing well, thanks for asking. How about you?",
+  "tok": 15
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "persona"
+  },
+  "text": " I'm doing well, thank you. How can I help you today?",
+  "tok": 17
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "greeting",
+   "seed": 2,
+   "arm": "baseline"
+  },
+  "text": " I'm doing well, thank you for asking. How about you?",
+  "tok": 16
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "persona"
+  },
+  "text": " That's great to hear that they have a long history and track record of making a positive impact.",
+  "tok": 22
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 0,
+   "arm": "baseline"
+  },
+  "text": " That's impressive. What kind of impact do they aim to achieve?",
+  "tok": 17
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "persona"
+  },
+  "text": " That's impressive. What kind of impact do they have?",
+  "tok": 15
+ },
+ {
+  "job": {
+   "persona_id": 0,
+   "dialogue_id": "20180719-210146_172_live",
+   "utterance_id": "credibility_appeal",
+   "seed": 1,
+   "arm": "baseline"
+  },
+  "text": " That's impressive. What kind of work do they do?",
+  "tok": 15
+ }
+]

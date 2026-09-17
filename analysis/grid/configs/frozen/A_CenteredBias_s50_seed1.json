@@ -1,0 +1,33 @@
+{
+ "arm": "CenteredBias",
+ "frozen": {
+  "Q_0": 0.0,
+  "aff_pool": false,
+  "aff_pool_key": "affect",
+  "algo": "emomcts",
+  "beta_emo": 1.03,
+  "cpuct": 1.0,
+  "data": "/mnt/c/Users/Piotr/PycharmProjects/EMCTS/data/p4g/rollout_evalset_nonannotated.jsonl",
+  "emo_centre": true,
+  "emo_risk_lambda": 0.0,
+  "emo_signal": "level",
+  "emo_valence_table": "generic",
+  "emotion_classifier": "hf",
+  "explicit_value_labels": false,
+  "game": "emo_p4g",
+  "llm": "sglang",
+  "llm_prior_topk": 5,
+  "logit_scoring": "off",
+  "max_conv": 100,
+  "max_realizations": 4,
+  "max_turns": 10,
+  "num_mcts_sims": 50,
+  "num_workers": 10,
+  "p4g_persona": true,
+  "p4g_success": "tag",
+  "search_horizon": "episode",
+  "seed": 1,
+  "sglang_model": "TheBloke/vicuna-13B-v1.5-AWQ"
+ },
+ "tag": "A_CenteredBias_s50_seed1"
+}

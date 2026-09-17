@@ -1,0 +1,392 @@
+[
+ {
+  "rank": 1,
+  "max_pairwise_jsd": 0.9564,
+  "model": "Qwen2.5-7B-Instruct",
+  "arm": "baseline",
+  "record_id": "Qwen2.5-7B-Instruct|12|logical_appeal|2|baseline",
+  "utterance_id": "logical_appeal",
+  "text": "That's really impactful! I'm considering donating, but I'm a bit hesitant about how the money will be used. Can you tell me more about their process and transparency?",
+  "jsd_distil_alt1": 0.8992,
+  "jsd_distil_alt2": 0.9564,
+  "jsd_alt1_alt2": 0.6673,
+  "distilroberta": {
+   "anger": 0.002,
+   "disgust": 0.001,
+   "fear": 0.982,
+   "happiness": 0.001,
+   "neutral": 0.008,
+   "sadness": 0.002,
+   "surprise": 0.004
+  },
+  "alt1_goemotions": {
+   "anger": 0.03,
+   "disgust": 0.002,
+   "fear": 0.014,
+   "happiness": 0.097,
+   "neutral": 0.037,
+   "sadness": 0.026,
+   "surprise": 0.795
+  },
+  "alt2_emoberta": {
+   "anger": 0.016,
+   "disgust": 0.001,
+   "fear": 0.001,
+   "happiness": 0.926,
+   "neutral": 0.043,
+   "sadness": 0.006,
+   "surprise": 0.006
+  }
+ },
+ {
+  "rank": 2,
+  "max_pairwise_jsd": 0.9554,
+  "model": "vicuna-13b-v1.5",
+  "arm": "persona",
+  "record_id": "vicuna-13b-v1.5|49|proposition|0|persona",
+  "utterance_id": "proposition",
+  "text": "As a person who values tradition and religious custom, I would want to know more about the charity and its mission before making a donation. I would also consider the impact of my donation and whether it aligns with my values of decency and disgust towards degrading behavior.",
+  "jsd_distil_alt1": 0.9554,
+  "jsd_distil_alt2": 0.667,
+  "jsd_alt1_alt2": 0.6073,
+  "distilroberta": {
+   "anger": 0.007,
+   "disgust": 0.987,
+   "fear": 0.002,
+   "happiness": 0.0,
+   "neutral": 0.003,
+   "sadness": 0.001,
+   "surprise": 0.0
+  },
+  "alt1_goemotions": {
+   "anger": 0.021,
+   "disgust": 0.003,
+   "fear": 0.003,
+   "happiness": 0.184,
+   "neutral": 0.146,
+   "sadness": 0.01,
+   "surprise": 0.633
+  },
+  "alt2_emoberta": {
+   "anger": 0.425,
+   "disgust": 0.129,
+   "fear": 0.007,
+   "happiness": 0.033,
+   "neutral": 0.355,
+   "sadness": 0.048,
+   "surprise": 0.003
+  }
+ },
+ {
+  "rank": 3,
+  "max_pairwise_jsd": 0.9446,
+  "model": "Llama-3.1-8B-Instruct",
+  "arm": "baseline",
+  "record_id": "Llama-3.1-8B-Instruct|76|proposition|2|baseline",
+  "utterance_id": "proposition",
+  "text": "I'm always a bit hesitant to donate to charities, I'd like to know a bit more about what Save the Children does and how my money would be used.",
+  "jsd_distil_alt1": 0.9118,
+  "jsd_distil_alt2": 0.9446,
+  "jsd_alt1_alt2": 0.6067,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.99,
+   "happiness": 0.002,
+   "neutral": 0.004,
+   "sadness": 0.001,
+   "surprise": 0.001
+  },
+  "alt1_goemotions": {
+   "anger": 0.031,
+   "disgust": 0.002,
+   "fear": 0.014,
+   "happiness": 0.157,
+   "neutral": 0.094,
+   "sadness": 0.032,
+   "surprise": 0.669
+  },
+  "alt2_emoberta": {
+   "anger": 0.067,
+   "disgust": 0.006,
+   "fear": 0.005,
+   "happiness": 0.06,
+   "neutral": 0.85,
+   "sadness": 0.011,
+   "surprise": 0.001
+  }
+ },
+ {
+  "rank": 4,
+  "max_pairwise_jsd": 0.9393,
+  "model": "Llama-3.1-8B-Instruct",
+  "arm": "baseline",
+  "record_id": "Llama-3.1-8B-Instruct|95|proposition|2|baseline",
+  "utterance_id": "proposition",
+  "text": "I'm always a bit hesitant to donate to charities, I like to do my research first to make sure my money is going to a good cause.",
+  "jsd_distil_alt1": 0.8052,
+  "jsd_distil_alt2": 0.9393,
+  "jsd_alt1_alt2": 0.4569,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.986,
+   "happiness": 0.003,
+   "neutral": 0.006,
+   "sadness": 0.001,
+   "surprise": 0.002
+  },
+  "alt1_goemotions": {
+   "anger": 0.104,
+   "disgust": 0.002,
+   "fear": 0.051,
+   "happiness": 0.418,
+   "neutral": 0.163,
+   "sadness": 0.081,
+   "surprise": 0.182
+  },
+  "alt2_emoberta": {
+   "anger": 0.036,
+   "disgust": 0.004,
+   "fear": 0.003,
+   "happiness": 0.054,
+   "neutral": 0.893,
+   "sadness": 0.009,
+   "surprise": 0.001
+  }
+ },
+ {
+  "rank": 5,
+  "max_pairwise_jsd": 0.9388,
+  "model": "Llama-3.1-8B-Instruct",
+  "arm": "persona",
+  "record_id": "Llama-3.1-8B-Instruct|42|emotion_appeal|2|persona",
+  "utterance_id": "emotion_appeal",
+  "text": "I can imagine it's tough, but I try not to get too caught up in feeling overwhelmed by every cause that comes along.",
+  "jsd_distil_alt1": 0.7587,
+  "jsd_distil_alt2": 0.9388,
+  "jsd_alt1_alt2": 0.4399,
+  "distilroberta": {
+   "anger": 0.007,
+   "disgust": 0.003,
+   "fear": 0.309,
+   "happiness": 0.003,
+   "neutral": 0.007,
+   "sadness": 0.003,
+   "surprise": 0.669
+  },
+  "alt1_goemotions": {
+   "anger": 0.05,
+   "disgust": 0.002,
+   "fear": 0.015,
+   "happiness": 0.492,
+   "neutral": 0.249,
+   "sadness": 0.14,
+   "surprise": 0.052
+  },
+  "alt2_emoberta": {
+   "anger": 0.007,
+   "disgust": 0.002,
+   "fear": 0.002,
+   "happiness": 0.012,
+   "neutral": 0.949,
+   "sadness": 0.029,
+   "surprise": 0.001
+  }
+ },
+ {
+  "rank": 6,
+  "max_pairwise_jsd": 0.9355,
+  "model": "vicuna-13b-v1.5",
+  "arm": "baseline",
+  "record_id": "vicuna-13b-v1.5|28|proposition|2|baseline",
+  "utterance_id": "proposition",
+  "text": "Sure, I'm happy to donate. What does Save the Children do?",
+  "jsd_distil_alt1": 0.1446,
+  "jsd_distil_alt2": 0.9355,
+  "jsd_alt1_alt2": 0.7751,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.0,
+   "happiness": 0.985,
+   "neutral": 0.004,
+   "sadness": 0.002,
+   "surprise": 0.006
+  },
+  "alt1_goemotions": {
+   "anger": 0.012,
+   "disgust": 0.0,
+   "fear": 0.003,
+   "happiness": 0.686,
+   "neutral": 0.061,
+   "sadness": 0.004,
+   "surprise": 0.234
+  },
+  "alt2_emoberta": {
+   "anger": 0.017,
+   "disgust": 0.001,
+   "fear": 0.001,
+   "happiness": 0.009,
+   "neutral": 0.969,
+   "sadness": 0.002,
+   "surprise": 0.001
+  }
+ },
+ {
+  "rank": 7,
+  "max_pairwise_jsd": 0.9344,
+  "model": "Qwen2.5-7B-Instruct",
+  "arm": "baseline",
+  "record_id": "Qwen2.5-7B-Instruct|42|proposition|0|baseline",
+  "utterance_id": "proposition",
+  "text": "I'm a bit hesitant right now, but maybe if I hear more about how my donation will make a difference, I might consider it.",
+  "jsd_distil_alt1": 0.7807,
+  "jsd_distil_alt2": 0.9344,
+  "jsd_alt1_alt2": 0.4889,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.989,
+   "happiness": 0.002,
+   "neutral": 0.004,
+   "sadness": 0.001,
+   "surprise": 0.002
+  },
+  "alt1_goemotions": {
+   "anger": 0.066,
+   "disgust": 0.002,
+   "fear": 0.068,
+   "happiness": 0.311,
+   "neutral": 0.097,
+   "sadness": 0.058,
+   "surprise": 0.398
+  },
+  "alt2_emoberta": {
+   "anger": 0.064,
+   "disgust": 0.002,
+   "fear": 0.007,
+   "happiness": 0.097,
+   "neutral": 0.803,
+   "sadness": 0.025,
+   "surprise": 0.001
+  }
+ },
+ {
+  "rank": 8,
+  "max_pairwise_jsd": 0.9266,
+  "model": "vicuna-13b-v1.5",
+  "arm": "baseline",
+  "record_id": "vicuna-13b-v1.5|73|proposition|0|baseline",
+  "utterance_id": "proposition",
+  "text": "Sure, I'm happy to help out. What does Save the Children do?",
+  "jsd_distil_alt1": 0.1519,
+  "jsd_distil_alt2": 0.9266,
+  "jsd_alt1_alt2": 0.7771,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.0,
+   "happiness": 0.984,
+   "neutral": 0.004,
+   "sadness": 0.003,
+   "surprise": 0.007
+  },
+  "alt1_goemotions": {
+   "anger": 0.013,
+   "disgust": 0.0,
+   "fear": 0.003,
+   "happiness": 0.672,
+   "neutral": 0.057,
+   "sadness": 0.005,
+   "surprise": 0.249
+  },
+  "alt2_emoberta": {
+   "anger": 0.012,
+   "disgust": 0.001,
+   "fear": 0.0,
+   "happiness": 0.012,
+   "neutral": 0.973,
+   "sadness": 0.001,
+   "surprise": 0.0
+  }
+ },
+ {
+  "rank": 9,
+  "max_pairwise_jsd": 0.9266,
+  "model": "vicuna-13b-v1.5",
+  "arm": "baseline",
+  "record_id": "vicuna-13b-v1.5|45|proposition|1|baseline",
+  "utterance_id": "proposition",
+  "text": "Sure, I'm happy to help out. What does Save the Children do?",
+  "jsd_distil_alt1": 0.1519,
+  "jsd_distil_alt2": 0.9266,
+  "jsd_alt1_alt2": 0.7771,
+  "distilroberta": {
+   "anger": 0.001,
+   "disgust": 0.001,
+   "fear": 0.0,
+   "happiness": 0.984,
+   "neutral": 0.004,
+   "sadness": 0.003,
+   "surprise": 0.007
+  },
+  "alt1_goemotions": {
+   "anger": 0.013,
+   "disgust": 0.0,
+   "fear": 0.003,
+   "happiness": 0.672,
+   "neutral": 0.057,
+   "sadness": 0.005,
+   "surprise": 0.249
+  },
+  "alt2_emoberta": {
+   "anger": 0.012,
+   "disgust": 0.001,
+   "fear": 0.0,
+   "happiness": 0.012,
+   "neutral": 0.973,
+   "sadness": 0.001,
+   "surprise": 0.0
+  }
+ },
+ {
+  "rank": 10,
+  "max_pairwise_jsd": 0.9259,
+  "model": "Llama-3.1-8B-Instruct",
+  "arm": "baseline",
+  "record_id": "Llama-3.1-8B-Instruct|53|logical_appeal|1|baseline",
+  "utterance_id": "logical_appeal",
+  "text": "That sounds amazing, but I'm not sure if I can commit to donating right now, I've been a bit tight on my budget lately.",
+  "jsd_distil_alt1": 0.3599,
+  "jsd_distil_alt2": 0.9259,
+  "jsd_alt1_alt2": 0.2986,
+  "distilroberta": {
+   "anger": 0.004,
+   "disgust": 0.004,
+   "fear": 0.004,
+   "happiness": 0.005,
+   "neutral": 0.014,
+   "sadness": 0.002,
+   "surprise": 0.967
+  },
+  "alt1_goemotions": {
+   "anger": 0.042,
+   "disgust": 0.002,
+   "fear": 0.018,
+   "happiness": 0.493,
+   "neutral": 0.007,
+   "sadness": 0.051,
+   "surprise": 0.387
+  },
+  "alt2_emoberta": {
+   "anger": 0.014,
+   "disgust": 0.001,
+   "fear": 0.001,
+   "happiness": 0.869,
+   "neutral": 0.112,
+   "sadness": 0.002,
+   "surprise": 0.001
+  }
+ }
+]

@@ -1,0 +1,7 @@
+subtree logs identical pre/post: True (3 files)
+emotion classifier records identical: True (1425)
+20180828-175059_983_live.ndjson.gz: steps=2123 edges=262  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-185546_199_live.ndjson.gz: steps=2142 edges=217  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-220746_854_live.ndjson.gz: steps=573 edges=88  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+total steps=4838 edges=567
+RESULT: PASS

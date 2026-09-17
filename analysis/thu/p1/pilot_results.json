@@ -1,0 +1,380 @@
+{
+ "A_correctness": {
+  "metadata_search_horizon": "episode",
+  "steps": 6360,
+  "max_child_len": 10,
+  "steps_child_len_gt_T": 0,
+  "steps_parent_len_ge_T": 0,
+  "alignment_check": "RESULT: PASS",
+  "pass": true
+ },
+ "B_outcomes": {
+  "n_paired": 10,
+  "missing_in_ref": [],
+  "SR_ref": 0.6,
+  "SR_pilot": 1.0,
+  "mean_turns_ref": 6.9,
+  "mean_turns_pilot": 5.4,
+  "discordant_pairs_ref_only_success": 0,
+  "discordant_pairs_pilot_only_success": 4,
+  "per_dialogue": [
+   {
+    "dlg_id": "20180828-144300_705_live",
+    "ref_success": false,
+    "pilot_success": true,
+    "ref_turns": 10,
+    "pilot_turns": 5,
+    "first_divergent_system_turn": 1,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "task related inquiry",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "task related inquiry",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "emotion appeal",
+     "credibility appeal",
+     "task related inquiry",
+     "emotion appeal"
+    ]
+   },
+   {
+    "dlg_id": "20180828-145857_925_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 5,
+    "pilot_turns": 4,
+    "first_divergent_system_turn": 2,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "proposition of donation",
+     "logical appeal",
+     "task related inquiry"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "task related inquiry"
+    ]
+   },
+   {
+    "dlg_id": "20180828-155340_989_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 4,
+    "pilot_turns": 6,
+    "first_divergent_system_turn": 1,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "logical appeal",
+     "proposition of donation"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "emotion appeal",
+     "emotion appeal",
+     "logical appeal",
+     "credibility appeal",
+     "emotion appeal"
+    ]
+   },
+   {
+    "dlg_id": "20180828-161442_405_live",
+    "ref_success": false,
+    "pilot_success": true,
+    "ref_turns": 10,
+    "pilot_turns": 6,
+    "first_divergent_system_turn": 1,
+    "ref_acts": [
+     "greeting",
+     "proposition of donation",
+     "logical appeal",
+     "greeting",
+     "proposition of donation",
+     "logical appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "emotion appeal",
+     "proposition of donation",
+     "credibility appeal",
+     "task related inquiry",
+     "emotion appeal"
+    ]
+   },
+   {
+    "dlg_id": "20180828-163111_795_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 8,
+    "pilot_turns": 8,
+    "first_divergent_system_turn": 2,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "logical appeal",
+     "proposition of donation",
+     "emotion appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "logical appeal",
+     "proposition of donation",
+     "task related inquiry",
+     "emotion appeal",
+     "logical appeal",
+     "emotion appeal"
+    ]
+   },
+   {
+    "dlg_id": "20180828-164559_390_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 5,
+    "pilot_turns": 5,
+    "first_divergent_system_turn": null,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "proposition of donation"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "proposition of donation"
+    ]
+   },
+   {
+    "dlg_id": "20180828-185320_572_live",
+    "ref_success": false,
+    "pilot_success": true,
+    "ref_turns": 10,
+    "pilot_turns": 5,
+    "first_divergent_system_turn": 2,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "credibility appeal",
+     "task related inquiry",
+     "proposition of donation",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "other"
+    ]
+   },
+   {
+    "dlg_id": "20180828-190212_442_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 3,
+    "pilot_turns": 5,
+    "first_divergent_system_turn": 2,
+    "ref_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "proposition of donation",
+     "emotion appeal",
+     "emotion appeal"
+    ]
+   },
+   {
+    "dlg_id": "20180828-190447_206_live",
+    "ref_success": true,
+    "pilot_success": true,
+    "ref_turns": 7,
+    "pilot_turns": 4,
+    "first_divergent_system_turn": 1,
+    "ref_acts": [
+     "greeting",
+     "emotion appeal",
+     "proposition of donation",
+     "other",
+     "task related inquiry",
+     "emotion appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "logical appeal",
+     "credibility appeal",
+     "proposition of donation"
+    ]
+   },
+   {
+    "dlg_id": "20180828-213210_462_live",
+    "ref_success": false,
+    "pilot_success": true,
+    "ref_turns": 7,
+    "pilot_turns": 6,
+    "first_divergent_system_turn": 1,
+    "ref_acts": [
+     "greeting",
+     "task related inquiry",
+     "credibility appeal",
+     "emotion appeal",
+     "proposition of donation",
+     "logical appeal",
+     "emotion appeal"
+    ],
+    "pilot_acts": [
+     "greeting",
+     "credibility appeal",
+     "emotion appeal",
+     "emotion appeal",
+     "logical appeal",
+     "proposition of donation"
+    ]
+   }
+  ]
+ },
+ "C_structure": {
+  "pilot": {
+   "steps": 6360,
+   "trees": 44,
+   "steps_per_tree": 144.54545454545453,
+   "share_steps_child_len_gt_T": 0.0,
+   "share_steps_child_len_eq_T": 0.009276729559748427,
+   "share_simulations_ending_at_horizon_failure": 0.01855287569573284,
+   "max_depth": 9,
+   "share_visits_depth1": 0.3389937106918239,
+   "median_visits_parent_node_depth2": 9.0,
+   "fresh_share": 0.5427672955974843,
+   "run_wall_clock": "wall_clock_s=2306"
+  },
+  "ref_same_dialogues": {
+   "steps": 9372,
+   "trees": 59,
+   "steps_per_tree": 158.84745762711864,
+   "share_steps_child_len_gt_T": 0.12334613743064447,
+   "share_steps_child_len_eq_T": 0.06999573196756295,
+   "share_simulations_ending_at_horizon_failure": 0.002767208578346593,
+   "max_depth": 20,
+   "share_visits_depth1": 0.30847204438753734,
+   "median_visits_parent_node_depth2": 9.0,
+   "fresh_share": 0.5604993597951344,
+   "run_wall_clock": "wall_clock_s=4003"
+  }
+ },
+ "D_components": {
+  "pilot": {
+   "tau_med": 0.27907338164315276,
+   "discordance": [
+    0.29890643985419196,
+    [
+     0.2734523526867861,
+     0.3292599123141441
+    ]
+   ],
+   "delta_mean": [
+    -0.019229840241762698,
+    [
+     -0.04229127141553872,
+     0.004032406119125214
+    ]
+   ],
+   "std_effect": -0.0978012235825239,
+   "omega2": [
+    0.03486164366897821,
+    [
+     0.02286643603164295,
+     0.06446456021739087
+    ]
+   ],
+   "omega2_edge_demeaned": -0.002139079945211506,
+   "boundary_0.1": 0.2751572327044025,
+   "bucket_depth_r": [
+    -0.19621871307986222,
+    [
+     -0.27478401456695234,
+     -0.13635813161566496
+    ]
+   ],
+   "affpool_n_prefixes": 3.0,
+   "affpool_multiplier": 2.0,
+   "affpool_top_share": 0.7058823529411765,
+   "affpool_ratio": 0.9833126324578656,
+   "flip_full_puct": 0.1190251572327044,
+   "flip_exploit_expanded": 0.07856914723730438,
+   "flip_visited_over_unvisited": 0.4346103038309115,
+   "sigma_ratio_median": 0.44234738429082754
+  },
+  "ref_same_dialogues": {
+   "tau_med": 0.4043355151234159,
+   "discordance": [
+    0.19753886010362695,
+    [
+     0.14349112426035504,
+     0.2727272727272727
+    ]
+   ],
+   "delta_mean": [
+    -0.05082113900290337,
+    [
+     -0.07334969021725378,
+     -0.029731038773172135
+    ]
+   ],
+   "std_effect": -0.24560206723698286,
+   "omega2": [
+    0.15137662378637387,
+    [
+     0.08068305240421302,
+     0.18992246457285883
+    ]
+   ],
+   "omega2_edge_demeaned": 0.010283756078341042,
+   "boundary_0.1": 0.2557618437900128,
+   "bucket_depth_r": [
+    -0.2213397948204732,
+    [
+     -0.2840953176126323,
+     -0.13496855095384544
+    ]
+   ],
+   "affpool_n_prefixes": 3.0,
+   "affpool_multiplier": 2.381818181818182,
+   "affpool_top_share": 0.6,
+   "affpool_ratio": 0.7137230696084166,
+   "flip_full_puct": 0.16517285531370038,
+   "flip_exploit_expanded": 0.16385172186883087,
+   "flip_visited_over_unvisited": 0.3791989664082687,
+   "sigma_ratio_median": 0.40391314072719064
+  }
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "run_dir": "analysis/phase1/runs/D1/D1",
+ "rows": 33903,
+ "dialogues": 30,
+ "trees": 175,
+ "prefixes": 3509,
+ "edges": 5355,
+ "tau_med": 0.3500347478783597,
+ "fresh_rows": 17208,
+ "unresolved_generating_parent": 0,
+ "turn_records": 205
+}

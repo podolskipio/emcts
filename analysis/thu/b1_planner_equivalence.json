@@ -1,0 +1,1282 @@
+[
+ {
+  "seed": 0,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 0,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 1,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 2,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 3,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 4,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 5,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 6,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 7,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 8,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 9,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 10,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 11,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 12,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 13,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 14,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 15,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 16,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 17,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 18,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 20,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 20,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 50,
+  "topk": null,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 0,
+  "tables_identical": true,
+  "root_identical": true
+ },
+ {
+  "seed": 19,
+  "sims": 50,
+  "topk": 5,
+  "root_depth": 2,
+  "tables_identical": true,
+  "root_identical": true
+ }
+]

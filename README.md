@@ -46,6 +46,14 @@ Two further levers, shared with the GDP-Zero baseline:
 - **Emotion classifier** (`--emotion_classifier hf`): a deterministic encoder
   (`j-hartmann/emotion-english-distilroberta-base`) labels each user reaction — no LLM
   cost, fully reproducible.
+- **Search horizon** (`--search_horizon {legacy,episode}`, all MCTS runners): which
+  `get_dialog_ended` values end a simulated branch.
+  - `legacy` (default, GDP-Zero's rule) treats only a donation as terminal. The −1 the game
+    returns at the turn limit or on a repetition loop is ignored, so search keeps expanding
+    dialogue states past `--max_turns` that no episode can reach.
+  - `episode` stops a branch on any non-zero `get_dialog_ended` and backs up that value
+    (+1 donate, −1 turn limit or stall), so search stops exactly where the episode loop stops.
+  - See [`analysis/phase1/SEARCH_HORIZON_BUG.md`](analysis/phase1/SEARCH_HORIZON_BUG.md).
 
 ## Results
 
@@ -67,6 +75,11 @@ SR = success rate (↑), AvgT = average turns to resolution (↓). Best SR per b
 At a low simulation budget (10 sims) all methods sit at the same success floor; the emotion
 channel separates from the baselines as the budget grows, with EmoMCTS reaching the goal more
 often **and** in fewer turns at 20–50 sims. (`EmoMCTS + top-K` uses `β = 0.7`, `K = 5`.)
+
+> **Note.** All results in this table were produced with `--search_horizon legacy`, for
+> both GDP-Zero and EmoMCTS: simulated branches were not stopped at the turn limit. A pilot
+> under `--search_horizon episode` is pending; see
+> [`analysis/phase1/SEARCH_HORIZON_BUG.md`](analysis/phase1/SEARCH_HORIZON_BUG.md).
 
 ## Repository layout
 
@@ -162,7 +175,9 @@ python runners/gdpzero.py --game p4g \
 ```
 
 Both runners write the same per-turn pickle schema, so `run_judge.py --h2h` can compare
-them directly (see [LLM judge](#pairwise-llm-judge)).
+them directly (see [LLM judge](#pairwise-llm-judge)). Both also accept
+`--search_horizon {legacy,episode}` (see [Method](#method)). Their game horizon is the default
+`max_conv_turns = 15`.
 
 ## Self-play metrics — SR / AT
 
@@ -190,8 +205,21 @@ python runners/rollout.py --game emo_p4g --algo emomcts \
        --num_mcts_sims 50 --max_conv 100 \
        --output outputs/rollout_emomcts_p4g.pkl
 
+# same, with search bounded at the episode horizon (--max_turns, default 10)
+python runners/rollout.py --game emo_p4g --algo emomcts \
+       --llm ollama --ollama_model vicuna:13b \
+       --emotion_classifier hf --beta_emo 0.7 --llm_prior_topk 5 \
+       --num_mcts_sims 50 --max_conv 100 --search_horizon episode \
+       --output outputs/rollout_emomcts_p4g_episode.pkl
+
 python metrics/run_metrics.py --episodes outputs/rollout_emomcts_p4g.pkl --max_turns 10
 ```
+
+`--search_horizon` applies to `--algo gdpzero` and `--algo emomcts`; `llm_raw` builds no tree.
+The value is recorded in the run's `metadata.json` (`mcts_args.search_horizon`). The default,
+`legacy`, is exactly the pre-flag search rule: verified bit-identical on the deterministic stub
+backbone (`tests/run_e2e_regression.py`). Under `episode`, search never simulates past
+`--max_turns` (`tests/test_search_horizon.py`).
 
 `rollout.py` prints a cumulative SR / AT summary every 10 dialogs and a final summary.
 

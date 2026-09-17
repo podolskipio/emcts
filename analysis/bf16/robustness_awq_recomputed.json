@@ -1,0 +1,113 @@
+{
+ "vicuna-13b-v1.5": {
+  "H1_neurotic_neg": {
+   "partial_rho": 0.0017532842201321485,
+   "p_one_sided": 0.49316488010897347,
+   "sig": false
+  },
+  "H2_agreeable_happy": {
+   "partial_rho": 0.5749260430597314,
+   "p_one_sided": 2.987125675879201e-10,
+   "sig": true
+  },
+  "H3_open_surprise": {
+   "partial_rho": 0.050845728644145875,
+   "p_one_sided": 0.3095202734149542,
+   "sig": false
+  },
+  "length_standardised_neg": {
+   "persona": 0.2061472363321653,
+   "baseline": 0.25270833501227674,
+   "n_bins": 10,
+   "persona_dstd": 0.2036491371643347,
+   "baseline_dstd": 0.2381935816793415,
+   "raw_ratio": 0.8873812412898595,
+   "corr_tok_neg": 0.12675413681342818,
+   "corr_tok_neg_persona": 0.19317738484687033,
+   "corr_tok_neg_baseline": -0.03637645710548105,
+   "mean_tok_persona": 24.214965986394557,
+   "mean_tok_baseline": 19.762585034013604,
+   "dstd_ratio": 0.8549732353346495,
+   "dstd_ratio_ci": [
+    0.77316125644829,
+    0.9451352291509721
+   ],
+   "dstd_ratio_boot_median": 0.8578180283691091,
+   "n_boot": 2000
+  }
+ },
+ "Llama-3.1-8B-Instruct": {
+  "H1_neurotic_neg": {
+   "partial_rho": -0.037386514333107086,
+   "p_one_sided": 0.6426259461488537,
+   "sig": false
+  },
+  "H2_agreeable_happy": {
+   "partial_rho": 0.38648122232796617,
+   "p_one_sided": 4.233944375602933e-05,
+   "sig": true
+  },
+  "H3_open_surprise": {
+   "partial_rho": -0.06460394777240351,
+   "p_one_sided": 0.7363070261703553,
+   "sig": false
+  },
+  "length_standardised_neg": {
+   "persona": 0.23292219126438923,
+   "baseline": 0.3393136755903473,
+   "n_bins": 10,
+   "persona_dstd": 0.23500814482650492,
+   "baseline_dstd": 0.34603650757263554,
+   "raw_ratio": 0.7585758623928949,
+   "corr_tok_neg": 0.02858784421863137,
+   "corr_tok_neg_persona": -0.009808145624793235,
+   "corr_tok_neg_baseline": 0.14068591450137236,
+   "mean_tok_persona": 31.249659863945578,
+   "mean_tok_baseline": 25.97687074829932,
+   "dstd_ratio": 0.6791426328829626,
+   "dstd_ratio_ci": [
+    0.6209030678638029,
+    0.7432944456427943
+   ],
+   "dstd_ratio_boot_median": 0.6780994389347237,
+   "n_boot": 2000
+  }
+ },
+ "Qwen2.5-7B-Instruct": {
+  "H1_neurotic_neg": {
+   "partial_rho": 0.16649930665897913,
+   "p_one_sided": 0.05065142561243211,
+   "sig": false
+  },
+  "H2_agreeable_happy": {
+   "partial_rho": 0.34861777007747197,
+   "p_one_sided": 0.00021748897022912615,
+   "sig": true
+  },
+  "H3_open_surprise": {
+   "partial_rho": 0.15238417057350853,
+   "p_one_sided": 0.06707520644766325,
+   "sig": false
+  },
+  "length_standardised_neg": {
+   "persona": 0.2895600387932632,
+   "baseline": 0.17831978008613175,
+   "n_bins": 10,
+   "persona_dstd": 0.25244749810980344,
+   "baseline_dstd": 0.1526707725300761,
+   "raw_ratio": 1.3063005011408573,
+   "corr_tok_neg": 0.006106833564209716,
+   "corr_tok_neg_persona": -0.07513192045216723,
+   "corr_tok_neg_baseline": -0.10489285208167329,
+   "mean_tok_persona": 26.1265306122449,
+   "mean_tok_baseline": 20.463265306122448,
+   "dstd_ratio": 1.6535417613091028,
+   "dstd_ratio_ci": [
+    1.47919888335263,
+    1.854087271470464
+   ],
+   "dstd_ratio_boot_median": 1.654846328992245,
+   "n_boot": 2000
+  }
+ }
+}

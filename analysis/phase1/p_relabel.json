@@ -1,0 +1,622 @@
+{
+ "reproduced": true,
+ "reproduction_rows": [
+  {
+   "bar": "GDP-Zero (after neg.)",
+   "n": 15,
+   "trust-building": 0.6,
+   "proposition": 0.2,
+   "other": 0.2,
+   "published_n": 15,
+   "match": true
+  },
+  {
+   "bar": "EmoMCTS (after neg.)",
+   "n": 15,
+   "trust-building": 0.7333,
+   "proposition": 0.2,
+   "other": 0.0667,
+   "published_n": 15,
+   "match": true
+  },
+  {
+   "bar": "GDP-Zero (after non-neg.)",
+   "n": 199,
+   "trust-building": 0.6281,
+   "proposition": 0.1809,
+   "other": 0.191,
+   "published_n": 199,
+   "match": true
+  },
+  {
+   "bar": "EmoMCTS (after non-neg.)",
+   "n": 178,
+   "trust-building": 0.5899,
+   "proposition": 0.2079,
+   "other": 0.2022,
+   "published_n": 178,
+   "match": true
+  }
+ ],
+ "fresh_distilroberta_agreement": {
+  "EmoMCTS_logged": 1.0,
+  "GDP-Zero_cache": 1.0
+ },
+ "n_user_occurrences_nonempty": 308,
+ "n_unique_utterances": 245,
+ "n_dialogues": {
+  "EmoMCTS": 50,
+  "GDP-Zero": 50
+ },
+ "bootstrap": {
+  "replicates": 1000,
+  "cluster": "dialogue, resampled within each planner's run",
+  "interval": "percentile 95%"
+ },
+ "panels": {
+  "distilroberta": {
+   "model": "j-hartmann/emotion-english-distilroberta-base",
+   "revision": "0e1cd914e3d46199ed785853e12b57304e04178b",
+   "EmoMCTS": {
+    "negative": {
+     "n": 15,
+     "trust-building": 0.7333333333333333,
+     "proposition": 0.2,
+     "other": 0.06666666666666667
+    },
+    "non-negative": {
+     "n": 178,
+     "trust-building": 0.5898876404494382,
+     "proposition": 0.20786516853932585,
+     "other": 0.20224719101123595
+    }
+   },
+   "GDP-Zero": {
+    "negative": {
+     "n": 15,
+     "trust-building": 0.6,
+     "proposition": 0.2,
+     "other": 0.2
+    },
+    "non-negative": {
+     "n": 199,
+     "trust-building": 0.628140703517588,
+     "proposition": 0.18090452261306533,
+     "other": 0.19095477386934673
+    }
+   },
+   "contrasts": {
+    "trust-building|negative": 0.1333333333333333,
+    "trust-building|non-negative": -0.038253063068149795,
+    "trust-building|DiD": 0.1715863964014831,
+    "proposition|negative": 0.0,
+    "proposition|non-negative": 0.026960645926260518,
+    "proposition|DiD": -0.026960645926260518,
+    "other|negative": -0.13333333333333336,
+    "other|non-negative": 0.011292417141889222,
+    "other|DiD": -0.14462575047522258
+   },
+   "contrast_ci95": {
+    "trust-building|negative": [
+     -0.25680584121760597,
+     0.5252622377622378
+    ],
+    "trust-building|non-negative": [
+     -0.1293812905706466,
+     0.06080600806228943
+    ],
+    "trust-building|DiD": [
+     -0.25750514739781993,
+     0.588252866403838
+    ],
+    "proposition|negative": [
+     -0.3445833333333333,
+     0.36363636363636365
+    ],
+    "proposition|non-negative": [
+     -0.056759324398371135,
+     0.1025480048436957
+    ],
+    "proposition|DiD": [
+     -0.37969958004688786,
+     0.3304664213294311
+    ],
+    "other|negative": [
+     -0.42857142857142855,
+     0.1111111111111111
+    ],
+    "other|non-negative": [
+     -0.07155562820885404,
+     0.09835867399407101
+    ],
+    "other|DiD": [
+     -0.4557694354293796,
+     0.1145571350538936
+    ]
+   },
+   "bootstrap_reps_dropped_empty_neg_cell": 0,
+   "neg_base_rate_user_turns": {
+    "EmoMCTS": 0.0823045267489712,
+    "GDP-Zero": 0.07954545454545454,
+    "both": 0.08086785009861933
+   },
+   "neg_rate_conditioning_system_turns": {
+    "EmoMCTS": 0.07772020725388601,
+    "GDP-Zero": 0.07009345794392523
+   },
+   "label_distribution_nonempty": {
+    "neutral": 101,
+    "fear": 28,
+    "sadness": 13,
+    "happiness": 141,
+    "surprise": 25
+   }
+  },
+  "goemotions": {
+   "model": "SamLowe/roberta-base-go_emotions",
+   "revision": "d75048347613a25d77de8cf6412eaae9fa7b26be",
+   "EmoMCTS": {
+    "negative": {
+     "n": 4,
+     "trust-building": 1.0,
+     "proposition": 0.0,
+     "other": 0.0
+    },
+    "non-negative": {
+     "n": 189,
+     "trust-building": 0.5925925925925926,
+     "proposition": 0.21164021164021163,
+     "other": 0.19576719576719576
+    }
+   },
+   "GDP-Zero": {
+    "negative": {
+     "n": 5,
+     "trust-building": 0.8,
+     "proposition": 0.0,
+     "other": 0.2
+    },
+    "non-negative": {
+     "n": 209,
+     "trust-building": 0.6220095693779905,
+     "proposition": 0.18660287081339713,
+     "other": 0.19138755980861244
+    }
+   },
+   "contrasts": {
+    "trust-building|negative": 0.19999999999999996,
+    "trust-building|non-negative": -0.029416976785397897,
+    "trust-building|DiD": 0.22941697678539785,
+    "proposition|negative": 0.0,
+    "proposition|non-negative": 0.025037340826814497,
+    "proposition|DiD": -0.025037340826814497,
+    "other|negative": -0.2,
+    "other|non-negative": 0.004379635958583317,
+    "other|DiD": -0.20437963595858333
+   },
+   "contrast_ci95": {
+    "trust-building|negative": [
+     0.0,
+     0.6666666666666667
+    ],
+    "trust-building|non-negative": [
+     -0.11866923044302233,
+     0.05172635935518414
+    ],
+    "trust-building|DiD": [
+     -0.036212536700386475,
+     0.7139456575836758
+    ],
+    "proposition|negative": [
+     0.0,
+     0.0
+    ],
+    "proposition|non-negative": [
+     -0.0465203808071614,
+     0.099675699237672
+    ],
+    "proposition|DiD": [
+     -0.09967569923767199,
+     0.046520380807161435
+    ],
+    "other|negative": [
+     -0.6666666666666666,
+     0.0
+    ],
+    "other|non-negative": [
+     -0.07049587716816556,
+     0.08607076578789369
+    ],
+    "other|DiD": [
+     -0.6926262303948423,
+     0.05275346868910892
+    ]
+   },
+   "bootstrap_reps_dropped_empty_neg_cell": 18,
+   "neg_base_rate_user_turns": {
+    "EmoMCTS": 0.01646090534979424,
+    "GDP-Zero": 0.01893939393939394,
+    "both": 0.01775147928994083
+   },
+   "neg_rate_conditioning_system_turns": {
+    "EmoMCTS": 0.02072538860103627,
+    "GDP-Zero": 0.02336448598130841
+   },
+   "label_distribution_nonempty": {
+    "surprise": 59,
+    "happiness": 228,
+    "neutral": 12,
+    "fear": 9
+   }
+  },
+  "emoberta": {
+   "model": "tae898/emoberta-large",
+   "revision": "8934b68e8b0d9fc3cd961cc7e7605533c7081e59",
+   "EmoMCTS": {
+    "negative": {
+     "n": 6,
+     "trust-building": 0.6666666666666666,
+     "proposition": 0.16666666666666666,
+     "other": 0.16666666666666666
+    },
+    "non-negative": {
+     "n": 187,
+     "trust-building": 0.5989304812834224,
+     "proposition": 0.20855614973262032,
+     "other": 0.1925133689839572
+    }
+   },
+   "GDP-Zero": {
+    "negative": {
+     "n": 6,
+     "trust-building": 0.5,
+     "proposition": 0.16666666666666666,
+     "other": 0.3333333333333333
+    },
+    "non-negative": {
+     "n": 208,
+     "trust-building": 0.6298076923076923,
+     "proposition": 0.18269230769230768,
+     "other": 0.1875
+    }
+   },
+   "contrasts": {
+    "trust-building|negative": 0.16666666666666663,
+    "trust-building|non-negative": -0.03087721102426988,
+    "trust-building|DiD": 0.1975438776909365,
+    "proposition|negative": 0.0,
+    "proposition|non-negative": 0.02586384204031264,
+    "proposition|DiD": -0.02586384204031264,
+    "other|negative": -0.16666666666666666,
+    "other|non-negative": 0.0050133689839572115,
+    "other|DiD": -0.17168003565062387
+   },
+   "contrast_ci95": {
+    "trust-building|negative": [
+     -0.5087499999999998,
+     0.75
+    ],
+    "trust-building|non-negative": [
+     -0.1174435409803885,
+     0.05083698273673523
+    ],
+    "trust-building|DiD": [
+     -0.4848486616427238,
+     0.789120970567457
+    ],
+    "proposition|negative": [
+     -0.3333333333333333,
+     0.5
+    ],
+    "proposition|non-negative": [
+     -0.049036667815692506,
+     0.10835224314084606
+    ],
+    "proposition|DiD": [
+     -0.39232806626536626,
+     0.44506724928288127
+    ],
+    "other|negative": [
+     -0.625,
+     0.3760416666666664
+    ],
+    "other|non-negative": [
+     -0.0716483022480212,
+     0.07712865979796557
+    ],
+    "other|DiD": [
+     -0.6289230377059613,
+     0.3825585666998276
+    ]
+   },
+   "bootstrap_reps_dropped_empty_neg_cell": 6,
+   "neg_base_rate_user_turns": {
+    "EmoMCTS": 0.024691358024691357,
+    "GDP-Zero": 0.026515151515151516,
+    "both": 0.02564102564102564
+   },
+   "neg_rate_conditioning_system_turns": {
+    "EmoMCTS": 0.031088082901554404,
+    "GDP-Zero": 0.028037383177570093
+   },
+   "label_distribution_nonempty": {
+    "neutral": 264,
+    "happiness": 31,
+    "anger": 12,
+    "sadness": 1
+   }
+  }
+ },
+ "agreement": {
+  "distilroberta|goemotions": {
+   "kappa_7class": 0.24773742409287855,
+   "confusion_7class_rows_first": [
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     9,
+     17,
+     0,
+     0,
+     2
+    ],
+    [
+     0,
+     0,
+     0,
+     140,
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     35,
+     11,
+     0,
+     55
+    ],
+    [
+     0,
+     0,
+     0,
+     13,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     23,
+     0,
+     0,
+     2
+    ]
+   ],
+   "labels": [
+    "anger",
+    "disgust",
+    "fear",
+    "happiness",
+    "neutral",
+    "sadness",
+    "surprise"
+   ],
+   "top1_agreement": 0.525974025974026,
+   "kappa_negative_binary": 0.3277861137634698,
+   "confusion_negative_binary": [
+    [
+     9,
+     32
+    ],
+    [
+     0,
+     267
+    ]
+   ],
+   "pneg_pearson_r": 0.5823423437617419
+  },
+  "distilroberta|emoberta": {
+   "kappa_7class": 0.10229409552463338,
+   "confusion_7class_rows_first": [
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     7,
+     0,
+     0,
+     0,
+     20,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     27,
+     114,
+     0,
+     0
+    ],
+    [
+     4,
+     0,
+     0,
+     2,
+     95,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0,
+     0,
+     12,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     2,
+     23,
+     0,
+     0
+    ]
+   ],
+   "labels": [
+    "anger",
+    "disgust",
+    "fear",
+    "happiness",
+    "neutral",
+    "sadness",
+    "surprise"
+   ],
+   "top1_agreement": 0.3961038961038961,
+   "kappa_negative_binary": 0.28767827315944994,
+   "confusion_negative_binary": [
+    [
+     9,
+     32
+    ],
+    [
+     4,
+     263
+    ]
+   ],
+   "pneg_pearson_r": 0.5082144929699519
+  },
+  "goemotions|emoberta": {
+   "kappa_7class": 0.03554379165288084,
+   "confusion_7class_rows_first": [
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     0,
+     0,
+     0,
+     5,
+     1,
+     0
+    ],
+    [
+     5,
+     0,
+     0,
+     31,
+     192,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     12,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     4,
+     0,
+     0,
+     0,
+     55,
+     0,
+     0
+    ]
+   ],
+   "labels": [
+    "anger",
+    "disgust",
+    "fear",
+    "happiness",
+    "neutral",
+    "sadness",
+    "surprise"
+   ],
+   "top1_agreement": 0.1396103896103896,
+   "kappa_negative_binary": 0.34087435035157504,
+   "confusion_negative_binary": [
+    [
+     4,
+     5
+    ],
+    [
+     9,
+     290
+    ]
+   ],
+   "pneg_pearson_r": 0.49972785451319435
+  }
+ }
+}

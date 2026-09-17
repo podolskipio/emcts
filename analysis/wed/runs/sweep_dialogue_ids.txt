@@ -1,0 +1,12 @@
+# AffPool sweep set: positions 131-140 (disjoint from eval 1-100 and from D1-D3 101-130) (1-based) of the non-annotated p4g pool.
+# Eval set = positions 1-100 (data/p4g/rollout_evalset_nonannotated.jsonl). Disjoint, asserted.
+131	20180828-164559_390_live
+132	20180828-190212_442_live
+133	20180828-185320_572_live
+134	20180828-213210_462_live
+135	20180828-161442_405_live
+136	20180828-163111_795_live
+137	20180828-144300_705_live
+138	20180828-155340_989_live
+139	20180828-145857_925_live
+140	20180828-190447_206_live

@@ -1,0 +1,690 @@
+{
+ "D1": {
+  "distribution": {
+   "z_quantiles": {
+    "0.1": -0.01806063015422903,
+    "0.25": 0.13792342453688874,
+    "0.5": 0.3914775507995669
+   },
+   "parent_nu_quantiles": {
+    "0.1": -0.02316391688818567,
+    "0.25": 0.11074559868631957,
+    "0.5": 0.3500347478783597
+   },
+   "warm_edge_Q_emo_quantiles": {
+    "0.1": 0.10152233638658967,
+    "0.25": 0.19456620732199775,
+    "0.5": 0.297801022590044
+   }
+  },
+  "replay": {
+   "0.0": {
+    "points_with_mask": {
+     "value": 0.012122820989292984,
+     "ci": [
+      0.004187564832165143,
+      0.023724956701974234
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.0043358994779223075,
+     "ci": [
+      0.0009707836196891756,
+      0.010696089193023107
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.011428571428571429,
+     "ci": [
+      0.0,
+      0.03846618357487922
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.012970673696192673,
+     "ci": [
+      0.004688809414944862,
+      0.02509706978519572
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 45,
+     "emotion appeal": 250,
+     "greeting": 3,
+     "logical appeal": 63,
+     "proposition of donation": 24,
+     "task related inquiry": 48
+    }
+   },
+   "0.1": {
+    "points_with_mask": {
+     "value": 0.0817331799545763,
+     "ci": [
+      0.05991413859156816,
+      0.10537295430715306
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.04427336813851281,
+     "ci": [
+      0.03277814806318326,
+      0.06057993856116887
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.12571428571428572,
+     "ci": [
+      0.06941640786749483,
+      0.19075793985841397
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.0946889135188569,
+     "ci": [
+      0.06995827898597401,
+      0.12085784448850348
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 381,
+     "emotion appeal": 1331,
+     "greeting": 16,
+     "logical appeal": 348,
+     "other": 24,
+     "proposition of donation": 635,
+     "task related inquiry": 426
+    }
+   },
+   "0.138": {
+    "points_with_mask": {
+     "value": 0.12172964044479839,
+     "ci": [
+      0.09405137787601453,
+      0.1561092591443786
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.07456567265433738,
+     "ci": [
+      0.05743050294030569,
+      0.09728222823058644
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.21142857142857144,
+     "ci": [
+      0.15851338812301166,
+      0.2739095615897493
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.15585777191983943,
+     "ci": [
+      0.11786319827769956,
+      0.19951248626389223
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 640,
+     "emotion appeal": 2198,
+     "greeting": 27,
+     "logical appeal": 484,
+     "other": 25,
+     "proposition of donation": 1153,
+     "task related inquiry": 676
+    }
+   },
+   "0.15": {
+    "points_with_mask": {
+     "value": 0.1335280063711176,
+     "ci": [
+      0.10484186523201525,
+      0.16942218989474958
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.08415184496947173,
+     "ci": [
+      0.06579543703050625,
+      0.10845456242890494
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.2342857142857143,
+     "ci": [
+      0.1807892587298346,
+      0.2923248407643312
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.17460983135128658,
+     "ci": [
+      0.1352071285377462,
+      0.22151300075550798
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 694,
+     "emotion appeal": 2422,
+     "greeting": 61,
+     "logical appeal": 509,
+     "other": 27,
+     "proposition of donation": 1327,
+     "task related inquiry": 789
+    }
+   },
+   "0.195": {
+    "points_with_mask": {
+     "value": 0.1853523287024747,
+     "ci": [
+      0.15400514153832182,
+      0.22683176989266712
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.1246202400967466,
+     "ci": [
+      0.09976133137295572,
+      0.1557716997586087
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.33714285714285713,
+     "ci": [
+      0.26704471085197523,
+      0.41359577032653955
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.2508162837372315,
+     "ci": [
+      0.20245205810124806,
+      0.30893853290951934
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1096,
+     "emotion appeal": 3335,
+     "greeting": 85,
+     "logical appeal": 755,
+     "other": 47,
+     "proposition of donation": 1963,
+     "task related inquiry": 1092
+    }
+   },
+   "0.2": {
+    "points_with_mask": {
+     "value": 0.19187092587676607,
+     "ci": [
+      0.15880078530734298,
+      0.2343265677598074
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.1307553903784326,
+     "ci": [
+      0.10514907157649953,
+      0.1632589986882086
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.34285714285714286,
+     "ci": [
+      0.27602838010204084,
+      0.4195847362514029
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.2599526705209238,
+     "ci": [
+      0.21151633871275116,
+      0.3186964343463219
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1141,
+     "emotion appeal": 3433,
+     "greeting": 86,
+     "logical appeal": 786,
+     "other": 47,
+     "proposition of donation": 2057,
+     "task related inquiry": 1128
+    }
+   },
+   "0.25": {
+    "points_with_mask": {
+     "value": 0.2738105772350529,
+     "ci": [
+      0.22946888064273097,
+      0.3248810239141096
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0007373978703949503,
+     "ci": [
+      0.0,
+      0.0018516289712746938
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.19841901896587322,
+     "ci": [
+      0.16372556822990797,
+      0.23872888243401125
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.44571428571428573,
+     "ci": [
+      0.3681310254163015,
+      0.5257434715821812
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.37962435970404096,
+     "ci": [
+      0.3116864146408068,
+      0.45540506798177083
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1409,
+     "emotion appeal": 5104,
+     "greeting": 140,
+     "logical appeal": 1376,
+     "other": 90,
+     "proposition of donation": 3113,
+     "task related inquiry": 1441
+    }
+   }
+  },
+  "exact_replay": false,
+  "m_warm": 3
+ },
+ "D2": {
+  "distribution": {
+   "z_quantiles": {
+    "0.1": -0.02050986467738108,
+    "0.25": 0.11510778430112621,
+    "0.5": 0.3789838719068117
+   },
+   "parent_nu_quantiles": {
+    "0.1": -0.030357298533693924,
+    "0.25": 0.08496101331208458,
+    "0.5": 0.3130342410380459
+   },
+   "warm_edge_Q_emo_quantiles": {
+    "0.1": 0.09761139081710796,
+    "0.25": 0.18440792090592595,
+    "0.5": 0.2931737103846703
+   }
+  },
+  "replay": {
+   "0.0": {
+    "points_with_mask": {
+     "value": 0.013118134309787052,
+     "ci": [
+      0.0066371498578396675,
+      0.021604022345203765
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.008958725870098475,
+     "ci": [
+      0.0035110240600298532,
+      0.016641392381931654
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.03954802259887006,
+     "ci": [
+      0.01155739058629232,
+      0.07455252788352366
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.014614789005032908,
+     "ci": [
+      0.006512061779594384,
+      0.02568759333106321
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 105,
+     "emotion appeal": 209,
+     "greeting": 5,
+     "other": 10,
+     "proposition of donation": 101,
+     "task related inquiry": 23
+    }
+   },
+   "0.1": {
+    "points_with_mask": {
+     "value": 0.08972946069892282,
+     "ci": [
+      0.06596788402642892,
+      0.11467413506340138
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0008176614881439084,
+     "ci": [
+      0.0,
+      0.002292152520537332
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.05090831526182943,
+     "ci": [
+      0.03799468665670695,
+      0.06464547544921494
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.15819209039548024,
+     "ci": [
+      0.11412691484568596,
+      0.2
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.10375532326751839,
+     "ci": [
+      0.07348645831085819,
+      0.13542121290444434
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 553,
+     "emotion appeal": 1356,
+     "greeting": 117,
+     "logical appeal": 166,
+     "other": 10,
+     "proposition of donation": 811,
+     "task related inquiry": 203
+    }
+   },
+   "0.115": {
+    "points_with_mask": {
+     "value": 0.1083223719293256,
+     "ci": [
+      0.0820332434668354,
+      0.13752320635755558
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0008176614881439084,
+     "ci": [
+      0.0,
+      0.002292152520537332
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.0636709445767713,
+     "ci": [
+      0.04964256456954738,
+      0.07883586703142544
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.192090395480226,
+     "ci": [
+      0.14772261549925486,
+      0.2363840326340326
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.12601626016260162,
+     "ci": [
+      0.0922529187449403,
+      0.16217483138771094
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 679,
+     "emotion appeal": 1521,
+     "greeting": 118,
+     "logical appeal": 218,
+     "other": 34,
+     "proposition of donation": 1024,
+     "task related inquiry": 312
+    }
+   },
+   "0.15": {
+    "points_with_mask": {
+     "value": 0.15752426321589819,
+     "ci": [
+      0.12316099705542946,
+      0.19319765818585077
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0008176614881439084,
+     "ci": [
+      0.0,
+      0.002292152520537332
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.09666180809840379,
+     "ci": [
+      0.07612918785907243,
+      0.1189580888409147
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.2598870056497175,
+     "ci": [
+      0.1999731182795699,
+      0.3231752957499635
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.18747580332946187,
+     "ci": [
+      0.13900486336480944,
+      0.23699410713308103
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 990,
+     "emotion appeal": 2014,
+     "greeting": 150,
+     "logical appeal": 446,
+     "other": 43,
+     "proposition of donation": 1564,
+     "task related inquiry": 604
+    }
+   },
+   "0.184": {
+    "points_with_mask": {
+     "value": 0.20466422553236874,
+     "ci": [
+      0.16444001202141587,
+      0.24447279252026902
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0008176614881439084,
+     "ci": [
+      0.0,
+      0.002292152520537332
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.12986597461694338,
+     "ci": [
+      0.10612045703987162,
+      0.15594062873882147
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.3389830508474576,
+     "ci": [
+      0.2804861917666796,
+      0.3946134506599623
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.24964511549877402,
+     "ci": [
+      0.19483141177936078,
+      0.30531641558770706
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1237,
+     "emotion appeal": 2750,
+     "greeting": 165,
+     "logical appeal": 577,
+     "other": 60,
+     "proposition of donation": 2192,
+     "task related inquiry": 757
+    }
+   },
+   "0.2": {
+    "points_with_mask": {
+     "value": 0.22766539869885172,
+     "ci": [
+      0.18768776323538272,
+      0.2679516172497931
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0011020654840200505,
+     "ci": [
+      0.0,
+      0.002645041093841679
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.14618365388033702,
+     "ci": [
+      0.12090308808376328,
+      0.17375899340603868
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.3559322033898305,
+     "ci": [
+      0.2994011976047904,
+      0.41212891628145865
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.28184281842818426,
+     "ci": [
+      0.2229565372984429,
+      0.3401200649245634
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1271,
+     "emotion appeal": 3100,
+     "greeting": 223,
+     "logical appeal": 733,
+     "other": 61,
+     "proposition of donation": 2453,
+     "task related inquiry": 895
+    }
+   },
+   "0.25": {
+    "points_with_mask": {
+     "value": 0.3115290269828291,
+     "ci": [
+      0.2673601470830687,
+      0.3544564792959322
+     ]
+    },
+    "fallback_rate": {
+     "value": 0.0013509189804116748,
+     "ci": [
+      0.0,
+      0.0031639996870198657
+     ]
+    },
+    "selection_flip_rate": {
+     "value": 0.2094279924632941,
+     "ci": [
+      0.1797571653508265,
+      0.24366985233736416
+     ]
+    },
+    "root_disagreement_rate": {
+     "value": 0.4689265536723164,
+     "ci": [
+      0.40340450879765394,
+      0.5268890252454418
+     ]
+    },
+    "violation_rate_warm_edges": {
+     "value": 0.3929216673119112,
+     "ci": [
+      0.3215380522928455,
+      0.4637845406905249
+     ]
+    },
+    "masked_counts_by_act": {
+     "credibility appeal": 1503,
+     "emotion appeal": 4269,
+     "greeting": 333,
+     "logical appeal": 1214,
+     "other": 74,
+     "proposition of donation": 3411,
+     "task related inquiry": 1375
+    }
+   }
+  },
+  "exact_replay": true,
+  "m_warm": 3
+ }
+}

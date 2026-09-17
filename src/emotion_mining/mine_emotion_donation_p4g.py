@@ -210,10 +210,13 @@ def tally_per_turn_soft(sequences: list[EmotionSequence]) -> dict[str, Tally]:
 	"""
 	tallies = {e: Tally() for e in EMO_KEYS}
 	for seq in sequences:
-		for dist in seq.distributions:
+		for i, dist in enumerate(seq.distributions):
+			unit_weight = seq.weights[i] if seq.weights else None  # None: shipped path, untouched
 			for emotion, mass in dist.items():
 				if emotion in tallies and mass:
-					tallies[emotion].add_soft(float(mass), seq.succeeded)
+					m = float(mass) if unit_weight is None else float(mass) * unit_weight
+					if m:
+						tallies[emotion].add_soft(m, seq.succeeded)
 	return tallies
 
 
@@ -442,6 +445,25 @@ def parse_args():
 	                    help="fail if --exclude_ids removes any dialog. Use on the production "
 	                         "run, where the eval set is disjoint by construction and the id "
 	                         "list is a tripwire rather than a filter")
+	parser.add_argument("--pre_decision_only", action="store_true",
+	                    help="[p4g] mine only utterances from turns strictly before the dialog's first "
+	                         "decision act (agree/disagree/amount/confirm), for donors and refusers "
+	                         "alike. Without it, w(e) is partly fitted on post-decision turns: ~2/3 of "
+	                         "w(happiness) came from them (analysis/thu/construct_test.md §3b).")
+	parser.add_argument("--turn_weighting", choices=["uniform", "last", "recency"], default="uniform",
+	                    help="[p4g --soft] how much each persuadee turn counts. uniform (default, shipped): "
+	                         "every utterance 1. last: only the final kept turn (with --pre_decision_only, the "
+	                         "turn just before the decision -- the state the planner scores). recency: "
+	                         "gamma**k, k = turns before that final kept turn.")
+	parser.add_argument("--recency_gamma", type=float, default=0.7,
+	                    help="[--turn_weighting recency] decay per turn")
+	parser.add_argument("--base_rate", choices=["dialog", "unit"], default="dialog",
+	                    help="what lift is measured against. 'dialog' (default, shipped): the share of "
+	                         "mined dialogs that donate. 'unit': the mass-weighted donation rate over the "
+	                         "very units the per-turn tally counts. The two coincide when every dialog "
+	                         "contributes about equally many units. A cut that removes more donor units "
+	                         "than refuser units (pre_decision_only does) shifts every 'dialog'-based "
+	                         "lift by the same amount, which moves nu's level but not its ordering.")
 	parser.add_argument("--alpha", type=float, default=50.0,
 	                    help="pseudo-observations of shrinkage toward the base rate when "
 	                         "computing w(e). 0 = raw lifts.")
@@ -471,7 +493,9 @@ def main():
 	                                 args.holdout_first, args.esc_window, args.esc_outcome,
 	                                 soft=args.soft, dist_cache_path=args.dist_cache,
 	                                 exclude_ids=exclude_ids,
-	                                 assert_no_exclusions=args.assert_no_exclusions)
+	                                 assert_no_exclusions=args.assert_no_exclusions,
+	                                 pre_decision_only=args.pre_decision_only,
+	                                 turn_weighting=args.turn_weighting, recency_gamma=args.recency_gamma)
 
 	# Base rate over exactly the sessions the tallies cover, so every lift is measured against
 	# its own population.
@@ -482,6 +506,13 @@ def main():
 	# every emotion its posterior mass. Only this table feeds w(e); the diagnostic tables
 	# below stay on argmax labels so they remain comparable across runs.
 	per_turn = tally_per_turn_soft(sequences) if args.soft else tally_per_turn(sequences)
+	if args.base_rate == "unit":
+		units = sum_tallies(per_turn.values())
+		print(f"base rate switched to the unit-weighted rate over the tallied units: "
+		      f"{units.p_donate:.3f} (dialog rate {base_rate:.3f})")
+		meta["dialog_base_rate"] = base_rate
+		base_rate = units.p_donate
+	meta["base_rate_kind"] = args.base_rate
 	print(f"per-turn assignment: {'SOFT (T(e)+=d(e), S(e)+=d(e)*y)' if args.soft else 'argmax'}")
 	dominant = tally_dominant_emotion(sequences)
 	transitions = tally_transitions(sequences)

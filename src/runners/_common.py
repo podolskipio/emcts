@@ -403,14 +403,17 @@ def build_agents(task_name, backbone_model, family, *, infer_user_da=False,
 				 explicit_value_labels: bool = False,
 				 persona: str | None = None,
 				 max_conv_turns: int | None = None,
+				 success_criterion: str | None = None,
 				 emotion_classifier=None):
 	"""Construct (game, system, user, planner) for ``task_name``.
 
 	``family`` is "chat" or "completion" (selects the *ChatModel / *ChatSystemPlanner
 	vs the plain variants), matching how the backbone model was created.
 
-	``max_conv_turns`` bounds how deep MCTS may simulate (``game.get_dialog_ended`` returns a
-	loss once a state reaches it).
+	``max_conv_turns`` is the game's horizon: ``game.get_dialog_ended`` returns -1.0 once a state
+	reaches it. It bounds how deep MCTS simulates ONLY under ``--search_horizon episode``; the default
+	``legacy`` rule treats only success as terminal, so search expands past it
+	(analysis/phase1/SEARCH_HORIZON_BUG.md).
 
 	``persona`` (p4g only) conditions the two objects that role-play the persuadee -- the user
 	simulator and the planner's value estimator -- on the real participant from that dialogue's
@@ -493,6 +496,12 @@ def build_agents(task_name, backbone_model, family, *, infer_user_da=False,
 	planner = Planner(**planner_kwargs)
 
 	game_kwargs = {} if max_conv_turns is None else {"max_conv_turns": max_conv_turns}
+	# --p4g_success (rollout.py). Only passed when stricter than the tag, so every default call
+	# constructs the game exactly as before; non-p4g games have no such criterion.
+	if success_criterion not in (None, "tag"):
+		if not task_name.endswith("p4g"):
+			raise ValueError(f"success_criterion {success_criterion!r} is defined for p4g, not {task_name!r}")
+		game_kwargs["success_criterion"] = success_criterion
 	if not cfg.emotion_aware:
 		return cfg.game_cls(system, user, planner, infer_user_da=infer_user_da, **game_kwargs), system, user, planner
 	# An emotion-aware game requires a classifier: its get_next_state labels the simulated user
@@ -721,6 +730,44 @@ def write_subtree_ndjson(records: list, output_path: str, dlg_id) -> str:
 	return path
 
 
+# Simulation-step log (P-VAR instrumentation, analysis/phase1). A second carrier NEXT TO the
+# frozen subtree log, which stays byte-for-byte as specified above. One gzipped NDJSON per
+# dialogue, <run_dir>/simlog/<dlg_id>.ndjson.gz, two record types:
+#
+#   record_type "step" -- one per selection+backup inside one turn's search:
+#     dlg_id, turn_index, simulation_index, depth (edge depth: root's outgoing edges are 1),
+#     action_prefix (acts from the search root to the parent), action,
+#     parent_realization_idx / parent_realization_id, parent_nu, parent_emotion_dist,
+#     child_realization_id, child_from_cache, child_nu, child_emotion_dist, z, v,
+#     parent_Ns, siblings [{action, N, Q, Q_emo, M2_emo, prior, uct}] at the moment of choice,
+#     selected_action
+#   record_type "turn" -- one per realized dialogue turn (written by the runner):
+#     dlg_id, turn_index, planned, root_nu, root_emotion_dist, system_act, system_utterance,
+#     user_act, user_utterance, user_emotion_dist, user_nu, outcome, root_visits
+SIMLOG_DIRNAME = "simlog"
+
+
+def build_simlog_step_records(planner, *, dlg_id, turn: int) -> list:
+	"""``planner.sim_steps`` with the dialogue coordinates attached. [] for planners that keep
+	no tape (the GDP-Zero baselines, which have no emotion channel)."""
+	steps = getattr(planner, "sim_steps", None) or []
+	return [{"record_type": "step", "dlg_id": dlg_id, "turn_index": int(turn), **step} for step in steps]
+
+
+def write_simlog_ndjson(records: list, output_path: str, dlg_id) -> str:
+	"""Write one dialogue's simlog records to <run_dir>/simlog/<dlg_id>.ndjson.gz ("" if none)."""
+	if not records:
+		return ""
+	run_dir = os.path.dirname(os.path.abspath(output_path))
+	log_dir = os.path.join(run_dir, SIMLOG_DIRNAME)
+	os.makedirs(log_dir, exist_ok=True)
+	path = os.path.join(log_dir, f"{_safe_filename(dlg_id)}.ndjson.gz")
+	with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+		for rec in records:
+			f.write(json.dumps(rec, default=str) + "\n")
+	return path
+
+
 def subtree_emo_stats(dialog_planner):
 	"""Per-edge ``(M2_emo, sigma_emo)`` for the subtree log schema.
 
@@ -885,13 +932,48 @@ def add_common_args(parser, default_output):
 						     "sequential behaviour. Higher values keep several requests in flight "
 						     "so SGLang can batch them; the GPU is otherwise idle between calls. "
 						     "4-8 suits a single local server. Records stay in dialog order.")
+	parser.add_argument("--max_turns", type=int, default=10,
+						help="the episode horizon Tmax, in turns. Two things at once, and they must "
+						     "be the same number: rollout.py stops an episode here, and every runner "
+						     "passes it to build_agents(max_conv_turns=...) so game.get_dialog_ended "
+						     "returns -1.0 at it. Under --search_horizon episode that is what bounds "
+						     "search depth to Tmax - t from a tree rooted at turn t; under legacy "
+						     "search ignores it (analysis/phase1/SEARCH_HORIZON_BUG.md). It lives "
+						     "here, shared, rather than on each runner: the replay runners used to "
+						     "omit it and silently inherit the game default of 15, which made their "
+						     "environment differ from the grid's 10.")
 	parser.add_argument("--p4g_persona", action="store_true",
 						help="condition the p4g user simulator on the REAL persuadee who took "
 						     "part in each replayed dialogue, from the Persuasion for Good "
 						     "pre-task survey (data/p4g_personas/full_info.csv -- Big Five, "
 						     "Moral Foundations, Schwartz values, decision style, demographics). "
 						     )
+	parser.add_argument("--frozen_config", type=str, default=None,
+						help="JSON {\"frozen\": {dest: value}}. Fail before any work if the resolved args "
+						     "differ from these values (see check_frozen_config). Default None = no check. "
+						     "Every grid config passes the frozen template here.")
 	return parser
+
+
+def replay_root_is_terminal(game, state, search_horizon) -> bool:
+	"""True when the replay runners have nothing left to plan at ``state``.
+
+	The replay runners walk a real corpus dialogue and search from each prefix. Under
+	``--search_horizon episode`` a prefix at or past the game's horizon is terminal, so
+	``search`` returns -1.0 without ever expanding the root: ``Ns`` stays empty, every
+	``Nsa`` is 0, and ``get_action_prob`` divides 0/0 -> NaN -> ``argmax`` silently returns
+	action 0. Asking "what should the system say next" there is meaningless anyway -- the
+	environment has already ended the dialogue.
+
+	This bites because the corpus is longer than the horizon: p4g dialogues run to 15 turns
+	while Tmax is 10, so 28 of 2697 replay search roots (1.0 %) sit at or past it.
+
+	Returns False under ``legacy``, where the horizon is not consulted at all, so legacy
+	replay output is unchanged.
+	"""
+	if search_horizon != "episode":
+		return False
+	return game.get_dialog_ended(state) != 0.0
 
 
 def apply_seed(cmd_args):
@@ -920,7 +1002,58 @@ def load_p4g_personas(cmd_args):
 	return personas
 
 
-def finalize_args(cmd_args):
+def check_frozen_config(cmd_args, path):
+	"""Refuse to run when the RESOLVED args differ from the frozen grid values in ``path``.
+
+	``path`` is JSON ``{"frozen": {dest: value, ...}}``. Every key must be an argument this runner
+	actually resolved (a typo, or a flag the runner does not declare, fails too), and its value --
+	after defaults, aliases and inheritance -- must equal the frozen one. The runner defaults are not
+	the grid config (n_sims 20, R 3, no top-K prior, llm classifier, unseeded), so a config that leans
+	on one would otherwise produce a cell that has to be thrown away.
+
+	On success records the file's sha256 on ``cmd_args`` so metadata.json names the frozen config the
+	run was checked against.
+	"""
+	import hashlib
+	raw = open(path, "rb").read()
+	frozen = json.loads(raw)["frozen"]
+	resolved = vars(cmd_args)
+	problems = []
+	for key, want in sorted(frozen.items()):
+		if key not in resolved:
+			problems.append(f"  {key}: not an argument of this runner (frozen {want!r})")
+		elif resolved[key] != want or type(resolved[key]) is bool and type(want) is not bool:
+			problems.append(f"  {key}: resolved {resolved[key]!r} != frozen {want!r}")
+	if problems:
+		raise SystemExit(f"--frozen_config {path}: resolved config does not match the frozen values:\n"
+						 + "\n".join(problems))
+	cmd_args.frozen_config_sha256 = hashlib.sha256(raw).hexdigest()
+	print(f"--frozen_config: {len(frozen)} values match {path} (sha256 {cmd_args.frozen_config_sha256[:12]})")
+
+
+# (flag spellings, applies-only-when) for arm flags that are inert outside their arm. Passing one where
+# it is inert is a config error, not a no-op: e.g. --aff_pool_tau on ActPool, whose key has no bucket.
+_INERT_WHEN = [
+	(("--aff_pool_tau", "--aff-pool-tau"), lambda a: getattr(a, "aff_pool", False) and getattr(a, "aff_pool_key", "affect") == "affect",
+	 "--aff_pool_tau only applies to AffPool (--aff_pool --aff_pool_key affect); ActPool has no bucket"),
+	(("--aff_pool_bias", "--aff-pool-bias", "--aff_pool_key", "--aff-pool-key"), lambda a: getattr(a, "aff_pool", False),
+	 "AffPool/ActPool settings need --aff_pool"),
+]
+
+
+def check_inert_arm_flags(cmd_args, argv):
+	"""Refuse arm flags passed where they have no effect -- a hand-edited config that mixes two arms."""
+	given = {tok.split("=", 1)[0] for tok in argv if tok.startswith("--")}
+	problems = [f"  {'/'.join(spellings)}: {why}" for spellings, applies, why in _INERT_WHEN
+				if given & set(spellings) and not applies(cmd_args)]
+	if problems:
+		raise SystemExit("arm flags passed where they are inert:\n" + "\n".join(problems))
+
+
+def finalize_args(cmd_args, argv=None):
+	check_inert_arm_flags(cmd_args, sys.argv[1:] if argv is None else argv)
+	if getattr(cmd_args, "frozen_config", None):
+		check_frozen_config(cmd_args, cmd_args.frozen_config)
 	out_dir = os.path.dirname(cmd_args.output)
 	if out_dir:
 		os.makedirs(out_dir, exist_ok=True)

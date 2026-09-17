@@ -1,0 +1,86 @@
+{
+ "soft": {
+  "P1_episode": {
+   "tau_med": 0.27907338164315276,
+   "occupancy_low_at_tau_med": 0.4982704402515723,
+   "occupancy_low_at_0.35": 0.5921383647798742,
+   "nu_parent_mean": 0.2636161710598447,
+   "Qemo_level_visited_mean": 0.26731275103006086,
+   "Qemo_delta_visited_mean": 0.013397036390025398,
+   "anchor_bias0.7": {
+    "flip": 0.1190251572327044,
+    "centre": 1.0614572875201702,
+    "momentum": 1.1918112896382809
+   },
+   "anchor_flip11.9": {
+    "bias": 0.6989773325622082,
+    "centre": 1.0614572875201702,
+    "momentum": 1.1918112896382809
+   }
+  },
+  "P1_legacy": {
+   "tau_med": 0.4043355151234159,
+   "occupancy_low_at_tau_med": 0.49925309432351683,
+   "occupancy_low_at_0.35": 0.4433418693982074,
+   "nu_parent_mean": 0.31952664472073683,
+   "Qemo_level_visited_mean": 0.29880608395310043,
+   "Qemo_delta_visited_mean": 0.004471281629735444
+  }
+ },
+ "predecision": {
+  "P1_episode": {
+   "tau_med": 0.07829865197301553,
+   "occupancy_low_at_tau_med": 0.4995283018867924,
+   "occupancy_low_at_0.35": 0.9342767295597484,
+   "nu_parent_mean": 0.07143135328014323,
+   "Qemo_level_visited_mean": 0.07027440375497507,
+   "Qemo_delta_visited_mean": 0.0003425451096801094,
+   "anchor_bias0.7": {
+    "flip": 0.075,
+    "centre": 0.9875773452222347,
+    "momentum": 0.9833412803709507
+   },
+   "anchor_flip11.9": {
+    "bias": 1.1877952329814434,
+    "centre": 1.5656159557402134,
+    "momentum": 1.7422903962433338
+   }
+  },
+  "P1_legacy": {
+   "tau_med": 0.10256897402261117,
+   "occupancy_low_at_tau_med": 0.49978659837814765,
+   "occupancy_low_at_0.35": 0.9694835680751174,
+   "nu_parent_mean": 0.06988608153785762,
+   "Qemo_level_visited_mean": 0.06056690037764643,
+   "Qemo_delta_visited_mean": -0.00015967103664077875
+  }
+ },
+ "generic": {
+  "P1_episode": {
+   "tau_med": 0.2632107245880981,
+   "occupancy_low_at_tau_med": 0.49968553459119497,
+   "occupancy_low_at_0.35": 0.5963836477987421,
+   "nu_parent_mean": 0.18386579071444106,
+   "Qemo_level_visited_mean": 0.1928029025176283,
+   "Qemo_delta_visited_mean": 0.022557265256920544,
+   "anchor_bias0.7": {
+    "flip": 0.1520440251572327,
+    "centre": 1.0276211686432362,
+    "momentum": 1.107951682060957
+   },
+   "anchor_flip11.9": {
+    "bias": 0.488571610301733,
+    "centre": 0.6649862416088581,
+    "momentum": 0.7967812828719616
+   }
+  },
+  "P1_legacy": {
+   "tau_med": 0.4022184089135381,
+   "occupancy_low_at_tau_med": 0.5,
+   "occupancy_low_at_0.35": 0.4546521553563807,
+   "nu_parent_mean": 0.2795249637681194,
+   "Qemo_level_visited_mean": 0.2604108566993689,
+   "Qemo_delta_visited_mean": 0.009002946410766235
+  }
+ }
+}

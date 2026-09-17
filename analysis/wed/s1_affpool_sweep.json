@@ -1,0 +1,167 @@
+{
+ "0.05": {
+  "dialogues": 7,
+  "steps": 2809,
+  "trees": 24,
+  "SR": 1.0,
+  "avg_turns": 4.428571428571429,
+  "pool_flip_fraction": {
+   "value": 0.3463866144535422,
+   "ci": [
+    0.2936731940095275,
+    0.39945153327718164
+   ]
+  },
+  "mean_beta_selected": {
+   "value": 0.6546329963648906,
+   "ci": [
+    0.6272062784960551,
+    0.6784581487406697
+   ]
+  },
+  "mean_beta_by_depth": {
+   "1": 0.521,
+   "2": 0.668,
+   "3": 0.823,
+   "4": 0.885,
+   "5": 0.94,
+   "6": 0.983,
+   "7": 0.987,
+   "8": 1.0
+  },
+  "flip_by_depth": {
+   "1": 0.189,
+   "2": 0.394,
+   "3": 0.504,
+   "4": 0.619,
+   "5": 0.535,
+   "6": 0.6,
+   "7": 0.5,
+   "8": 1.0
+  },
+  "bucket1_share": 0.7429690281238875,
+  "cells": 174,
+  "cell_steps_median": 11.5,
+  "prefixes_per_cell_median": 3.0,
+  "prefixes_per_cell_quantiles": {
+   "0.25": 2.0,
+   "0.75": 6.0,
+   "0.9": 8.0
+  },
+  "share_cells_ge3_prefixes": 0.6091954022988506,
+  "N_pool_at_selection_median": 11.0,
+  "flip_where_edge_unvisited": 0.6307692307692307,
+  "flip_where_edge_visited": 0.26076887447892544,
+  "wall_clock_s_arm": "wall_clock_s=6502"
+ },
+ "0.1": {
+  "dialogues": 7,
+  "steps": 3711,
+  "trees": 29,
+  "SR": 0.8571428571428571,
+  "avg_turns": 5.142857142857143,
+  "pool_flip_fraction": {
+   "value": 0.3462678523309081,
+   "ci": [
+    0.23729075846331993,
+    0.43085964320616726
+   ]
+  },
+  "mean_beta_selected": {
+   "value": 0.6042411822996374,
+   "ci": [
+    0.562607777902381,
+    0.6266636139683849
+   ]
+  },
+  "mean_beta_by_depth": {
+   "1": 0.444,
+   "2": 0.63,
+   "3": 0.734,
+   "4": 0.829,
+   "5": 0.874,
+   "6": 0.767,
+   "7": 0.869,
+   "8": 0.964
+  },
+  "flip_by_depth": {
+   "1": 0.181,
+   "2": 0.422,
+   "3": 0.445,
+   "4": 0.556,
+   "5": 0.505,
+   "6": 0.366,
+   "7": 0.438,
+   "8": 0.375
+  },
+  "bucket1_share": 0.6165454055510644,
+  "cells": 242,
+  "cell_steps_median": 9.0,
+  "prefixes_per_cell_median": 3.0,
+  "prefixes_per_cell_quantiles": {
+   "0.25": 2.0,
+   "0.75": 6.0,
+   "0.9": 9.0
+  },
+  "share_cells_ge3_prefixes": 0.5950413223140496,
+  "N_pool_at_selection_median": 11.0,
+  "flip_where_edge_unvisited": 0.4910313901345291,
+  "flip_where_edge_visited": 0.30046115643845334,
+  "wall_clock_s_arm": "wall_clock_s=6502"
+ },
+ "0.25": {
+  "dialogues": 7,
+  "steps": 4669,
+  "trees": 36,
+  "SR": 0.7142857142857143,
+  "avg_turns": 6.142857142857143,
+  "pool_flip_fraction": {
+   "value": 0.3109873634611266,
+   "ci": [
+    0.24146329161426786,
+    0.36116479490790027
+   ]
+  },
+  "mean_beta_selected": {
+   "value": 0.4632469917609141,
+   "ci": [
+    0.41270913826979794,
+    0.49237399637476276
+   ]
+  },
+  "mean_beta_by_depth": {
+   "1": 0.262,
+   "2": 0.476,
+   "3": 0.668,
+   "4": 0.751,
+   "5": 0.724,
+   "6": 0.773,
+   "7": 0.883,
+   "8": 0.824
+  },
+  "flip_by_depth": {
+   "1": 0.159,
+   "2": 0.339,
+   "3": 0.444,
+   "4": 0.492,
+   "5": 0.496,
+   "6": 0.704,
+   "7": 0.769,
+   "8": 0.6
+  },
+  "bucket1_share": 0.5350182051831227,
+  "cells": 307,
+  "cell_steps_median": 9.0,
+  "prefixes_per_cell_median": 3.0,
+  "prefixes_per_cell_quantiles": {
+   "0.25": 2.0,
+   "0.75": 7.0,
+   "0.9": 10.0
+  },
+  "share_cells_ge3_prefixes": 0.5993485342019544,
+  "N_pool_at_selection_median": 12.0,
+  "flip_where_edge_unvisited": 0.5091973244147158,
+  "flip_where_edge_visited": 0.24272962856320185,
+  "wall_clock_s_arm": "wall_clock_s=6502"
+ }
+}

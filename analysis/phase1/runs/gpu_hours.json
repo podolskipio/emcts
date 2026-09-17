@@ -1,0 +1,8 @@
+{
+ "D1_wall_clock_s": 10707,
+ "D1_gpu_hours": 2.974,
+ "D2_wall_clock_s": 10018,
+ "D2_gpu_hours": 2.783,
+ "note": "1x RTX 4090 serving all roles (SGLang, vicuna-13B-AWQ); HF classifier on CPU in the runner. The stub bit-identity runs, P-RELABEL and all analysis were CPU-only and are not counted.",
+ "total_gpu_hours": 5.757
+}

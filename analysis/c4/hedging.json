@@ -1,0 +1,199 @@
+{
+ "headline": {
+  "n_fear": 160,
+  "hedged_fear": 0.59375,
+  "base_rate": 0.4598639455782313,
+  "hedged_nonfear": 0.4573903002309469,
+  "odds_ratio": 1.7338473190530752,
+  "fisher_p": 0.0007296655736650413
+ },
+ "by_label": {
+  "anger": {
+   "n": 54,
+   "hedged": 0.037037037037037035,
+   "mean_markers": 0.037037037037037035,
+   "fear_word": 0.0
+  },
+  "disgust": {
+   "n": 40,
+   "hedged": 0.25,
+   "mean_markers": 0.325,
+   "fear_word": 0.0
+  },
+  "fear": {
+   "n": 160,
+   "hedged": 0.59375,
+   "mean_markers": 1.10625,
+   "fear_word": 0.2125
+  },
+  "happiness": {
+   "n": 1990,
+   "hedged": 0.2733668341708543,
+   "mean_markers": 0.34321608040201007,
+   "fear_word": 0.0005025125628140704
+  },
+  "neutral": {
+   "n": 4370,
+   "hedged": 0.5247139588100687,
+   "mean_markers": 0.8011441647597254,
+   "fear_word": 0.0
+  },
+  "sadness": {
+   "n": 1093,
+   "hedged": 0.35681610247026535,
+   "mean_markers": 0.42268984446477587,
+   "fear_word": 0.0009149130832570906
+  },
+  "surprise": {
+   "n": 1113,
+   "hedged": 0.6486972147349506,
+   "mean_markers": 0.7771787960467206,
+   "fear_word": 0.0
+  }
+ },
+ "markers": {
+  "hesitant": {
+   "in_fear": 0.0875,
+   "in_corpus": 0.0015873015873015873,
+   "lift": 55.125
+  },
+  "not sure": {
+   "in_fear": 0.20625,
+   "in_corpus": 0.18956916099773244,
+   "lift": 1.0879934210526314
+  },
+  "maybe": {
+   "in_fear": 0.01875,
+   "in_corpus": 0.01507936507936508,
+   "lift": 1.243421052631579
+  },
+  "know more": {
+   "in_fear": 0.175,
+   "in_corpus": 0.1219954648526077,
+   "lift": 1.4344795539033457
+  },
+  "would need to": {
+   "in_fear": 0.0375,
+   "in_corpus": 0.05374149659863946,
+   "lift": 0.6977848101265822
+  },
+  "think about it": {
+   "in_fear": 0.04375,
+   "in_corpus": 0.07131519274376417,
+   "lift": 0.6134737678855325
+  },
+  "do research": {
+   "in_fear": 0.0125,
+   "in_corpus": 0.01598639455782313,
+   "lift": 0.7819148936170214
+  },
+  "might/guess": {
+   "in_fear": 0.025,
+   "in_corpus": 0.05623582766439909,
+   "lift": 0.44455645161290325
+  },
+  "a bit/a little": {
+   "in_fear": 0.2375,
+   "in_corpus": 0.1155328798185941,
+   "lift": 2.0556918547595684
+  },
+  "reluctant": {
+   "in_fear": 0.2625,
+   "in_corpus": 0.005555555555555556,
+   "lift": 47.25
+  }
+ },
+ "fear_vocab": {
+  "fear_word_in_fear": 0.2125,
+  "fear_word_base": 0.004081632653061225,
+  "hedged_no_fearword": 0.49375,
+  "neither": 0.29375
+ },
+ "dose": {
+  "rho": 0.08394813010659749,
+  "p": 2.8615349048981495e-15,
+  "mean_fear_hedged": 0.039179568267773676,
+  "mean_fear_unhedged": 0.03614660237579837,
+  "mw_p": 1.3771601284755834e-11,
+  "by_count": {
+   "0": 0.03614660237579837,
+   "1": 0.03258956501774343,
+   "2": 0.04455037576218565,
+   "3": 0.07559772414615046,
+   "4": 0.05258353018608103
+  }
+ },
+ "cross_clf": {
+  "distilroberta": {
+   "rho_fear": 0.08394813010659749,
+   "rho_neg": -0.06459534302916672,
+   "neg_ratio": 0.7143076737274566
+  },
+  "alt1_goemotions": {
+   "rho_fear": 0.16586315032569748,
+   "rho_neg": 0.0371451803059542,
+   "neg_ratio": 0.5764589038021208
+  },
+  "alt2_emoberta": {
+   "rho_fear": -0.015494842837667314,
+   "rho_neg": -0.017393056368953556,
+   "neg_ratio": 0.7653268698419715
+  }
+ },
+ "by_arm": {
+  "vicuna-13b-v1.5": {
+   "hedged_persona": 0.40068027210884355,
+   "hedged_baseline": 0.34965986394557824,
+   "markers_persona": 0.5775510204081633,
+   "markers_baseline": 0.4312925170068027
+  },
+  "Llama-3.1-8B-Instruct": {
+   "hedged_persona": 0.5340136054421769,
+   "hedged_baseline": 0.6204081632653061,
+   "markers_persona": 0.6578231292517007,
+   "markers_baseline": 0.7802721088435374
+  },
+  "Qwen2.5-7B-Instruct": {
+   "hedged_persona": 0.3442176870748299,
+   "hedged_baseline": 0.5102040816326531,
+   "markers_persona": 0.5346938775510204,
+   "markers_baseline": 0.8979591836734694
+  }
+ },
+ "examples": {
+  "fear_hedged_no_fearword": [
+   "To be honest, I'm not in a great financial situation right now, so I'm not sure if I could afford to donate anything, even a small amount.",
+   "I can imagine how tough it must be for them, but I'm not sure I'm comfortable with donating to a charity that's not directly affiliated with the church.",
+   "Honestly, I'm a bit cautious about donating to charities, I like to do my own research and make sure my money is going where it really counts. Can you tell me more about how Save the Children operates and where my donation would be going?",
+   "I can imagine, but I've been struggling financially myself lately, so I'm not sure if I can donate anything right now.",
+   "I'm not sure, I've been trying to get my finances back on track after the last quarter, so I'm being a bit cautious with my spending.",
+   "That's reassuring, but I'd like to see the specifics of those reports before I get too excited - I'm always wary of just taking things at face value.",
+   "To be honest, I'm a bit tight on funds right now, so I'm not sure I can afford to donate anything.",
+   "I'm not sure, I'd have to think about it. I'm trying to save up for my grandkids' college fund, so I'm being a bit cautious with my finances right now.",
+   "I'm not sure, I've been trying to cut back on expenses lately, so I'm a bit hesitant to spend any extra money.",
+   "I can imagine how tough it must be for them to lose their homes and families, but I'm not sure how much of a difference one small donation could really make.",
+   "I'm not sure, I'm on a tight budget right now and I'm not sure I can afford it.",
+   "That's great, but I'm not sure how that changes things for me, I'm more concerned about what's happening in my community right now.",
+   "I'm always a bit hesitant to donate to charities, I'd like to know a bit more about what Save the Children does and how my money would be used.",
+   "That's reassuring to hear, but I'm still a bit skeptical - I've been burned by charities in the past that seemed great but didn't actually deliver.",
+   "It sounds like their situation is really dire, but I'm not sure I can donate right now - I've got a lot of expenses coming up this month."
+  ],
+  "fear_unhedged": [
+   "That's nice, but I've got my own expenses to worry about right now.",
+   "I can imagine it's really tough for them, but I've got my own family to worry about, and I've got to put their needs first.",
+   "I can imagine, it must be incredibly tough for them to go through that, especially when they're already so young and vulnerable.",
+   "I'm doing alright, just trying to get some work done before a meeting this afternoon. What can I do for you?",
+   "That's impressive, but I'd rather not get involved in anything that might put me or my life at risk.",
+   "I can imagine it's heartbreaking, but how do you know that the charity is using their donations effectively? I've heard horror stories about bureaucratic organizations getting bogged down in administrative costs.",
+   "I can imagine how tough it must be for them, but I've got my own family and friends to worry about, and right now, their needs come first for me.",
+   "I'm sure it's tough for them, but I've got my own family to worry about.",
+   "I can imagine that's tough for them, but what can I really do to help?",
+   "I can imagine how tough it must be for them, but I've always been taught that charity begins at home, and I have to make sure my own family is taken care of before I start worrying about others.",
+   "I can imagine it's tough, but I've got a lot on my plate right now with work and school, and I'm trying to focus on getting my own life together before I start worrying about someone else's.",
+   "I can understand why it's hard to not feel for them, but I've got my own family to worry about and a mortgage to pay - I don't think I can really make a difference to those children's lives, even if I wanted to.",
+   "I can imagine, it's terrible to think about, but I've always tried to focus on my own family and community, you know, people I can actually help and see the impact of my efforts.",
+   "I'm sure their situation is dire, but I'm not one to make decisions based on emotional appeals. What specific programs or initiatives does Save the Children have in place to address the needs of these children?",
+   "I'm sure it's terrible, but what can I do about it from here? It's not like I can just drop everything to help every child in need."
+  ]
+ }
+}

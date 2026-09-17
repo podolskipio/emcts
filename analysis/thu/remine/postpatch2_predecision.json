@@ -1,0 +1,339 @@
+{
+  "corpus": {
+    "task": "p4g",
+    "data": "data/p4g/300_dialog_turn_based.pkl",
+    "cache": "outputs/emotion_donation_emocache.json",
+    "n_sessions": 288,
+    "n_turns": 2845,
+    "holdout_first": 0,
+    "n_eval_holdout": 0,
+    "eval_dialog_ids": [],
+    "assignment": "soft",
+    "n_exclude_ids_supplied": 0,
+    "n_excluded_by_id": 0,
+    "n_sessions_before_exclusion": 300,
+    "assert_no_exclusions": false,
+    "pre_decision_only": true,
+    "turn_weighting": "uniform",
+    "recency_gamma": null,
+    "outcome": "agree-donation annotation",
+    "dialog_base_rate": 0.4791666666666667,
+    "base_rate_kind": "unit"
+  },
+  "shrinkage_alpha": 50.0,
+  "base_donation_rate": 0.4066783831282952,
+  "n_dialogs": 288,
+  "valence_weights": {
+    "happiness": 0.13,
+    "sadness": -0.29,
+    "fear": 0.46,
+    "anger": 0.12,
+    "surprise": 0.11,
+    "disgust": 0.13,
+    "neutral": -0.1,
+    "contempt": -0.6
+  },
+  "per_turn_emotion": [
+    {
+      "emotion": "happiness",
+      "n_turns": 494.90682530608103,
+      "p_donate": 0.4205243869926509,
+      "lift": 0.013846003864355694,
+      "lift_shrunk": 0.012575511073539769,
+      "w": 0.13,
+      "ci": [
+        0.3778082286593675,
+        0.4644648640382859
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "sadness",
+      "n_turns": 201.32836066890772,
+      "p_donate": 0.37005180135407,
+      "lift": -0.036626581774225175,
+      "lift_shrunk": -0.02933998234773305,
+      "w": -0.29,
+      "ci": [
+        0.3063734223497155,
+        0.43859647753263714
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "fear",
+      "n_turns": 85.76318928967609,
+      "p_donate": 0.4795098406081852,
+      "lift": 0.07283145747989,
+      "lift_shrunk": 0.04600848069916247,
+      "w": 0.46,
+      "ci": [
+        0.3769429186282228,
+        0.5838336998443721
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "anger",
+      "n_turns": 112.73632120721904,
+      "p_donate": 0.4232861537887395,
+      "lift": 0.016607770660444332,
+      "lift_shrunk": 0.011505108102619677,
+      "w": 0.12,
+      "ci": [
+        0.3360882614554689,
+        0.5155399590865472
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "surprise",
+      "n_turns": 401.25945811930274,
+      "p_donate": 0.4192336366457421,
+      "lift": 0.012555253517446907,
+      "lift_shrunk": 0.01116411885073293,
+      "w": 0.11,
+      "ci": [
+        0.3719423637425901,
+        0.4680567350291935
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "disgust",
+      "n_turns": 130.94856973662704,
+      "p_donate": 0.4252023256362349,
+      "lift": 0.018523942507939706,
+      "lift_shrunk": 0.013405376902557553,
+      "w": 0.13,
+      "ci": [
+        0.34384613400753083,
+        0.5108220736711264
+      ],
+      "ci_excludes_base_rate": false
+    },
+    {
+      "emotion": "neutral",
+      "n_turns": 1418.057275672184,
+      "p_donate": 0.39605774921553816,
+      "lift": -0.010620633912757027,
+      "lift_shrunk": -0.01025890981354255,
+      "w": -0.1,
+      "ci": [
+        0.37091566891182814,
+        0.4217614792363207
+      ],
+      "ci_excludes_base_rate": false
+    }
+  ],
+  "per_dialog_dominant_emotion": [
+    {
+      "emotion": "happiness",
+      "n_dialogs": 31,
+      "p_donate": 0.6774193548387096,
+      "lift": 0.27074097171041445,
+      "ci": [
+        0.5014068555995079,
+        0.8143076925268695
+      ]
+    },
+    {
+      "emotion": "anger",
+      "n_dialogs": 1,
+      "p_donate": 1.0,
+      "lift": 0.5933216168717048,
+      "ci": [
+        0.2065432914738929,
+        1.0
+      ]
+    },
+    {
+      "emotion": "surprise",
+      "n_dialogs": 23,
+      "p_donate": 0.6086956521739131,
+      "lift": 0.2020172690456179,
+      "ci": [
+        0.4078517960374599,
+        0.7784262201761787
+      ]
+    },
+    {
+      "emotion": "disgust",
+      "n_dialogs": 1,
+      "p_donate": 1.0,
+      "lift": 0.5933216168717048,
+      "ci": [
+        0.2065432914738929,
+        1.0
+      ]
+    },
+    {
+      "emotion": "neutral",
+      "n_dialogs": 232,
+      "p_donate": 0.4353448275862069,
+      "lift": 0.02866644445791172,
+      "ci": [
+        0.3731110114011662,
+        0.49968496691648445
+      ]
+    }
+  ],
+  "transition_table_p_donate": {
+    "happiness->happiness": 0.41935483870967744,
+    "happiness->sadness": 0.27586206896551724,
+    "happiness->fear": 0.625,
+    "happiness->anger": 0.5,
+    "happiness->surprise": 0.37037037037037035,
+    "happiness->disgust": 0.8,
+    "happiness->contempt": null,
+    "happiness->neutral": 0.4069767441860465,
+    "sadness->happiness": 0.3333333333333333,
+    "sadness->sadness": 0.15384615384615385,
+    "sadness->fear": 0.75,
+    "sadness->anger": 1.0,
+    "sadness->surprise": 0.3333333333333333,
+    "sadness->disgust": 0.3333333333333333,
+    "sadness->contempt": null,
+    "sadness->neutral": 0.32142857142857145,
+    "fear->happiness": 0.2857142857142857,
+    "fear->sadness": 0.4,
+    "fear->fear": 1.0,
+    "fear->anger": 0.0,
+    "fear->surprise": 0.42857142857142855,
+    "fear->disgust": 1.0,
+    "fear->contempt": null,
+    "fear->neutral": 0.6923076923076923,
+    "anger->happiness": 0.0,
+    "anger->sadness": 0.5,
+    "anger->fear": null,
+    "anger->anger": 0.5,
+    "anger->surprise": 0.8333333333333334,
+    "anger->disgust": 1.0,
+    "anger->contempt": null,
+    "anger->neutral": 0.5416666666666666,
+    "surprise->happiness": 0.4117647058823529,
+    "surprise->sadness": 0.5555555555555556,
+    "surprise->fear": 0.2,
+    "surprise->anger": 0.7777777777777778,
+    "surprise->surprise": 0.45454545454545453,
+    "surprise->disgust": 0.125,
+    "surprise->contempt": null,
+    "surprise->neutral": 0.3815028901734104,
+    "disgust->happiness": 0.6666666666666666,
+    "disgust->sadness": 0.3076923076923077,
+    "disgust->fear": 1.0,
+    "disgust->anger": 0.0,
+    "disgust->surprise": 0.8,
+    "disgust->disgust": 0.6666666666666666,
+    "disgust->contempt": null,
+    "disgust->neutral": 0.41379310344827586,
+    "contempt->happiness": null,
+    "contempt->sadness": null,
+    "contempt->fear": null,
+    "contempt->anger": null,
+    "contempt->surprise": null,
+    "contempt->disgust": null,
+    "contempt->contempt": null,
+    "contempt->neutral": null,
+    "neutral->happiness": 0.3794466403162055,
+    "neutral->sadness": 0.3287671232876712,
+    "neutral->fear": 0.5806451612903226,
+    "neutral->anger": 0.42105263157894735,
+    "neutral->surprise": 0.3950617283950617,
+    "neutral->disgust": 0.3611111111111111,
+    "neutral->contempt": null,
+    "neutral->neutral": 0.38737758433079433
+  },
+  "transition_table_n": {
+    "happiness->happiness": 93,
+    "happiness->sadness": 29,
+    "happiness->fear": 8,
+    "happiness->anger": 8,
+    "happiness->surprise": 54,
+    "happiness->disgust": 10,
+    "happiness->contempt": 0,
+    "happiness->neutral": 258,
+    "sadness->happiness": 21,
+    "sadness->sadness": 13,
+    "sadness->fear": 4,
+    "sadness->anger": 2,
+    "sadness->surprise": 15,
+    "sadness->disgust": 3,
+    "sadness->contempt": 0,
+    "sadness->neutral": 84,
+    "fear->happiness": 7,
+    "fear->sadness": 5,
+    "fear->fear": 2,
+    "fear->anger": 1,
+    "fear->surprise": 7,
+    "fear->disgust": 1,
+    "fear->contempt": 0,
+    "fear->neutral": 26,
+    "anger->happiness": 10,
+    "anger->sadness": 2,
+    "anger->fear": 0,
+    "anger->anger": 2,
+    "anger->surprise": 6,
+    "anger->disgust": 2,
+    "anger->contempt": 0,
+    "anger->neutral": 24,
+    "surprise->happiness": 51,
+    "surprise->sadness": 18,
+    "surprise->fear": 5,
+    "surprise->anger": 9,
+    "surprise->surprise": 44,
+    "surprise->disgust": 8,
+    "surprise->contempt": 0,
+    "surprise->neutral": 173,
+    "disgust->happiness": 6,
+    "disgust->sadness": 13,
+    "disgust->fear": 2,
+    "disgust->anger": 1,
+    "disgust->surprise": 5,
+    "disgust->disgust": 3,
+    "disgust->contempt": 0,
+    "disgust->neutral": 29,
+    "contempt->happiness": 0,
+    "contempt->sadness": 0,
+    "contempt->fear": 0,
+    "contempt->anger": 0,
+    "contempt->surprise": 0,
+    "contempt->disgust": 0,
+    "contempt->contempt": 0,
+    "contempt->neutral": 0,
+    "neutral->happiness": 253,
+    "neutral->sadness": 73,
+    "neutral->fear": 31,
+    "neutral->anger": 19,
+    "neutral->surprise": 162,
+    "neutral->disgust": 36,
+    "neutral->contempt": 0,
+    "neutral->neutral": 919
+  },
+  "hypothesis_tests": {
+    "happy -> negative": {
+      "n": 55,
+      "p_donate": 0.45454545454545453
+    },
+    "happy -> happy": {
+      "n": 93,
+      "p_donate": 0.41935483870967744
+    },
+    "neutral -> negative": {
+      "n": 159,
+      "p_donate": 0.39622641509433965
+    },
+    "neutral -> happy": {
+      "n": 253,
+      "p_donate": 0.3794466403162055
+    },
+    "negative -> happy": {
+      "n": 44,
+      "p_donate": 0.29545454545454547
+    },
+    "negative -> negative": {
+      "n": 56,
+      "p_donate": 0.44642857142857145
+    }
+  }
+}

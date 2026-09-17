@@ -1,0 +1,303 @@
+diff --git a/src/mcts/__pycache__/emotion_mcts.cpython-312.pyc b/src/mcts/__pycache__/emotion_mcts.cpython-312.pyc
+index ae811d8..5167220 100644
+Binary files a/src/mcts/__pycache__/emotion_mcts.cpython-312.pyc and b/src/mcts/__pycache__/emotion_mcts.cpython-312.pyc differ
+diff --git a/src/mcts/emotion_mcts.py b/src/mcts/emotion_mcts.py
+index 342d6c4..959e1ef 100644
+--- a/src/mcts/emotion_mcts.py
++++ b/src/mcts/emotion_mcts.py
+@@ -1,3 +1,4 @@
++import hashlib
+ import logging
+ import random
+ from collections import defaultdict
+@@ -210,6 +211,27 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
+ 		return curr_best_realization
+ 
+ 
++# ---------------------------------------------------------------------------
++# sim_steps helpers (P-VAR instrumentation). Pure functions of their argument; no RNG.
++# ---------------------------------------------------------------------------
++def _node_das(node_key: str) -> list:
++	"""System-act prefix of an open-loop tree key. "" is the empty prefix, not [""]."""
++	return node_key.split("__") if node_key else []
++
++
++def _dist_to_json(dist) -> dict:
++	"""{emotion name: probability} over the FULL softmax, or {} when none is attached."""
++	return {str(e): float(p) for e, p in dist.items()} if dist else {}
++
++
++def _realization_id(state) -> str:
++	"""Content id of a realization: first 12 hex chars of sha1 over its (role, act, utterance)
++	history. Two realizations share an id iff their dialogues are textually identical, which is
++	exactly when _add_new_realizations treats them as the same pool entry."""
++	text = "\x1e".join(f"{rec.role}\x1f{rec.da}\x1f{rec.utt}" for rec in state.history)
++	return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
++
++
+ # ---------------------------------------------------------------------------
+ # Welford accumulators for the emotion channel
+ #
+@@ -401,6 +423,16 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
+ 		# ships as per_step_valences, for the W3 n-step and variance analyses. Write-only --
+ 		# nothing in selection or backup reads it.
+ 		self.emo_valences: dict = {}
++		# Per-simulation-step tape for the P-VAR analysis (analysis/phase1): one dict per
++		# selection+backup, carrying the SAMPLED parent realization's nu and the full sibling
++		# statistics at the moment of choice -- neither can be reconstructed from the per-edge
++		# aggregates afterwards. Write-only: nothing in selection or backup reads it, and
++		# filling it takes no random draws. runners/_common.build_simlog_step_records ships it.
++		self.sim_steps: list = []
++		# The tree key of the first search() call, i.e. the search root, and the index of the
++		# simulation currently descending from it (incremented on every root entry).
++		self._sim_root_key = None
++		self._sim_index = -1
+ 
+ 	def _emotion_quality(self, dist) -> float:
+ 		"""E[valence] under a predicted emotion distribution. Bounded in [-1, +1];
+@@ -493,6 +525,11 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
+ 
+ 	def search(self, state):
+ 		hashable_state = self._to_string_rep(state)
++		# simulation bookkeeping for sim_steps: the first call ever made is the search root
++		if self._sim_root_key is None:
++			self._sim_root_key = hashable_state
++		if hashable_state == self._sim_root_key:
++			self._sim_index += 1
+ 
+ 		terminated_v = self.game.get_dialog_ended(state)
+ 		if terminated_v == 1.0:
+@@ -507,14 +544,54 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
+ 
+ 		# PUCT selection — _calculate_uct already folds in beta_emo * Q_emo.
+ 		best_uct, best_action = -float("inf"), -1
++		siblings = []  # sim_steps only: every valid sibling's statistics at this choice
+ 		for a in self.valid_moves[hashable_state]:
+ 			uct = self._calculate_uct(hashable_state, a)
++			siblings.append({
++				"action": self.player.dialog_acts[a],
++				"N": int(self.Nsa[hashable_state][a]),
++				"Q": float(self.Q[hashable_state][a]),
++				"Q_emo": float(self.Q_emo[hashable_state][a]),
++				"M2_emo": float(self.M2_emo[hashable_state][a]),
++				"prior": float(self.P[hashable_state][a]),
++				"uct": float(uct),
++			})
+ 			if uct > best_uct:
+ 				best_uct, best_action = uct, a
+ 
+ 		state = self._sample_realization(hashable_state)
++		prefetch_key = self._get_hash_for_next_action(hashable_state, best_action)
++		from_cache = (prefetch_key in self.realizations
++					  and len(self.realizations[prefetch_key]) == self.max_realizations)
+ 		next_state = self._get_next_state(state, best_action)
+ 
++		# sim_steps record, filled before descending so the tape reads root -> leaf; z and v
++		# are added after the backup below. `state` is the realization _sample_realization
++		# just drew at this node: its last turn's distribution is the parent nu the P-VAR
++		# bucket is defined on.
++		parent_dist = self._attached_distribution(state)
++		child_dist = self._attached_distribution(next_state)
++		root_das = _node_das(self._sim_root_key)
++		node_das = _node_das(hashable_state)
++		step = {
++			"simulation_index": self._sim_index,
++			"depth": len(node_das) - len(root_das) + 1,  # edge depth: root's outgoing edges are 1
++			"action_prefix": node_das[len(root_das):],   # system acts from the search root to the parent
++			"action": self.player.dialog_acts[best_action],
++			"parent_realization_idx": next(i for i, r in enumerate(self.realizations[hashable_state]) if r is state),
++			"parent_realization_id": _realization_id(state),
++			"parent_nu": float(self._emotion_quality(parent_dist)),
++			"parent_emotion_dist": _dist_to_json(parent_dist),
++			"child_realization_id": _realization_id(next_state),
++			"child_from_cache": bool(from_cache),
++			"child_nu": float(self._emotion_quality(child_dist)),
++			"child_emotion_dist": _dist_to_json(child_dist),
++			"parent_Ns": int(self.Ns[hashable_state]),
++			"siblings": siblings,
++			"selected_action": self.player.dialog_acts[best_action],
++		}
++		self.sim_steps.append(step)
++
+ 		v = self.search(next_state)
+ 
+ 		# Donation backup (parent's formula, unchanged).
+@@ -533,6 +610,8 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
+ 		# against. The Welford step also accumulates M2_emo for sigma_emo.
+ 		emo_v = self._emotion_signal(state, next_state)
+ 		self._update_emo_channel(hashable_state, best_action, emo_v, nsa_old)
++		step["z"] = float(emo_v)
++		step["v"] = float(v)
+ 
+ 		# Increment counters AFTER both updates so they share the same old Nsa.
+ 		self.Ns[hashable_state] += 1
+diff --git a/src/runners/__pycache__/_common.cpython-312.pyc b/src/runners/__pycache__/_common.cpython-312.pyc
+index 14471db..0839597 100644
+Binary files a/src/runners/__pycache__/_common.cpython-312.pyc and b/src/runners/__pycache__/_common.cpython-312.pyc differ
+diff --git a/src/runners/__pycache__/rollout.cpython-312.pyc b/src/runners/__pycache__/rollout.cpython-312.pyc
+index 0af01f0..d9915ab 100644
+Binary files a/src/runners/__pycache__/rollout.cpython-312.pyc and b/src/runners/__pycache__/rollout.cpython-312.pyc differ
+diff --git a/src/runners/_common.py b/src/runners/_common.py
+index 8b48ee7..27a379e 100644
+--- a/src/runners/_common.py
++++ b/src/runners/_common.py
+@@ -721,6 +721,44 @@ def write_subtree_ndjson(records: list, output_path: str, dlg_id) -> str:
+ 	return path
+ 
+ 
++# Simulation-step log (P-VAR instrumentation, analysis/phase1). A second carrier NEXT TO the
++# frozen subtree log, which stays byte-for-byte as specified above. One gzipped NDJSON per
++# dialogue, <run_dir>/simlog/<dlg_id>.ndjson.gz, two record types:
++#
++#   record_type "step" -- one per selection+backup inside one turn's search:
++#     dlg_id, turn_index, simulation_index, depth (edge depth: root's outgoing edges are 1),
++#     action_prefix (acts from the search root to the parent), action,
++#     parent_realization_idx / parent_realization_id, parent_nu, parent_emotion_dist,
++#     child_realization_id, child_from_cache, child_nu, child_emotion_dist, z, v,
++#     parent_Ns, siblings [{action, N, Q, Q_emo, M2_emo, prior, uct}] at the moment of choice,
++#     selected_action
++#   record_type "turn" -- one per realized dialogue turn (written by the runner):
++#     dlg_id, turn_index, planned, root_nu, root_emotion_dist, system_act, system_utterance,
++#     user_act, user_utterance, user_emotion_dist, user_nu, outcome, root_visits
++SIMLOG_DIRNAME = "simlog"
++
++
++def build_simlog_step_records(planner, *, dlg_id, turn: int) -> list:
++	"""``planner.sim_steps`` with the dialogue coordinates attached. [] for planners that keep
++	no tape (the GDP-Zero baselines, which have no emotion channel)."""
++	steps = getattr(planner, "sim_steps", None) or []
++	return [{"record_type": "step", "dlg_id": dlg_id, "turn_index": int(turn), **step} for step in steps]
++
++
++def write_simlog_ndjson(records: list, output_path: str, dlg_id) -> str:
++	"""Write one dialogue's simlog records to <run_dir>/simlog/<dlg_id>.ndjson.gz ("" if none)."""
++	if not records:
++		return ""
++	run_dir = os.path.dirname(os.path.abspath(output_path))
++	log_dir = os.path.join(run_dir, SIMLOG_DIRNAME)
++	os.makedirs(log_dir, exist_ok=True)
++	path = os.path.join(log_dir, f"{_safe_filename(dlg_id)}.ndjson.gz")
++	with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
++		for rec in records:
++			f.write(json.dumps(rec, default=str) + "\n")
++	return path
++
++
+ def subtree_emo_stats(dialog_planner):
+ 	"""Per-edge ``(M2_emo, sigma_emo)`` for the subtree log schema.
+ 
+diff --git a/src/runners/rollout.py b/src/runners/rollout.py
+index a65e69a..b38b8e7 100644
+--- a/src/runners/rollout.py
++++ b/src/runners/rollout.py
+@@ -41,12 +41,15 @@ from tqdm.auto import tqdm
+ 
+ from utils.utils import dotdict
+ from mcts.mcts import OpenLoopMCTS
+-from mcts.emotion_mcts import EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
++from mcts.emotion_mcts import (
++	EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, EMOTION_VALENCE_TABLES, check_emo_signal_flags,
++)
+ from utils import role_profiler
+ from runners._common import (
+ 	make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+ 	load_p4g_personas, apply_seed, dump_emotion_records, add_common_args, finalize_args,
+ 	setup_output_dir, build_subtree_records, write_subtree_ndjson,
++	build_simlog_step_records, write_simlog_ndjson,
+ )
+ 
+ logger = logging.getLogger(__name__)
+@@ -123,12 +126,15 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
+ 				dlg_id=None, seed=None):
+ 	"""Play one full episode with ``algo`` choosing each system action.
+ 
+-	Returns ``(final_session, subtree_records)``. ``subtree_records`` is the frozen
++	Returns ``(final_session, subtree_records, simlog_records)``. ``subtree_records`` is the frozen
+ 	NDJSON subtree schema (task 1.5): one record per edge of the tree, for every planned
+ 	turn of this episode. The caller gzips it to one file per dialogue. Empty for
+-	``--algo llm_raw``, which builds no tree and therefore has no edges.
++	``--algo llm_raw``, which builds no tree and therefore has no edges. ``simlog_records`` is
++	the P-VAR simulation-step log (see SIMLOG_DIRNAME in runners/_common.py): the emomcts
++	planner's per-step tape for every planned turn plus one "turn" record per realized turn.
+ 	"""
+ 	subtree_records = []
++	simlog_records = []
+ 	state = game.init_dialog(*scenario)
+ 	# turn 0: the only valid move at the start is the greeting -> realize it directly
+ 	valid0 = np.asarray(planner.get_valid_moves(state), dtype=float)
+@@ -136,6 +142,8 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
+ 	# EmotionAwarePersuasionGame.get_next_state returns (state, emotion); base returns state.
+ 	# Normalize to the state so both shapes work.
+ 	state = game.state_of(game.get_next_state(state, greeting_idx))
++	simlog_records.append(_simlog_turn_record(game, None, state, dlg_id=dlg_id, turn=0, planned=False,
++											  valence_table=configs.emo_valence_table))
+ 	# this turn's system-utterance / user-simulator / emotion-classifier calls are already in the
+ 	# profiler's numerator, so it has to be in the denominator too -- otherwise every calls/turn
+ 	# figure is inflated by (turns+1)/turns (33% on a 4-turn episode).
+@@ -147,9 +155,48 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
+ 		if dp is not None:
+ 			subtree_records += build_subtree_records(
+ 				dp, dlg_id=dlg_id, turn=len(state), root_state=state, seed=seed)
++			simlog_records += build_simlog_step_records(dp, dlg_id=dlg_id, turn=len(state))
++		root_state, turn = state, len(state)
+ 		state = game.state_of(game.get_next_state(state, action))
++		simlog_records.append(_simlog_turn_record(game, root_state, state, dlg_id=dlg_id, turn=turn, planned=True,
++												  valence_table=configs.emo_valence_table, planner_used=dp))
+ 		role_profiler.mark_turn()  # denominator for the per-role calls/turn (--profile_roles)
+-	return state, subtree_records
++	return state, subtree_records, simlog_records
++
++
++def _simlog_turn_record(game, root_state, new_state, *, dlg_id, turn, planned, valence_table, planner_used=None):
++	"""The simlog "turn" record: the observed search-root affect, the act that was realized,
++	and the user's real reaction to it. Reads states only -- no model calls, no random draws.
++
++	``root_state`` is the observed dialogue the turn's tree was rooted at (None for the
++	unplanned greeting); ``new_state`` is that dialogue after the realized system turn and the
++	simulated user reply."""
++	weights = EMOTION_VALENCE_TABLES[valence_table or "soft"]
++	nu = lambda dist: float(sum(p * weights.get(e, 0.0) for e, p in dist.items())) if dist else 0.0
++	dist_json = lambda dist: {str(e): float(p) for e, p in dist.items()} if dist else {}
++	root_dist = root_state.predicted_distribution() if root_state is not None and root_state.history else None
++	sys_rec, usr_rec = new_state.history[-2], new_state.history[-1]
++	usr_dist = new_state.predicted_distribution()
++	root_visits = {}
++	if planner_used is not None and root_state is not None:
++		root_key = planner_used._to_string_rep(root_state)
++		root_visits = {planner_used.player.dialog_acts[a]: int(n) for a, n in planner_used.Nsa.get(root_key, {}).items()}
++	return {
++		"record_type": "turn",
++		"dlg_id": dlg_id,
++		"turn_index": int(turn),
++		"planned": bool(planned),
++		"root_nu": nu(root_dist),
++		"root_emotion_dist": dist_json(root_dist),
++		"system_act": sys_rec[1],
++		"system_utterance": sys_rec[-1],
++		"user_act": usr_rec[1],
++		"user_utterance": usr_rec[-1],
++		"user_emotion_dist": dist_json(usr_dist),
++		"user_nu": nu(usr_dist),
++		"outcome": float(game.get_dialog_ended(new_state)),
++		"root_visits": root_visits,
++	}
+ 
+ 
+ def make_episode(task, did, game, state, *, algo=None, subtree_log_path=None):
+@@ -277,12 +324,15 @@ def main(cmd_args):
+ 		game, _system, _user, planner = build_agents(
+ 			cmd_args.game, backbone_model, family, persona=persona, **agent_kwargs)
+ 		try:
+-			state, subtree_records = rollout_one(game, planner, cmd_args.algo, configs,
++			state, subtree_records, simlog_records = rollout_one(game, planner, cmd_args.algo, configs,
+ 								 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
+ 								 dlg_id=did, seed=cmd_args.seed)
+ 			# one gzipped NDJSON per dialogue, written once the episode is done so
+ 			# concurrent workers never share a file.
+ 			subtree_log_path = write_subtree_ndjson(subtree_records, cmd_args.output, did)
++			# the P-VAR simulation-step log sits next to it (<run_dir>/simlog/<did>.ndjson.gz);
++			# its path is derivable from the run dir, so the episode record is left unchanged.
++			write_simlog_ndjson(simlog_records, cmd_args.output, did)
+ 			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo,
+ 								   subtree_log_path=subtree_log_path)
+ 			episode["persona"] = persona

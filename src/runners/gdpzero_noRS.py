@@ -24,9 +24,9 @@ from tqdm.auto import tqdm
 
 from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
-from mcts.mcts import OpenLoopMCTS
+from mcts.mcts import OpenLoopMCTS, SEARCH_HORIZONS
 from runners._common import (
-	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs, replay_root_is_terminal,
 	apply_seed, add_common_args, finalize_args, setup_output_dir, subtree_emo_stats,
 	build_subtree_records, write_subtree_ndjson,
 )
@@ -62,6 +62,7 @@ def main(cmd_args):
 		"num_MCTS_sims": cmd_args.num_mcts_sims,
 		"max_realizations": cmd_args.max_realizations,
 		"Q_0": cmd_args.Q_0,
+		"search_horizon": cmd_args.search_horizon,
 	})
 	setup_output_dir(cmd_args, runner_name="runners/gdpzero_noRS.py",
 					 mcts_class="OpenLoopMCTS (no realization sampling)", mcts_args=args)
@@ -87,8 +88,11 @@ def main(cmd_args):
 		did = dialog["id"]
 		# Agents are per dialog, so each worker thread owns its own; building them is pure
 		# object construction (no I/O).
+		# max_conv_turns is the game's horizon, same as rollout.py's. Omitting it inherited the
+		# game default of 15 and gave this runner a different environment from the grid's 10.
 		game, system, user, planner = build_agents(
-			cmd_args.game, backbone_model, family, emotion_classifier=emotion_classifier)
+			cmd_args.game, backbone_model, family, emotion_classifier=emotion_classifier,
+			max_conv_turns=cmd_args.max_turns)
 		turns = dialog["turns"]
 		print("evaluating dialog id: ", did)
 		context = ""
@@ -105,6 +109,12 @@ def main(cmd_args):
 
 			state.add_single(game.SYS, sys_da, sys_utt)
 			state.add_single(game.USR, usr_da, usr_utt)
+
+			# Nothing to plan once the episode is over by the game's own rule: under
+			# --search_horizon episode search would return -1.0 without expanding this root and
+			# get_action_prob would hand back NaN. No-op under legacy. See replay_root_is_terminal.
+			if replay_root_is_terminal(game, state, cmd_args.search_horizon):
+				break
 
 			# update context for evaluation
 			context = f"""
@@ -200,6 +210,8 @@ if __name__ == "__main__":
 	add_common_args(parser, default_output="outputs/gdpzero_noRS.pkl")
 	parser.add_argument('--num_mcts_sims', type=int, default=20, help='number of mcts simulations')
 	parser.add_argument('--max_realizations', type=int, default=3, help='number of realizations per mcts state')
+	parser.add_argument('--search_horizon', '--search-horizon', choices=list(SEARCH_HORIZONS), default='legacy',
+						help='which get_dialog_ended values end a simulated branch. "legacy" (DEFAULT, unchanged, GDP-Zero): only success is terminal, so search keeps expanding past the turn limit and after a verbatim stall -- states no real episode reaches. "episode": any non-zero get_dialog_ended is terminal and its value (+1 donate / -1 turn limit or stall) is backed up, so search stops where the episode loop stops. See analysis/phase1/SEARCH_HORIZON_BUG.md.')
 	parser.add_argument('--Q_0', type=float, default=0.0, help='initial Q value for unitialized states. to control exploration')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
 	cmd_args = finalize_args(parser.parse_args())

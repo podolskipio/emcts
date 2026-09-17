@@ -1,0 +1,118 @@
+{
+ "regex": {
+  "hedge_governs": "\\b(consider(?:ing)?|think(?:ing)? about|maybe|perhaps|possibly|might)\\b(?:\\s+[\\w']+){0,3}?\\s+(?:donat\\w*|giv(?:e|ing)|contribut\\w*)",
+  "deferral": "\\b(look into it|see how I can|check my finances|see what I can afford|be in touch|get back to you|think about it|another time|not (?:right )?now)\\b",
+  "firm": "\\bI(?:'ll| will| would like to|'d like to| want to| have decided to|'ve decided to| am going to|'m going to| am ready to|'m ready to| am also ready to)\\s+(?:(?:definitely|now|also|happily|gladly|go ahead and|really)\\s+)*(?:(?:donat\\w*|giv(?:e|ing)|contribut\\w*)|make a (?:small |one-time )?donation)",
+  "amount": "\\$\\s?(\\d+(?:\\.\\d+)?)|\\b(\\d+(?:\\.\\d+)?)\\s*(dollars?|bucks|cents?)\\b|\\b(one|two|three|four|five|ten|twenty|fifty|hundred|a|half a)\\s+(dollars?|bucks|cents?)\\b"
+ },
+ "runs": {
+  "sat_noemo": {
+   "n": 100,
+   "lenient": {
+    "SR": 0.78,
+    "k": 78,
+    "wilson95": [
+     0.6892946528499969,
+     0.849988254963442
+    ]
+   },
+   "committed": {
+    "SR": 0.75,
+    "k": 75,
+    "wilson95": [
+     0.6569535362992417,
+     0.8245490599627573
+    ]
+   },
+   "amount": {
+    "SR": 0.49,
+    "k": 49,
+    "wilson95": [
+     0.3942183009238615,
+     0.5865215952256586
+    ]
+   },
+   "amount_le_2": {
+    "SR": 0.03,
+    "k": 3,
+    "wilson95": [
+     0.010254338223414816,
+     0.08452078080402699
+    ]
+   },
+   "amounts_named_among_lenient_successes": {
+    "n": 49,
+    "median": 20.0,
+    "share_le_2": 0.061224489795918366,
+    "values": [
+     1.0,
+     2.0,
+     2.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     5.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0,
+     20.0,
+     20.0,
+     20.0,
+     20.0,
+     20.0,
+     20.0,
+     25.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     50.0,
+     100.0,
+     100.0
+    ]
+   },
+   "lenient_but_hedged": [
+    {
+     "did": "20180828-194341_225_live",
+     "match": "look into it",
+     "text": "That's great, I will definitely look into it and see how I can donate. Thank you for bringing this to my attention!"
+    },
+    {
+     "did": "20180903-142445_603_live",
+     "match": "consider making a donation",
+     "text": "Yes, I will consider making a donation. Let's make a difference together."
+    },
+    {
+     "did": "20180903-095231_898_live",
+     "match": "check my finances",
+     "text": "I am definitely interested in donating to this cause. Let me check my finances and see what I can afford to donate."
+    }
+   ]
+  }
+ }
+}

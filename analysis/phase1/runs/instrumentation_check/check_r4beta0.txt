@@ -1,0 +1,7 @@
+subtree logs identical pre/post: True (2 files)
+emotion classifier records identical: True (1351)
+20180828-175059_983_live.ndjson.gz: no planned turn (turn records=1), no subtree file: True
+20180828-185546_199_live.ndjson.gz: steps=3654 edges=250  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+20180828-220746_854_live.ndjson.gz: steps=2173 edges=165  z-tape==per_step_valences:True  parent traceable:True  z==child_nu:True
+total steps=5827 edges=415
+RESULT: PASS

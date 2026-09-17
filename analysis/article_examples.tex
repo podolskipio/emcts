@@ -1,0 +1,166 @@
+% =====================================================================
+% Appendix: EmoMCTS qualitative examples and prompts
+% Drop-in LaTeX. Requires the preamble block below (once, in your main file).
+% =====================================================================
+
+% ---------- PREAMBLE (add once to your main document) ----------------
+% \usepackage[most]{tcolorbox}
+% \usepackage{listings}
+% \usepackage{xcolor}
+%
+% % Box for self-play dialogues
+% \newtcolorbox{dialoguebox}[1][]{
+%   colback=gray!4, colframe=gray!55, boxrule=0.4pt, arc=2pt,
+%   left=6pt, right=6pt, top=4pt, bottom=4pt, breakable, #1}
+% \newcommand{\sys}[1]{\textbf{System} \emph{[#1]}:\ }
+% \newcommand{\usr}[1]{\textbf{User} \emph{(#1)}:\ }
+% \newcommand{\pivot}{$\rightarrow$\ }   % marks an emotion-driven pivot turn
+%
+% % Box for prompt templates (verbatim)
+% \definecolor{promptbg}{gray}{0.96}
+% \lstdefinestyle{prompt}{
+%   basicstyle=\ttfamily\scriptsize, breaklines=true, columns=fullflexible,
+%   backgroundcolor=\color{promptbg}, frame=single, rulecolor=\color{gray!55},
+%   xleftmargin=4pt, xrightmargin=4pt, aboveskip=4pt, belowskip=4pt,
+%   commentstyle=\color{gray!70}\itshape, morecomment=[l]{\#}}
+% ---------------------------------------------------------------------
+
+
+% =====================================================================
+\section{Qualitative examples}\label{app:examples}
+
+Three self-play dialogues produced by EmoMCTS ($\beta{=}0.7$, top-$K{=}5$, Vicuna-13B). Each
+system turn is annotated with the selected dialogue act; each user turn with the classifier
+emotion that the parallel channel $Q_{\text{emo}}$ backs up. Turns marked $\rightarrow$ are
+emotion-driven pivots, where a negative user emotion prompts a trust-building action that flips
+the user back to a positive state. A few system turns are rendered as a short paraphrase of the
+chosen act (an open-loop realization artifact), shown faithfully.
+
+\begin{dialoguebox}[title=Example 1: fear about transparency, met with a credibility appeal
+(success, 5 turns)]
+\small
+\sys{greeting} Hello. How are you today?\\[2pt]
+\sys{logical appeal} (asks whether the Persuadee has heard of Save the Children)\\
+\usr{neutral} I have heard of it, but I'm not familiar with all of the details. Can you tell me more about it?\\[2pt]
+\sys{proposition of donation} Save the Children is an organization that helps children in developing countries and war-torn areas. They provide education, healthcare, and protection from harm\ldots\\
+\usr{fear} I would like to help, but I am concerned about the transparency and accountability of the organization. I want to make sure my donation will be used effectively.\\[2pt]
+\pivot\sys{credibility appeal} I understand your concerns, but I can assure you that Save the Children is a highly reputable organization. They have been around for over 100 years\ldots a strong focus on transparency and accountability, and regularly publish reports on their progress and impact.\\
+\usr{happiness} I appreciate the information and the reassurance. I am definitely interested in making a donation to this cause.\\[2pt]
+\sys{proposition of donation} (invites the Persuadee to make a small donation)\\
+\usr{donate} Yes, I would like to donate \$5 to Save the Children.
+\end{dialoguebox}
+
+\noindent\textit{The user's reaction to the proposition is classified as \textbf{fear}.
+Instead of repeating the pitch, the planner selects a \textbf{credibility appeal}---the action
+whose $Q_{\text{emo}}$ history moves anxious users toward trust---and the user flips to
+\textbf{happiness}, then donates.}
+
+\begin{dialoguebox}[title=Example 2: skepticism, empathy, a relapse, and recovery
+(success, 7 turns)]
+\small
+\sys{greeting} Hello. How are you?\\[2pt]
+\sys{emotion appeal} (asks about the Persuadee's opinion of Save the Children)\\
+\usr{happiness} I'm good, how are you doing?\\[2pt]
+\sys{credibility appeal} Very well. I'm just organizing info for my charity called Save the Children. Have you heard of it before?\\
+\usr{neutral} No, I have not. Can you tell me more?\\[2pt]
+\sys{emotion appeal} Save the Children\ldots helps kids who are in desperate need. They can help with safety, education and more.\\
+\usr{surprise} That sounds great. I believe in this charity, but still wonder how much of the money I donate actually helps. I always worry it will just go to some higher-up living the high life.\\[2pt]
+\pivot\sys{emotion appeal} Every little bit makes a difference. When people are so poor, it's amazing what a tiny amount can do. I usually donate in hopes I can at least feel like I did my part\ldots\\
+\usr{happiness} With that all said, I do feel like any organization that aims to help the children I am more inclined to donate to\ldots they are our future!\\[2pt]
+\sys{proposition of donation} I couldn't agree more\ldots if you would like to make a small donation, I would be more than happy to help.\\
+\usr{neutral} Hmm, I understand, but I am still not sure. I want to make sure my donation goes towards helping children, not other expenses.\\[2pt]
+\pivot\sys{reassurance} I understand your concerns. But I can assure you that Save the Children is a well-established charity\ldots a track record of transparency and accountability\ldots\\
+\usr{donate} Alright, I will make a donation of \$5 to Save the Children\ldots
+\end{dialoguebox}
+
+\noindent\textit{Two separate dips---\textbf{surprise} (skeptical) and then a \textbf{neutral}
+relapse after the proposition---each trigger a non-proposition, trust-building action before the
+planner re-attempts the close, showing the emotion channel tracking the user across turns.}
+
+\begin{dialoguebox}[title=Example 3: converting doubt with an emotion appeal (success, 6 turns)]
+\small
+\sys{greeting} Hey there! How are you today?\\[2pt]
+\sys{logical appeal} Save the Children helps children in developing countries\ldots safety, education and more.\\
+\usr{surprise} That sounds great. I believe in this charity, but still wonder how much of the money I donate actually helps. I always worry it will just go to some higher up living the high life.\\[2pt]
+\pivot\sys{emotion appeal} Every little bit makes a difference\ldots I usually donate in hopes I can at least feel like I did my part. If some corrupt person took it, that's the worst karma and even worse scandal imaginable.\\
+\usr{happiness} With that all said I do feel like any organization that aims to help the children I am more inclined to donate to\ldots they are our future!\\[2pt]
+\sys{proposition of donation} I completely agree. Children are the future\ldots even a small donation of \$1 can make a difference. Would you like to donate to Save the Children?\\
+\usr{donate} Yes, I would like to donate to Save the Children.
+\end{dialoguebox}
+
+\noindent\textit{A single \textbf{surprise}/skepticism signal is enough for the planner to
+choose an empathetic \textbf{emotion appeal} over a logical argument; the user moves to
+\textbf{happiness} and accepts on the next turn.}
+
+
+% =====================================================================
+\section{Prompt templates}\label{app:prompts}
+
+All LLM roles share one Vicuna-13B backbone. Placeholders are in \texttt{\{braces\}};
+\texttt{\{in\_context\_example\}} is a single human reference dialogue prepended as a
+demonstration (omitted for brevity).
+
+\paragraph{(a) Policy prior --- proposes the next system dialogue act.}
+\begin{lstlisting}[style=prompt]
+Save the Children is head-quartered in London, and they work to help fight poverty
+around the world. Children need help in developing countries and war zones. Small
+donations like $1 or $2 go a long way to help.
+You are Persuader who is trying to persuade the Persuadee to donate to a charity called
+Save the Children. You can choose amongst the following actions during a conversation:
+{dialogue_acts}      # [greeting] [task related inquiry] [credibility appeal]
+                     # [logical appeal] [emotion appeal] [proposition of donation] ...
+{in_context_example}
+The following is a new conversation between Persuader (you) and a Persuadee.
+{dialogue_history}
+Persuader: [
+\end{lstlisting}
+
+\paragraph{(b) Value function --- estimates the probability the user will donate.}
+\begin{lstlisting}[style=prompt]
+The following is background information about the task.
+The Persuader is trying to persuade the Persuadee to donate to Save the Children.
+The Persuadee can choose amongst the following actions to respond to the Persuader:
+{user_dialogue_acts} # [agree donation] [positive reaction] [negative reaction] ...
+{in_context_example}
+The following is a new conversation between another Persuader and Persuadee.
+{dialogue_history}
+Persuader: Would you be interested in donating to Save the Children?
+Persuadee: [
+\end{lstlisting}
+
+\paragraph{(c) User simulator --- produces the persuadee's reaction (the environment).}
+\begin{lstlisting}[style=prompt]
+You are a persuadee. A Persuader is trying to persuade you to donate to a charity called
+Save the Children. You can choose amongst the following actions to respond:
+{user_dialogue_acts}
+{in_context_example}
+The following is a new conversation between a Persuader and a Persuadee (you). You may or
+may not want to donate to Save the Children.
+{dialogue_history}
+Persuadee:
+\end{lstlisting}
+
+\paragraph{(d) System utterance (NLG) --- realizes the chosen act into text.}
+\begin{lstlisting}[style=prompt]
+Save the Children is head-quartered in London ... Small donations like $1 or $2 go a long
+way to help. You are Persuader who is trying to persuade the Persuadee to donate to Save
+the Children.
+{in_context_example}
+The following is a new conversation between Persuader (you) and another Persuadee.
+{dialogue_history}
+Persuader: [{chosen_dialogue_act}]
+\end{lstlisting}
+
+\paragraph{(e) Emotion classifier.}
+For all reported runs we use the deterministic encoder
+\texttt{j-hartmann/emotion-english-distilroberta-base} (no prompt; one forward pass returns the
+full distribution over \{anger, disgust, fear, joy$\rightarrow$happiness, neutral, sadness,
+surprise\}). A prompt-based alternative is also available:
+\begin{lstlisting}[style=prompt]
+Classify the emotion in the following utterance into exactly one of:
+[Happiness] [Sadness] [Fear] [Anger] [Surprise] [Disgust] [Contempt] [Neutral].
+(Each label is given a one-sentence definition.)
+Utterance: {user_utterance}
+Example Output: [Contempt]
+Emotion: [
+\end{lstlisting}

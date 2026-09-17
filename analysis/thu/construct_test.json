@@ -1,0 +1,509 @@
+{
+ "design": {
+  "tune_split": "mine200",
+  "test_split": "test100",
+  "decision_acts": [
+   "agree-donation",
+   "confirm-donation",
+   "disagree-donation",
+   "disagree-donation-more",
+   "provide-donation-amount"
+  ],
+  "tune_min_abs_diff": 0.005,
+  "cv": "stratified 5-fold x 20",
+  "bootstrap": 1000,
+  "seed": 20260917
+ },
+ "weights": {
+  "prior": {
+   "res_counterargument": -1.0,
+   "res_deflection": -1.0,
+   "res_source_doubt": -1.0,
+   "res_hedge": -1.0,
+   "rec_cause_question": 1.0,
+   "rec_self_disclosure": 1.0,
+   "rec_commitment": 1.0
+  },
+  "tuned": {
+   "res_counterargument": 1.0,
+   "res_deflection": 0.0,
+   "res_source_doubt": -1.0,
+   "res_hedge": 0.0,
+   "rec_cause_question": -1.0,
+   "rec_self_disclosure": -1.0,
+   "rec_commitment": 1.0
+  },
+  "tuning_gaps_mine200": {
+   "res_counterargument": 0.03545796308954202,
+   "res_deflection": 0.003274853801169591,
+   "res_source_doubt": -0.018183337130705544,
+   "res_hedge": 0.0010594668489405379,
+   "rec_cause_question": -0.057786891471101984,
+   "rec_self_disclosure": -0.007481962481962484,
+   "rec_commitment": 0.016644262170577975
+  }
+ },
+ "marker_lists": {
+  "resistance": {
+   "counterargument": [
+    "\\bbut\\b",
+    "\\bhowever\\b",
+    "\\balthough\\b",
+    "\\bthough\\b",
+    "\\bnevertheless\\b",
+    "\\bon the other hand\\b",
+    "\\bthat said\\b",
+    "\\beven so\\b"
+   ],
+   "deflection": [
+    "\\bmaybe later\\b",
+    "\\bi'?ll think about it\\b",
+    "\\bnot (?:right )?now\\b",
+    "\\bsome other time\\b",
+    "\\banother time\\b",
+    "\\bi'?ll (?:have to )?(?:consider|look into)\\b",
+    "\\bnot (?:really )?(?:interested|sure i)\\b",
+    "\\bi (?:can'?t|cannot) (?:afford|right now)\\b",
+    "\\bi'?m (?:a bit )?(?:tight|broke)\\b",
+    "\\bdon'?t have (?:the )?(?:money|funds|cash)\\b",
+    "\\bi'?ll pass\\b",
+    "\\bno thank(?:s| you)\\b"
+   ],
+   "source_doubt": [
+    "\\bhow do i know\\b",
+    "\\bare you sure\\b",
+    "\\bscam\\b",
+    "\\bfraud\\b",
+    "\\blegit(?:imate)?\\b",
+    "\\btrust(?:worthy)?\\b",
+    "\\bskeptic(?:al)?\\b",
+    "\\bsceptic(?:al)?\\b",
+    "\\bhow much (?:of it |actually )?goes\\b",
+    "\\bwhere does the money go\\b",
+    "\\boverhead\\b",
+    "\\badministrat(?:ive|ion) costs?\\b",
+    "\\bproof\\b",
+    "\\bverify\\b"
+   ],
+   "hedge": [
+    "\\bi guess\\b",
+    "\\bsort of\\b",
+    "\\bkind of\\b",
+    "\\bkinda\\b",
+    "\\bi suppose\\b",
+    "\\bprobably\\b",
+    "\\bperhaps\\b",
+    "\\bmight\\b",
+    "\\bnot sure\\b",
+    "\\bi dunno\\b",
+    "\\bi don'?t know\\b"
+   ]
+  },
+  "receptivity": {
+   "cause_question": [
+    "\\b(?:how|where|what|who|which)\\b[^?]{0,80}\\b(?:charity|children|donate|donation|fund|money|organi[sz]ation|save the children|help|support|cause)\\b[^?]{0,40}\\?",
+    "\\bhow (?:can|do) i (?:help|donate|give|contribute)\\b",
+    "\\btell me more\\b",
+    "\\bi'?d like to (?:know|hear) more\\b"
+   ],
+   "self_disclosure": [
+    "\\bi once\\b",
+    "\\bmy (?:family|mother|father|mom|dad|son|daughter|kids?|children|wife|husband|brother|sister|friend)\\b",
+    "\\bi (?:have|had) (?:a |an )?(?:child|kids?|son|daughter)\\b",
+    "\\bi work (?:with|for|at)\\b",
+    "\\bi volunteer\\b",
+    "\\bwhen i was\\b",
+    "\\bin my (?:own )?experience\\b",
+    "\\bi (?:also )?(?:donate|give|support)(?:d|s)? (?:to|regularly|monthly|every)\\b",
+    "\\bgrew up\\b",
+    "\\bi'?ve been\\b"
+   ],
+   "commitment": [
+    "\\bi will\\b",
+    "\\bi'?ll donate\\b",
+    "\\bi'?d like to\\b",
+    "\\bsign me up\\b",
+    "\\bcount me in\\b",
+    "\\bi'?m in\\b",
+    "\\bi want to (?:help|donate|give|contribute)\\b",
+    "\\bi can (?:donate|give|do)\\b",
+    "\\bput me down\\b",
+    "\\bhappy to (?:help|donate|give)\\b",
+    "\\bi'?ll give\\b",
+    "\\bsounds good\\b",
+    "\\bdefinitely\\b",
+    "\\babsolutely\\b",
+    "\\ball of it\\b",
+    "\\bthe (?:full|whole) (?:amount|two dollars|\\$2)\\b"
+   ]
+  }
+ },
+ "leakage_cut": {
+  "dialogues_with_decision_turn": 264,
+  "dialogues_total": 297,
+  "user_turns_kept": 1746,
+  "user_turns_total": 2998
+ },
+ "results": {
+  "pre_decision": {
+   "label": "test100 / pre_decision",
+   "n_dialogues": 95,
+   "donation_rate": 0.43157894736842106,
+   "models": {
+    "M0": {
+     "k": 2,
+     "mcfadden": 0.12868356820723703,
+     "brier_oof": 0.21034107180548892,
+     "auc_oof": 0.7064137308039747,
+     "mcfadden_ci": [
+      0.04002626861921282,
+      0.2647022067290766
+     ],
+     "brier_oof_ci": [
+      0.17470819082289993,
+      0.25074142042242914
+     ],
+     "auc_oof_ci": [
+      0.5955209324787003,
+      0.8060527798400388
+     ]
+    },
+    "M1_emotion": {
+     "k": 4,
+     "mcfadden": 0.17477046563430343,
+     "brier_oof": 0.20147290912522348,
+     "auc_oof": 0.7497741644083108,
+     "mcfadden_ci": [
+      0.07992565412711951,
+      0.36638485845937985
+     ],
+     "brier_oof_ci": [
+      0.1614119853710753,
+      0.24289534320439446
+     ],
+     "auc_oof_ci": [
+      0.6457404761904761,
+      0.8486938299615554
+     ]
+    },
+    "M2_resistance_prior": {
+     "k": 4,
+     "mcfadden": 0.1441768295223511,
+     "brier_oof": 0.21983999213188615,
+     "auc_oof": 0.7018970189701897,
+     "mcfadden_ci": [
+      0.07020838204198536,
+      0.3126505221429318
+     ],
+     "brier_oof_ci": [
+      0.18003516281817886,
+      0.26023430854702945
+     ],
+     "auc_oof_ci": [
+      0.5994947614442295,
+      0.8030854487401257
+     ]
+    },
+    "M2_resistance_tuned": {
+     "k": 4,
+     "mcfadden": 0.15470216929360747,
+     "brier_oof": 0.2102470245175882,
+     "auc_oof": 0.7195121951219512,
+     "mcfadden_ci": [
+      0.072055715161711,
+      0.32283863593575857
+     ],
+     "brier_oof_ci": [
+      0.1707829571204393,
+      0.2507683318848076
+     ],
+     "auc_oof_ci": [
+      0.6156649989589736,
+      0.821818853427896
+     ]
+    },
+    "M3_both_prior": {
+     "k": 6,
+     "mcfadden": 0.1873842709442951,
+     "brier_oof": 0.20899304861573445,
+     "auc_oof": 0.7398373983739838,
+     "mcfadden_ci": [
+      0.10695422815892192,
+      0.41099676634704224
+     ],
+     "brier_oof_ci": [
+      0.1644140985016839,
+      0.25470782208111875
+     ],
+     "auc_oof_ci": [
+      0.6412561794414735,
+      0.8406698136997983
+     ]
+    },
+    "M3_both_tuned": {
+     "k": 6,
+     "mcfadden": 0.20988825921798582,
+     "brier_oof": 0.20682174131817557,
+     "auc_oof": 0.7402890695573623,
+     "mcfadden_ci": [
+      0.1279393017071222,
+      0.4265251092846067
+     ],
+     "brier_oof_ci": [
+      0.16123138345650562,
+      0.25504574653263695
+     ],
+     "auc_oof_ci": [
+      0.638617600422833,
+      0.8411990751456595
+     ]
+    }
+   },
+   "contrasts": {
+    "M2_resistance_prior_minus_M1": {
+     "mcfadden": {
+      "diff": -0.030593636111952316,
+      "ci": [
+       -0.15876957007016232,
+       0.08622955688231594
+      ],
+      "p_resistance_better": 0.29
+     },
+     "brier_oof": {
+      "diff": 0.018367083006662677,
+      "ci": [
+       -0.007410389519610595,
+       0.04663788075375926
+      ],
+      "p_resistance_better": 0.083
+     },
+     "auc_oof": {
+      "diff": -0.04787714543812105,
+      "ci": [
+       -0.1293850214251158,
+       0.02285758665069009
+      ],
+      "p_resistance_better": 0.091
+     }
+    },
+    "M2_resistance_tuned_minus_M1": {
+     "mcfadden": {
+      "diff": -0.020068296340695957,
+      "ci": [
+       -0.15537639606209808,
+       0.10506950907352766
+      ],
+      "p_resistance_better": 0.365
+     },
+     "brier_oof": {
+      "diff": 0.008774115392364723,
+      "ci": [
+       -0.02149064981991342,
+       0.04314292128814098
+      ],
+      "p_resistance_better": 0.276
+     },
+     "auc_oof": {
+      "diff": -0.030261969286359602,
+      "ci": [
+       -0.12299619797362822,
+       0.05453053588501097
+      ],
+      "p_resistance_better": 0.236
+     }
+    }
+   },
+   "dialogues_without_pre_decision_turns": 5
+  },
+  "full_dialogue_LEAKY": {
+   "label": "test100 / full_dialogue_LEAKY",
+   "n_dialogues": 100,
+   "donation_rate": 0.46,
+   "models": {
+    "M0": {
+     "k": 2,
+     "mcfadden": 0.04202212910167025,
+     "brier_oof": 0.24025128762883072,
+     "auc_oof": 0.40458937198067635,
+     "mcfadden_ci": [
+      0.003397093520533551,
+      0.126060604987242
+     ],
+     "brier_oof_ci": [
+      0.21901686659428884,
+      0.26327484639955073
+     ],
+     "auc_oof_ci": [
+      0.28731561444984155,
+      0.5267469574961842
+     ]
+    },
+    "M1_emotion": {
+     "k": 4,
+     "mcfadden": 0.10077545924778408,
+     "brier_oof": 0.2310309953210015,
+     "auc_oof": 0.6638486312399355,
+     "mcfadden_ci": [
+      0.03704334258699879,
+      0.252903041171876
+     ],
+     "brier_oof_ci": [
+      0.19726711251939646,
+      0.26831983345404864
+     ],
+     "auc_oof_ci": [
+      0.5519805783579507,
+      0.7750635364122699
+     ]
+    },
+    "M2_resistance_prior": {
+     "k": 4,
+     "mcfadden": 0.05092955545315847,
+     "brier_oof": 0.24669502950969058,
+     "auc_oof": 0.5285829307568438,
+     "mcfadden_ci": [
+      0.015351313435382463,
+      0.1670368845279802
+     ],
+     "brier_oof_ci": [
+      0.22174820529590075,
+      0.272203968458562
+     ],
+     "auc_oof_ci": [
+      0.4220412210705128,
+      0.6378276723786209
+     ]
+    },
+    "M2_resistance_tuned": {
+     "k": 4,
+     "mcfadden": 0.14236733513420496,
+     "brier_oof": 0.22311396592795563,
+     "auc_oof": 0.6956521739130435,
+     "mcfadden_ci": [
+      0.07020683303404088,
+      0.28552969960763486
+     ],
+     "brier_oof_ci": [
+      0.1864629773185666,
+      0.2601059873011238
+     ],
+     "auc_oof_ci": [
+      0.5890332815818635,
+      0.7941875
+     ]
+    },
+    "M3_both_prior": {
+     "k": 6,
+     "mcfadden": 0.10881643762073134,
+     "brier_oof": 0.2364937674030233,
+     "auc_oof": 0.642914653784219,
+     "mcfadden_ci": [
+      0.05576528657360273,
+      0.2747488142736527
+     ],
+     "brier_oof_ci": [
+      0.20219076636912628,
+      0.27301282007297034
+     ],
+     "auc_oof_ci": [
+      0.5319070212765957,
+      0.7536830357142856
+     ]
+    },
+    "M3_both_tuned": {
+     "k": 6,
+     "mcfadden": 0.18206841243489924,
+     "brier_oof": 0.22547794872814922,
+     "auc_oof": 0.6960547504025765,
+     "mcfadden_ci": [
+      0.11146331399707222,
+      0.36510212106213535
+     ],
+     "brier_oof_ci": [
+      0.18295423350577383,
+      0.26689370669541046
+     ],
+     "auc_oof_ci": [
+      0.5961299941248597,
+      0.7984662303860989
+     ]
+    }
+   },
+   "contrasts": {
+    "M2_resistance_prior_minus_M1": {
+     "mcfadden": {
+      "diff": -0.04984590379462561,
+      "ci": [
+       -0.1699067611478175,
+       0.02886566322716189
+      ],
+      "p_resistance_better": 0.115
+     },
+     "brier_oof": {
+      "diff": 0.015664034188689085,
+      "ci": [
+       -0.0156376257588392,
+       0.043625326072950214
+      ],
+      "p_resistance_better": 0.142
+     },
+     "auc_oof": {
+      "diff": -0.13526570048309172,
+      "ci": [
+       -0.27142626902905215,
+       0.0028341666666666593
+      ],
+      "p_resistance_better": 0.028
+     }
+    },
+    "M2_resistance_tuned_minus_M1": {
+     "mcfadden": {
+      "diff": 0.04159187588642088,
+      "ci": [
+       -0.09344332956634883,
+       0.17488294127351722
+      ],
+      "p_resistance_better": 0.73
+     },
+     "brier_oof": {
+      "diff": -0.007917029393045866,
+      "ci": [
+       -0.04768624237170852,
+       0.03190844804002792
+      ],
+      "p_resistance_better": 0.656
+     },
+     "auc_oof": {
+      "diff": 0.03180354267310792,
+      "ci": [
+       -0.11379053776683092,
+       0.16915484380558451
+      ],
+      "p_resistance_better": 0.682
+     }
+    }
+   },
+   "dialogues_without_pre_decision_turns": 0
+  }
+ },
+ "utterance_correlation": {
+  "test100": {
+   "n_utterances": 593,
+   "pearson_nu_rprior": 0.03662448498487809,
+   "spearman_nu_rprior": 0.05109355148554616,
+   "pearson_nu_rtuned": 0.01568490012352075,
+   "spearman_nu_rtuned": -0.02980087886354412,
+   "share_r_prior_nonzero": 0.2951096121416526,
+   "share_r_tuned_nonzero": 0.2782462057335582
+  },
+  "mine200": {
+   "n_utterances": 1153,
+   "pearson_nu_rprior": -0.01949967373524084,
+   "spearman_nu_rprior": 0.003225196615900692,
+   "pearson_nu_rtuned": 0.07603380812454352,
+   "spearman_nu_rtuned": 0.04850882162215633,
+   "share_r_prior_nonzero": 0.30095403295750217,
+   "share_r_tuned_nonzero": 0.2732003469210755
+  }
+ }
+}

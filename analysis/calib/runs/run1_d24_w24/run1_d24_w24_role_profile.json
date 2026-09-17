@@ -1,0 +1,62 @@
+{
+  "turns": 118,
+  "roles": {
+    "policy_prior": {
+      "calls": 1738,
+      "calls_per_turn": 14.728813559322035,
+      "mean_latency_s": 0.1183341066002203,
+      "total_seconds": 205.66467727118288,
+      "mean_tokens_in": 592.921749136939,
+      "mean_tokens_out": 0.0,
+      "total_tokens_in": 1030498,
+      "total_tokens_out": 0,
+      "samples": 6952
+    },
+    "value_estimator": {
+      "calls": 1738,
+      "calls_per_turn": 14.728813559322035,
+      "mean_latency_s": 0.10559750631227818,
+      "total_seconds": 183.5284659707395,
+      "mean_tokens_in": 565.8895281933256,
+      "mean_tokens_out": 0.0,
+      "total_tokens_in": 983516,
+      "total_tokens_out": 0,
+      "samples": 5214
+    },
+    "user_simulator": {
+      "calls": 5805,
+      "calls_per_turn": 49.19491525423729,
+      "mean_latency_s": 1.5414079386360042,
+      "total_seconds": 8947.873083782004,
+      "mean_tokens_in": 1201.9596899224807,
+      "mean_tokens_out": 60.163135228251505,
+      "total_tokens_in": 6977376,
+      "total_tokens_out": 349247,
+      "samples": 5805
+    },
+    "system_utterance": {
+      "calls": 5805,
+      "calls_per_turn": 49.19491525423729,
+      "mean_latency_s": 2.8224896578673357,
+      "total_seconds": 16384.552463919885,
+      "mean_tokens_in": 1200.8520241171404,
+      "mean_tokens_out": 112.77398794142981,
+      "total_tokens_in": 6970946,
+      "total_tokens_out": 654653,
+      "samples": 5805
+    },
+    "emotion_classifier": {
+      "calls": 5747,
+      "calls_per_turn": 48.70338983050848,
+      "mean_latency_s": 0.06627264189011996,
+      "total_seconds": 380.8688729425194,
+      "mean_tokens_in": 0.0,
+      "mean_tokens_out": 0.0,
+      "total_tokens_in": 0,
+      "total_tokens_out": 0,
+      "samples": 5747
+    }
+  },
+  "label": "sglang/emomcts",
+  "written_at": "2026-09-08T10:06:43+0200"
+}

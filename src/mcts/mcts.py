@@ -9,6 +9,15 @@ from players import DialogPlanner
 
 logger = logging.getLogger(__name__)
 
+# --search_horizon choices: which get_dialog_ended values stop a simulated branch.
+#   legacy  -- only success (+1.0; > 0 in the closed-loop MCTS) is terminal. This is GDP-Zero's rule
+#              and the default. It ignores the game's -1.0 at the turn limit and on a verbatim stall,
+#              so search keeps expanding and valuing states past --max_turns that no real episode can
+#              reach (analysis/phase1/SEARCH_HORIZON_BUG.md).
+#   episode -- any non-zero get_dialog_ended is terminal and its value is backed up: search stops
+#              exactly where rollout.py's episode loop stops, so it only visits reachable states.
+SEARCH_HORIZONS = ("legacy", "episode")
+
 
 class MCTS:
 	# Optional bookkeeping tables, declared here so EVERY planner exposes the whole
@@ -17,7 +26,7 @@ class MCTS:
 	# an instance attribute in __init__ -- these class-level dicts are read-only
 	# placeholders that stay empty on the planners that have no such channel.
 	#   realizations / realizations_Vs / realizations_Ns / cache_hits -> OpenLoopMCTS
-	#   Q_emo / M2_emo / emo_valences                                 -> EmotionAwareMultiObjectiveQ
+	#   Q_emo / M2_emo / emo_valences / root_decision                 -> EmotionAwareMultiObjectiveQ
 	realizations: dict = {}
 	realizations_Vs: dict = {}
 	realizations_Ns: dict = {}
@@ -25,6 +34,7 @@ class MCTS:
 	Q_emo: dict = {}
 	M2_emo: dict = {}
 	emo_valences: dict = {}
+	root_decision: dict = {}  # Constrain's root decision, filled by EmotionAwareMultiObjectiveQ.get_action_prob
 	# True on the open-loop variants, where a node is a dialog-act prefix with a pool of
 	# concrete realizations behind it. The subtree log records action_seq / depth only for
 	# those, so it asks this instead of sniffing for a `realizations` attribute.
@@ -34,6 +44,11 @@ class MCTS:
 		self.game = game
 		self.player = player
 		self.configs = configs
+		# configs is a dotdict whose attribute access raises on a missing key; runners that
+		# predate the flag build configs without it and keep the legacy rule.
+		self.search_horizon = configs.get("search_horizon", "legacy") if hasattr(configs, "get") else "legacy"
+		if self.search_horizon not in SEARCH_HORIZONS:
+			raise ValueError(f"search_horizon must be one of {SEARCH_HORIZONS}, got {self.search_horizon!r}")
 		# U(s,a) = Q(s,a) + c * P(s,a) * (\sqrt{ \sum_{a'} N(s,a')}) / (1+N(s,a))
 		self.Ns: dict = {}  # saves compute, total visit count at that node.
 		self.Nsa: dict = {}  # visit count for each action at that node.
@@ -50,6 +65,13 @@ class MCTS:
 		# Write-only bookkeeping: nothing in selection or backup reads it.
 		self.node_V: dict = {}
 		return
+
+	def _ends_search(self, terminated_v) -> bool:
+		"""Open-loop terminal test on a get_dialog_ended value (see SEARCH_HORIZONS).
+		Under "legacy" this is exactly the pre-flag `terminated_v == 1.0`."""
+		if self.search_horizon == "episode":
+			return terminated_v != 0.0
+		return terminated_v == 1.0
 
 	def _to_string_rep(self, state:DialogSession):
 		# for tree search, keep all dialog turns
@@ -87,7 +109,8 @@ class MCTS:
 			v = self._init_node(state)
 			is_leaf_node = True
 		# if this leaf node is terminal, return the value
-		if self.terminals[hashable_state] > 0:
+		# closed loop: legacy rule is "> 0"; --search_horizon episode stops on any non-zero value
+		if (self.terminals[hashable_state] != 0 if self.search_horizon == "episode" else self.terminals[hashable_state] > 0):
 			# terminal node
 			logger.debug("ended")
 			return self.terminals[hashable_state]
@@ -271,8 +294,8 @@ class OpenLoopMCTS(MCTS):
 		
 		# check everytime since state is stochastic, does not map to hashable_state
 		terminated_v = self.game.get_dialog_ended(state)
-		# check if it is terminal node
-		if terminated_v == 1.0:
+		# check if it is terminal node (--search_horizon decides whether failure ends the branch)
+		if self._ends_search(terminated_v):
 			logger.debug("ended")
 			return terminated_v
 		

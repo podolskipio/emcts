@@ -1,0 +1,18 @@
+{
+ "D1": {
+  "agree_10_vs_50": 0.7371428571428571,
+  "agree_20_vs_50": 0.8285714285714286,
+  "share_action0_at_10": 0.18285714285714286,
+  "share_action0_at_20": 0.1657142857142857,
+  "share_action0_at_50": 0.1657142857142857,
+  "action0": "credibility appeal"
+ },
+ "D2": {
+  "agree_10_vs_50": 0.6497175141242938,
+  "agree_20_vs_50": 0.7344632768361582,
+  "share_action0_at_10": 0.1638418079096045,
+  "share_action0_at_20": 0.15254237288135594,
+  "share_action0_at_50": 0.14689265536723164,
+  "action0": "credibility appeal"
+ }
+}

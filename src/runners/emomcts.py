@@ -30,11 +30,12 @@ from tqdm.auto import tqdm
 
 from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
+from mcts.mcts import SEARCH_HORIZONS
 from mcts.emotion_mcts import (
-	EmotionAwareMultiObjectiveQ, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
+	EmotionAwareMultiObjectiveQ, AFF_POOL_KEYS, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
 )
 from runners._common import (
-	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
+	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs, replay_root_is_terminal,
 	load_p4g_personas, apply_seed, dump_emotion_records, dump_da_emotion_records,
 	add_common_args, finalize_args, setup_output_dir, subtree_emo_stats,
 	build_subtree_records, write_subtree_ndjson,
@@ -158,6 +159,9 @@ def main(cmd_args):
 		logit_scoring=cmd_args.logit_scoring,
 		explicit_value_labels=cmd_args.explicit_value_labels,
 		emotion_classifier=emotion_classifier,
+		# the game's horizon, same as rollout.py's. Omitting it inherited the game default of
+		# 15 and gave this runner a different environment from the grid's 10.
+		max_conv_turns=cmd_args.max_turns,
 	)
 
 	ontology = cfg.game_cls.get_game_ontology()
@@ -178,6 +182,14 @@ def main(cmd_args):
 		"emo_risk_lambda": cmd_args.emo_risk_lambda,
 		"emo_signal": cmd_args.emo_signal,
 		"emo_valence_table": cmd_args.emo_valence_table,
+		"search_horizon": cmd_args.search_horizon,
+		"aff_pool": cmd_args.aff_pool,
+		"aff_pool_bias": cmd_args.aff_pool_bias,
+		"aff_pool_tau": cmd_args.aff_pool_tau,
+		"aff_pool_key": cmd_args.aff_pool_key,
+		"emo_centre": cmd_args.emo_centre,
+		"emo_constraint_tau": cmd_args.emo_constraint_tau,
+		"emo_constraint_m_warm": cmd_args.emo_constraint_m_warm,
 	})
 	# Emotion-aware planner: the parallel multi-objective Q (EmotionAwareMultiObjectiveQ),
 	# which scores actions by Q + beta_emo*Q_emo + cpuct*P*sqrt(N)/(1+Nsa). beta_emo weights
@@ -237,6 +249,12 @@ def main(cmd_args):
 			user_emotion = max(user_dist, key=user_dist.get)
 			state.add_single(game.USR, usr_da, user_emotion, usr_utt, user_dist)
 
+			# Nothing to plan once the episode is over by the game's own rule: under
+			# --search_horizon episode search would return -1.0 without expanding this root and
+			# get_action_prob would hand back NaN. No-op under legacy. See replay_root_is_terminal.
+			if replay_root_is_terminal(game, state, cmd_args.search_horizon):
+				break
+
 			print(f"dialogue {num_done}, turn {t}")
 
 			# update context for evaluation
@@ -261,6 +279,13 @@ def main(cmd_args):
 				emo_risk_lambda=cmd_args.emo_risk_lambda,
 				emo_signal=cmd_args.emo_signal,
 				emo_valence_table=cmd_args.emo_valence_table,
+				aff_pool=cmd_args.aff_pool,
+				aff_pool_bias=cmd_args.aff_pool_bias,
+				aff_pool_tau=cmd_args.aff_pool_tau,
+				aff_pool_key=cmd_args.aff_pool_key,
+				emo_centre=cmd_args.emo_centre,
+				emo_constraint_tau=cmd_args.emo_constraint_tau,
+				emo_constraint_m_warm=cmd_args.emo_constraint_m_warm,
 			)
 			for _ in tqdm(range(args.num_MCTS_sims)):
 				dialog_planner.search(state)
@@ -384,6 +409,8 @@ if __name__ == "__main__":
 	parser.add_argument(''
 						'--num_mcts_sims', type=int, default=20, help='number of mcts simulations')
 	parser.add_argument('--max_realizations', type=int, default=3, help='number of realizations per mcts state')
+	parser.add_argument('--search_horizon', '--search-horizon', choices=list(SEARCH_HORIZONS), default='legacy',
+						help='which get_dialog_ended values end a simulated branch. "legacy" (DEFAULT, unchanged, GDP-Zero): only success is terminal, so search keeps expanding past the turn limit and after a verbatim stall -- states no real episode reaches. "episode": any non-zero get_dialog_ended is terminal and its value (+1 donate / -1 turn limit or stall) is backed up, so search stops where the episode loop stops. See analysis/phase1/SEARCH_HORIZON_BUG.md.')
 	parser.add_argument('--Q_0', type=float, default=0.0, help='initial Q value for unitialized states. to control exploration')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
 	parser.add_argument('--beta_emo', type=float, default=0.0,
@@ -417,6 +444,29 @@ if __name__ == "__main__":
 							 'argmax_e Phi(e|u); retained as the ablation for that mismatch. Both are '
 							 'mined on all 300 ANNOTATED dialogs, so evaluate on non-annotated data '
 							 '(see REPLAY_DATA in scripts/run_paper_experiments.sh).')
+	# Wednesday arms (analysis/FREEZE_NOTES.md §8). All default to the shipped behaviour.
+	parser.add_argument('--terminal_on_failure', '--terminal-on-failure', dest='search_horizon',
+						action='store_const', const='episode', default=argparse.SUPPRESS,
+						help='end a simulated branch on -1.0 (turn limit / stall) as well as on +1.0. An alias '
+							 'for --search_horizon episode, the one code path that implements it; off by default.')
+	parser.add_argument('--aff_pool', '--aff-pool', action='store_true',
+						help='[emomcts] AffPool: blend Q with a per-search (bucket, act) pool of task returns, '
+							 'MC-RAVE weight N_pool/(N+N_pool+4*N*N_pool*bias^2). DEFAULT off.')
+	parser.add_argument('--aff_pool_bias', '--aff-pool-bias', type=float, default=0.1,
+						help='[emomcts --aff_pool] RAVE bias b; sweep {0.05, 0.1, 0.25} on non-eval dialogues.')
+	parser.add_argument('--aff_pool_tau', '--aff-pool-tau', type=float, default=0.35,
+						help='[emomcts --aff_pool] bucket threshold: parent nu < tau is bucket 1 (0.35 = D1 tau_med).')
+	parser.add_argument('--aff_pool_key', '--aff-pool-key', choices=list(AFF_POOL_KEYS), default='affect',
+						help='[emomcts --aff_pool] pool key: affect = (K0 bucket, act) = AffPool; act = (act) alone = ActPool.')
+	parser.add_argument('--emo_centre', '--emo-centre', action='store_true',
+						help='[emomcts] CenteredBias: beta*(Q_emo - mu) on expanded edges, mu = mean Q_emo over '
+							 'the expanded siblings; unexpanded edges unchanged. DEFAULT off.')
+	parser.add_argument('--emo_constraint_tau', '--emo-constraint-tau', type=float, default=None,
+						help='[emomcts] Constrain: select (and decide at the root) only among actions with '
+							 'Q_emo >= tau or N < m_warm. Unset (DEFAULT) = off. The spec formula has no beta '
+							 'term: run with --beta_emo 0.0 for it; beta > 0 adds beta*Q_emo inside the mask.')
+	parser.add_argument('--emo_constraint_m_warm', '--emo-constraint-m-warm', type=int, default=3,
+						help='[emomcts --emo_constraint_tau] visits before an action can be masked.')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)
 

@@ -1,0 +1,92 @@
+{
+ "generic": {
+  "bias_0.70": {
+   "flip_rate": {
+    "value": 0.1520440251572327,
+    "ci": [
+     0.13065056475567446,
+     0.17893679670912643
+    ]
+   },
+   "to_visited_over_unvisited": 0.30920372285418823,
+   "to_unexpanded": 0.047569803516028956,
+   "between_visited": 0.6432264736297828,
+   "n_points": 6360
+  },
+  "Qemo_level_visited_mean": 0.1928029025176283,
+  "Qemo_level_visited_sd": 0.2472820219103775,
+  "Qemo_delta_visited_mean": 0.022557265256920544,
+  "Qemo_delta_visited_sd": 0.1721030707824465,
+  "tau_med": 0.2632107245880981,
+  "occupancy_at_0.263": 0.49968553459119497,
+  "centre_1.03": {
+   "flip_rate": {
+    "value": 0.15235849056603773,
+    "ci": [
+     0.12635293153293092,
+     0.18648269310379728
+    ]
+   },
+   "to_visited_over_unvisited": 0.09907120743034056,
+   "to_unexpanded": 0.08978328173374613,
+   "between_visited": 0.8111455108359134,
+   "n_points": 6360
+  },
+  "momentum_1.11": {
+   "flip_rate": {
+    "value": 0.1520440251572327,
+    "ci": [
+     0.13365511880653205,
+     0.17202934096553857
+    ]
+   },
+   "to_visited_over_unvisited": 0.18407445708376421,
+   "to_unexpanded": 0.2936918304033092,
+   "between_visited": 0.5222337125129266,
+   "n_points": 6360
+  },
+  "Qemo_centred_visited_mean": -2.319141041188737e-19
+ },
+ "soft": {
+  "bias_0.70": {
+   "flip_rate": {
+    "value": 0.1190251572327044,
+    "ci": [
+     0.10353632390374796,
+     0.13285381356200268
+    ]
+   },
+   "to_visited_over_unvisited": 0.4346103038309115,
+   "to_unexpanded": 0.0,
+   "between_visited": 0.5653896961690885,
+   "n_points": 6360
+  },
+  "Qemo_level_visited_mean": 0.26731275103006086,
+  "Qemo_level_visited_sd": 0.1646566500718469,
+  "Qemo_delta_visited_mean": 0.013397036390025398,
+  "Qemo_delta_visited_sd": 0.10832228164126428,
+  "tau_med": 0.27907338164315276,
+  "occupancy_at_0.263": 0.48647798742138365
+ },
+ "predecision": {
+  "bias_0.70": {
+   "flip_rate": {
+    "value": 0.075,
+    "ci": [
+     0.061141779237974245,
+     0.08851762999371607
+    ]
+   },
+   "to_visited_over_unvisited": 0.44863731656184486,
+   "to_unexpanded": 0.023060796645702306,
+   "between_visited": 0.5283018867924528,
+   "n_points": 6360
+  },
+  "Qemo_level_visited_mean": 0.07027440375497507,
+  "Qemo_level_visited_sd": 0.09826053525386949,
+  "Qemo_delta_visited_mean": 0.0003425451096801094,
+  "Qemo_delta_visited_sd": 0.07968962928945188,
+  "tau_med": 0.07829865197301553,
+  "occupancy_at_0.263": 0.9292452830188679
+ }
+}
