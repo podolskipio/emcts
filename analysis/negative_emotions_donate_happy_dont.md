@@ -1,6 +1,17 @@
 # Do negative-emotion users donate? — testing the "happy users don't donate"
 hypothesis on P4G
 
+> ⚠ **SUPERSEDED on the headline claim (2026-09-17).** Every lift below is measured over **all**
+> persuadee turns, including the turn where the user accepts or refuses. Re-mined on turns **strictly
+> before** the decision, **no emotion's interval excludes the base rate** — under uniform, last-turn or
+> recency weighting (42 tests, 0 hits after multiplicity correction), while the same estimator still
+> finds the post-decision happiness effect. About two-thirds of `w(happiness)` came from turns at or
+> after the decision. "Fear is the one negative emotion with genuine donation lift" does not survive:
+> pre-decision fear is the thinnest cell (n_eff 86) and is not distinguishable from the base rate.
+> The frozen grid uses `--emo_valence_table generic` (textbook signs, never fitted to outcomes).
+> See `thu/remine.md` (+ addendum), `thu/construct_test.md` §3b, `PREREG.md` Entry 5.
+> The corpus description and the hypothesis framing below stand.
+
 ## TL;DR
 
 **The persuasion-theory intuition does not survive contact with the P4G data.**

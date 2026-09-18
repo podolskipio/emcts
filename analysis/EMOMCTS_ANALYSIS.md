@@ -1,5 +1,9 @@
 # EMOMCTS vs GDPZERO — Why EMOMCTS is losing (40% wins)
 
+> ⚠ **Historical debugging note.** It analyses `EmotionAwareOpenLoopMCTS` (the earlier single-channel
+> planner), not the shipped `EmotionAwareMultiObjectiveQ`, and predates the Thursday freeze. Kept for
+> the record of why the single-channel design was abandoned. Current design: `FREEZE_NOTES.md` §10.
+
 Both runners are evaluated on the same vicuna:13b backbone via `run_judge.py` (`chat_gpt_3-5`).
 The only meaningful difference is `EmotionAwareOpenLoopMCTS` (in `src/mcts/emotion_mcts.py`)
 vs `OpenLoopMCTS` (in `src/mcts/mcts.py`). The runners themselves are near-identical clones.

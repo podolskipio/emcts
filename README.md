@@ -9,10 +9,19 @@ reaction, and folds it into the PUCT selection rule through a single weight `β`
 The method is applied to **PersuasionForGood** (persuade a user to donate to *Save the
 Children*).
 
-Dialogue simulators are prompted LLMs — OpenAI, Azure OpenAI, local 🤗 Transformers, or
-local [Ollama](https://ollama.com). All reported results use an **open-source
-Vicuna-13B** backbone (via Ollama) so they are fully reproducible without a proprietary
-API.
+Dialogue simulators are prompted LLMs — OpenAI, Azure OpenAI, local 🤗 Transformers,
+[SGLang](https://github.com/sgl-project/sglang), or local [Ollama](https://ollama.com). All reported
+results use an **open-source Vicuna-13B** backbone, so they are fully reproducible without a
+proprietary API. The 2026-09 runs serve `TheBloke/vicuna-13B-v1.5-AWQ` with SGLang 0.5.9;
+Qwen2.5-7B-Instruct-AWQ is the second backbone.
+
+> **Status — frozen 2026-09-17 (`git tag thu-freeze`).** The evaluation grid is pre-registered in
+> [`PREREG.md`](PREREG.md) and every frozen value is in [`analysis/FREEZE_NOTES.md`](analysis/FREEZE_NOTES.md) §10.
+> Three findings changed the design and are worth knowing before reading anything older:
+> the mined valence table was partly fitted on **post-decision** turns, so the grid runs the
+> never-fitted `generic` table; tree search **ignored the episode horizon** and now stops at it
+> (`--search_horizon episode`); and the P4G success detector accepts **hedged non-commitments**.
+> See [`analysis/README.md`](analysis/README.md) for what is current and what is the record.
 
 **Contents:** [Method](#method) · [Layout](#repository-layout) · [Setup](#setup) ·
 [Data](#data) · [Running EmoMCTS](#running-emomcts) ·
@@ -33,11 +42,23 @@ Selection uses a PUCT rule that adds the emotion channel to the task channel:
 score(a) = Q[s][a] + β · Q_emo[s][a] + c_puct · P[s][a] · √N(s) / (1 + N(s,a))
 ```
 
-The valence weights `w(e)` per emotion are **mined from the PersuasionForGood corpus**,
-not hand-set: `w(e) ∝ P(donate | user emotion = e) − base_rate`
-(`src/emotion_mining/mine_emotion_donation_p4g.py`). The mined weights overturn naive affective
-valence — *fear* is the strongest positive predictor of donation, while *neutral*
-(apathy) is the main negative signal.
+The valence weights `w(e)` per emotion come from `--emo_valence_table`:
+
+| table | what it is | use |
+|---|---|---|
+| `soft` (default) | mined: `w(e) ∝ P(donate \| emotion = e) − base_rate`, all turns (`src/emotion_mining/mine_emotion_donation_p4g.py`) | the shipped default; **reported as a finding, not used by grid arms** |
+| `generic` | textbook valence signs, never fitted to outcomes | **what the frozen grid runs** |
+| `predecision` | the same mining recipe restricted to turns **before** the donation decision | ablation only (C4) |
+| `argmax` | the mined table under hard label assignment | comparison |
+
+**Why the mined table is not the default for the grid.** It is fitted partly on turns at or after the
+user accepts: about two-thirds of `w(happiness)` comes from them ("I'll donate" is a happy turn). Mined
+on turns strictly *before* the decision, **no emotion's confidence interval excludes the base rate** —
+under uniform, last-turn or recency weighting (42 tests, 0 hits after multiplicity correction) — while
+the same estimator still detects the post-decision effect. So on this corpus, persuadee emotion before
+the decision does not measurably predict donation, and the grid uses signs that were never fitted to
+outcomes. [`analysis/thu/remine.md`](analysis/thu/remine.md),
+[`analysis/thu/construct_test.md`](analysis/thu/construct_test.md) §3b.
 
 Two further levers, shared with the GDP-Zero baseline:
 
@@ -53,9 +74,46 @@ Two further levers, shared with the GDP-Zero baseline:
     dialogue states past `--max_turns` that no episode can reach.
   - `episode` stops a branch on any non-zero `get_dialog_ended` and backs up that value
     (+1 donate, −1 turn limit or stall), so search stops exactly where the episode loop stops.
-  - See [`analysis/phase1/SEARCH_HORIZON_BUG.md`](analysis/phase1/SEARCH_HORIZON_BUG.md).
+  - See [`analysis/phase1/SEARCH_HORIZON_BUG.md`](analysis/phase1/SEARCH_HORIZON_BUG.md) and the
+    pilot [`analysis/thu/p1_pilot.md`](analysis/thu/p1_pilot.md). **`episode` is the frozen grid default.**
+- **Success criterion** (`--p4g_success {tag,committed,amount}`, `rollout.py`): which `[donate]`-tagged
+  persuadee turn ends the episode *and the search branch*. `tag` (default, GDP-Zero's rule) accepts
+  hedged non-commitments; `committed` requires no hedge; `amount` also requires a named amount. The grid
+  runs `tag` and reports `committed` offline — a strict-but-imperfect detector inside the tree corrupts
+  backups. [`analysis/thu/success_criterion_fix.md`](analysis/thu/success_criterion_fix.md).
+- **Config integrity** (`--frozen_config <json>`): refuses to start a run whose *resolved* arguments
+  differ from a frozen template, and refuses arm flags passed where they are inert. Runner defaults are
+  not the grid config (`--num_mcts_sims` 20, `--max_realizations` 3, `--max_conv` 20, `--emotion_classifier llm`,
+  no top-K, no seed), so every grid config writes every value out explicitly.
+
+### Selection and pooling arms
+
+All default off, so the shipped planner is unchanged. Each is measured in `analysis/thu/`.
+
+| arm | flags | what it changes |
+|---|---|---|
+| **Bias** | `--beta_emo β` | the shipped emotion channel: `β · Q_emo` in PUCT |
+| **CenteredBias** | `--beta_emo β --emo_centre` | centres `Q_emo` over expanded siblings, removing the flat visited-edge bonus |
+| **Momentum** | `--beta_emo β --emo_signal delta` | backs up the **average local affective change** per edge, `(ν(child) − ν(parent))/2`, instead of the level |
+| **AffPool** | `--aff_pool --aff_pool_bias b --aff_pool_tau τ` | RAVE-style pooling of the task return, keyed `(affect bucket, act)` |
+| **ActPool** | `--aff_pool --aff_pool_key act` | the same pool keyed by act alone — the control that makes AffPool's affective claim testable |
+
+The three selection arms are compared at **matched dose** (equal rate of changing the baseline's chosen
+action), not at equal β: `β` 0.70 / 1.03 / 1.11 for Bias / CenteredBias / Momentum, all ≈15.2 %.
+[`analysis/thu/momentum.md`](analysis/thu/momentum.md) §3.
 
 ## Results
+
+> ⚠ **These are pre-freeze numbers and are not the paper's results.** They were produced under
+> `--search_horizon legacy` (search did not stop at the turn limit) with the mined `soft` valence
+> table, before the arms were dose-matched. They are kept as the record of where the project stood.
+> The frozen grid that supersedes them is specified in [`PREREG.md`](PREREG.md) and
+> [`analysis/thu/plan_4c_run_table.md`](analysis/thu/plan_4c_run_table.md); its configs are generated and
+> validated in `analysis/grid/configs/`. Two later measurements bear on the table directly:
+> under `episode`, NoEmo reaches **SR 0.78** on 100 held-out dialogues
+> ([`analysis/thu/success_criterion_fix.md`](analysis/thu/success_criterion_fix.md)), and a
+> 10-dialogue pilot in this environment can be off by more than 0.2 SR, so small-n rows should not be
+> read as effects.
 
 PersuasionForGood, **100 dialogues** per cell, Vicuna-13B backbone, `max_turns = 10`.
 SR = success rate (↑), AvgT = average turns to resolution (↓). Best SR per budget in **bold**.
@@ -76,10 +134,11 @@ At a low simulation budget (10 sims) all methods sit at the same success floor; 
 channel separates from the baselines as the budget grows, with EmoMCTS reaching the goal more
 often **and** in fewer turns at 20–50 sims. (`EmoMCTS + top-K` uses `β = 0.7`, `K = 5`.)
 
-> **Note.** All results in this table were produced with `--search_horizon legacy`, for
-> both GDP-Zero and EmoMCTS: simulated branches were not stopped at the turn limit. A pilot
-> under `--search_horizon episode` is pending; see
-> [`analysis/phase1/SEARCH_HORIZON_BUG.md`](analysis/phase1/SEARCH_HORIZON_BUG.md).
+> **Note.** All results in this table were produced with `--search_horizon legacy`, for both GDP-Zero
+> and EmoMCTS: simulated branches were not stopped at the turn limit. The pilot has since run
+> ([`analysis/thu/p1_pilot.md`](analysis/thu/p1_pilot.md)): on 10 paired dialogues `episode` succeeded on
+> 10/10 against 6/10 for `legacy`, at 42 % lower wall clock, and it is now the frozen default. The
+> legacy horizon survives as a disclosed ablation (B2), re-measured at n = 100.
 
 ## Repository layout
 
@@ -97,8 +156,10 @@ src/
                 _common.py                 task registry + dataset readers
   metrics/      dialog_metrics.py + run_metrics.py   SR / AT (/ SL)
   evaluators/   resp_ranker + {p4g,esc,cb}_evaluator + run_judge.py   pairwise LLM judge
+  emotion_mining/  mine_emotion_donation_p4g.py   mine w(e) from the corpus
+                   mining_corpus.py               corpus readers, splits, turn weighting
+                   mine_emotion_da_bonus_p4g.py · learn_emotion_transition_p4g.py
 scripts/
-  mine_emotion_donation_p4g.py   mine the emotion-valence map from the corpus
   run_sweep_experiments.sh       Grid A: 3 models x 2 persona x 3 methods factorial (SR/AT)
   gridA_report.py                Grid A analysis -> gridA/RESULTS.md (SR, AvgT, delta, McNemar)
   gridA_cache_hit.py             realization-cache hit rate (Grid A stop condition)
@@ -107,7 +168,13 @@ scripts/
   plot_emotion_conditioned_actions.py   action choice vs. user emotion figure
 data/
   p4g/  300_dialog_turn_based.pkl · p4g-valid.txt
+        rollout_evalset_nonannotated.jsonl   the 100 eval dialogues (positions 1-100 of the pool)
+  p4g_personas/  full_dialog.csv · full_info.csv   real persuadee surveys (--p4g_persona)
   esc/  esc-{train,valid,test}.txt   ·   cb/  cb-{train,valid,test}.txt
+tests/        bit-identity + arm acceptance (test_wed_arms, test_thu_arms, test_search_horizon,
+              test_emo_channel_freeze) and the stub end-to-end regression driver
+analysis/     see analysis/README.md -- what is current, what is the record
+PREREG.md     the grid's pre-registration (append-only, timestamped entries)
 ```
 
 Each task's `*Game` / `*SystemPlanner` / `*Model` triple exposes a common API
@@ -126,7 +193,12 @@ export OPENAI_API_KEY=sk-...
 export MS_OPENAI_API_KEY=... MS_OPENAI_API_BASE="https://...openai.azure.com"
 export MS_OPENAI_API_VERSION=... MS_OPENAI_API_CHAT_VERSION=...
 
-# Open-source backbone used for all reported results
+# Open-source backbone. All 2026-09 runs use SGLang serving an AWQ checkpoint:
+#   analysis/calib/serve.sh 13b     -> TheBloke/vicuna-13B-v1.5-AWQ on 127.0.0.1:30000
+#   analysis/wed/scripts/serve_supervised.sh 13b   (same, under a restart loop)
+# then pass --llm sglang --sglang_model TheBloke/vicuna-13B-v1.5-AWQ
+#
+# Ollama is still supported for a quick local run (--llm ollama --ollama_model vicuna:13b):
 ollama serve && ollama pull vicuna:13b
 ```
 
@@ -144,6 +216,7 @@ selected `--game`.
 |-------|----------------------------------------|-----------------------------------------------------------------------|
 | `p4g` | `data/p4g/300_dialog_turn_based.pkl`   | GDP-Zero pickle: `{did: {dialog:[{er,ee}], label:[{er,ee}]}}`         |
 | `p4g` | `data/p4g/p4g-valid.txt`               | JSON-lines `{id, dialog:[{speaker,text,strategy}]}` (from the converter) |
+| `p4g` | `data/p4g/rollout_evalset_nonannotated.jsonl` | the **evaluation set**: positions 1–100 of the non-annotated pool. Disjoint by construction from the annotated 300 (which the mining and corpus analyses use) and from the pilot / saturation sets; asserted in `src/emotion_mining/build_p4g_rollout_evalset.py` |
 | `esc` | `data/esc/esc-{train,valid,test}.txt`  | DPDP JSON-lines                                                        |
 | `cb`  | `data/cb/cb-{train,valid,test}.txt`    | DPDP JSON-lines                                                        |
 
@@ -176,8 +249,9 @@ python runners/gdpzero.py --game p4g \
 
 Both runners write the same per-turn pickle schema, so `run_judge.py --h2h` can compare
 them directly (see [LLM judge](#pairwise-llm-judge)). Both also accept
-`--search_horizon {legacy,episode}` (see [Method](#method)). Their game horizon is the default
-`max_conv_turns = 15`.
+`--search_horizon {legacy,episode}` (see [Method](#method)). `--max_turns` (default 10) is the episode
+horizon for **every** runner: it bounds the rollout loop and is passed to the game, so the replay
+runners no longer inherit the old `max_conv_turns = 15` default.
 
 ## Self-play metrics — SR / AT
 
@@ -257,6 +331,23 @@ summary (`--out_json` dumps the summary; `--limit N` caps records;
 `--judge ollama` runs fully offline).
 
 ## Reproducing the paper
+
+**The frozen grid.** Every run is generated from one template and validated before it starts:
+
+```bash
+# regenerate the 37 grid configs (each is parsed by the real runner argparse and checked
+# against its own --frozen_config JSON; a hand-edited config is refused, not silently run)
+python analysis/thu/scripts/gen_grid_configs.py --p4g_success tag --out analysis/grid/configs
+bash analysis/calib/serve.sh 13b &          # SGLang, vicuna-13B-AWQ
+bash analysis/grid/configs/commands.sh      # or run individual blocks; see plan_4c_run_table.md
+```
+
+Frozen values, and the evidence for each, are in [`analysis/FREEZE_NOTES.md`](analysis/FREEZE_NOTES.md) §10.
+The run order, budgets and the optional blocks are in
+[`analysis/thu/plan_4c_run_table.md`](analysis/thu/plan_4c_run_table.md).
+
+**Earlier pipeline** (pre-freeze; kept because the mined tables and the Grid A sweep are still
+referenced):
 
 ```bash
 # 1. Mine the emotion-valence map from the corpus (writes outputs/emotion_donation_analysis.json)

@@ -1,5 +1,13 @@
 # EmoMCTS contribution summary
 
+> ⚠ **Historical (status line says 2026-06-01); superseded as a results claim (2026-09-17).** The
+> headline "+14 pp" was measured under the **legacy** search horizon, the **`soft`** valence table, 40
+> sims and 50 dialogues, against a matched-config baseline. The frozen grid supersedes all of it:
+> `episode` horizon, `generic` table, dose-matched arms, n_sims 50 primary, 100 eval dialogues, and a
+> **plain GDP-Zero baseline (B1)** that runs GDP-Zero's own `OpenLoopMCTS` — the unblock this document
+> asks for. Its caveat about the matched-config baseline was right and is now addressed by design.
+> See `PREREG.md`, `FREEZE_NOTES.md` §10, `thu/plan_4c_run_table.md`, `thu/b1_diagnosis.md`.
+
 Status: 2026-06-01
 
 This document summarises the project's measured contribution and what remains

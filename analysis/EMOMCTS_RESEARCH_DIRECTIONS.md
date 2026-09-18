@@ -1,5 +1,8 @@
 # Research Directions: Boosting Persuasiveness in EmotionAwareDiscountQOpenLoopMCTS
 
+> ⚠ **Historical design space.** Which directions were built, gated or dropped is settled in
+> `FREEZE_NOTES.md` §10 and `PREREG.md` Entries 1–6 (TrajValue and TrajPrompt are dead: `thu/trajvalue_gates.md`).
+
 Working notes on where to push next on the emotion-aware planner. Grouped by pipeline
 location; starred items are the highest-expected-ROI starting points.
 

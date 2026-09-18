@@ -1,5 +1,8 @@
 # EmotionHistoryPriorMCTS — design summary
 
+> ⚠ **Historical.** Any per-emotion lift quoted here is measured over all turns, including
+> post-decision ones; see the erratum at the top of `negative_emotions_donate_happy_dont.md`.
+
 A new MCTS variant that conditions the action prior on the *whole-conversation*
 cumulative emotion distribution and softens or sharpens the prior at every node
 based on (negativity × dialog progress). Lives in three new files; no existing

@@ -1,5 +1,16 @@
 # Wednesday report (brief dated Wed Sep 16; executed Tue 2026-09-15)
 
+> ⚠ **Partly superseded by the Thursday freeze (2026-09-17).** What changed:
+> **τ** — `--aff_pool_tau 0.35` is superseded by **0.263** (median ν under the frozen `generic` table on
+> `episode` trees; 0.35 would put 93 % of steps in one bucket under `predecision`, 59 % under `soft`).
+> **Valence table** — the grid runs `generic`, not `soft` (`thu/remine.md`).
+> **Horizon** — the grid runs `episode` (`thu/p1_pilot.md`).
+> **Momentum** — `--emo_signal delta` is the per-edge *average local affective change*, not β·Δν, and the
+> selection arms are dose-matched on flip rate, not on β (`thu/momentum.md`, `thu/tau_dose.md`).
+> **AffPool's affective key** — the §7.4 finding (the key buys no homogeneity on the task return, at half
+> the evidence) is **confirmed** on episode trees; ActPool is built and is the control (`thu/actpool.md`).
+> **Constrain** — not in the grid. The measurements below stand as the legacy/`soft` record.
+
 Everything below is in `analysis/wed/`. Every statistic is in `wednesday.json`. CIs are cluster bootstrap over
 dialogues (1000 replicates, percentile) unless stated. D1, D2 and D3 are never averaged. No default was flipped and no gate applied.
 

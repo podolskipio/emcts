@@ -1,5 +1,8 @@
 # Emotion-Aware Multi-Objective MCTS (Double-Q)
 
+> ⚠ **Historical design note**, superseded by the frozen configuration (`FREEZE_NOTES.md` §10) and by
+> `thu/` for every constant it quotes (valence table, τ, β).
+
 This document describes the **Emotion-Aware Multi-Objective Q** planner
 (`EmotionAwareMultiObjectiveQ`, hereafter **EMO-DoubleQ**), a drop-in extension of the
 GDP-Zero open-loop Monte Carlo Tree Search (MCTS) dialogue planner. It maintains a

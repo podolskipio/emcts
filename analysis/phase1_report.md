@@ -1,5 +1,13 @@
 # Phase 1 report — P-VAR and P-RELABEL
 
+> ⚠ **Status update (2026-09-17).** Pilot P1 has run: `--search_horizon episode` is the recommended
+> and now frozen grid default (`thu/p1_pilot.md`, `PREREG.md` Entry 5). The gate readings below were
+> computed on **legacy** trees under the shipped `soft` valence table, and both of those changed at the
+> freeze. Under `episode`: NodeKey ω² 0.151 → 0.035, the AffPool ratio on z 0.71 → 0.98, τ_med
+> 0.40 → 0.28 (and 0.263 under the frozen `generic` table). **On the task return — the quantity AffPool
+> actually pools — the gate still passes under `episode`: 0.64 [0.53, 0.75] keyed, 0.57 unkeyed**
+> (`thu/actpool.md` §4). Treat the numbers below as the legacy-tree record.
+
 **Scope.** Two gate readings (NodeKey, AffPool) and one sensitivity result (P-RELABEL). **The gates
 are not applied here.** Each component sits beside its proposed threshold, and the decision is yours.
 
