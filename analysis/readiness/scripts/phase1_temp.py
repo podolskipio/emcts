@@ -95,6 +95,42 @@ def human_targets():
 	}
 
 
+CRITERIA = ["donation_rate", "neg_affect_rate", "length", "distinct2", "coverage"]
+
+
+def select(per_T, tgt):
+	"""The PREREG Entry 7 rule: mean rank of |value - target| over CRITERIA; ties -> coverage gap, then higher T."""
+	gaps = {T: {c: abs(v[c] - tgt[c]) for c in CRITERIA} for T, v in per_T.items()}
+	ranks = {c: pd.Series({T: gaps[T][c] for T in gaps}).rank(method="average") for c in CRITERIA}
+	mean_rank = {T: float(np.mean([ranks[c][T] for c in CRITERIA])) for T in gaps}
+	order = sorted(gaps, key=lambda T: (mean_rank[T], gaps[T]["coverage"], -T))
+	return gaps, ranks, mean_rank, order
+
+
+def stability(sim, hum, tgt, B=1000):
+	"""Not part of the rule: how often each T wins when the 30 prefixes are resampled (cluster = prefix).
+	The corpus-wide targets stay fixed; distinct-2 of the human replies is resampled with the prefixes."""
+	rng = np.random.default_rng(SEED + 3)
+	ids = np.array(sorted(sim.dialogue_id.unique()))
+	by_id = {d: g for d, g in sim.groupby("dialogue_id")}
+	wins = {float(T): 0 for T in TEMPS}
+	for _ in range(B):
+		pick = rng.choice(ids, len(ids))
+		t = dict(tgt, distinct2=distinct2([hum.loc[d, "utt"] for d in pick]))
+		per_T = {}
+		for T in TEMPS:
+			gs = [by_id[d][by_id[d]["T"] == T] for d in pick]
+			g = pd.concat(gs)
+			cov = np.mean([gp.nu.min() <= hum.loc[d, "nu"] <= gp.nu.max() for d, gp in zip(pick, gs)])
+			d2 = np.mean([distinct2([gp[gp["sample"] == i].utt.iloc[0] for gp in gs]) for i in range(N_SAMPLES)])
+			per_T[float(T)] = {"donation_rate": float((g.act == PersuasionGame.U_Donate).mean()),
+							   "neg_affect_rate": float(g.argmax_emotion.isin(NEG).mean()),
+							   "length": float(g.utt.str.split().str.len().mean()),
+							   "distinct2": float(d2), "coverage": float(cov)}
+		wins[select(per_T, t)[3][0]] += 1
+	return {T: n / B for T, n in wins.items()}
+
+
 def analyse():
 	df = pd.read_parquet(OUT_ROWS)
 	sim, hum = df[df["T"] > 0], df[df["T"] < 0].set_index("dialogue_id")
@@ -128,14 +164,11 @@ def analyse():
 			"collapse_le2_strings": float(np.mean(collapse_str)),
 			"collapse_single_act": float(np.mean(collapse_act)),
 		}
-	crit = ["donation_rate", "neg_affect_rate", "length", "distinct2", "coverage"]
-	gaps = {T: {c: abs(v[c] - tgt[c]) for c in crit} for T, v in per_T.items()}
-	ranks = {c: pd.Series({T: gaps[T][c] for T in gaps}).rank(method="average") for c in crit}
-	mean_rank = {T: float(np.mean([ranks[c][T] for c in crit])) for T in gaps}
-	order = sorted(gaps, key=lambda T: (mean_rank[T], gaps[T]["coverage"], -T))
+	gaps, ranks, mean_rank, order = select(per_T, tgt)
 	res = {"human_targets": tgt, "per_T": per_T, "gaps": gaps,
 		   "ranks": {c: {float(k): float(v) for k, v in r.items()} for c, r in ranks.items()},
 		   "mean_rank": mean_rank, "T_star": order[0], "order": order,
+		   "T_star_bootstrap_share": stability(sim, hum, tgt),
 		   "per_prefix": per_prefix, "git_head": E.git_head()}
 	json.dump(res, open(OUT_JSON, "w"), indent=1)
 	print(json.dumps({k: v for k, v in res.items() if k != "per_prefix"}, indent=1))
