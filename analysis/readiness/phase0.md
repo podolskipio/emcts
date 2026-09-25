@@ -41,7 +41,7 @@ so the edge caches exactly when all five are in; then 10,000 cache hits.
 | Path | Flag | Pool (live + ended) | Ended fraction drawn | Target |
 |---|---|---|---|---|
 | `OpenLoopMCTS._get_next_state` (gdpzero) | on | 3 + 2 | **0.4037** | 0.40 ± 0.02 ✔ |
-| `EmotionAwareMultiObjectiveQ._draw_cached_child`, uniform (emomcts) | on | 3 + 2 | 0.40 ± 0.02 ✔ | 0.40 ± 0.02 |
+| `EmotionAwareMultiObjectiveQ._draw_cached_child`, uniform (emomcts) | on | 3 + 2 | **0.4037** | 0.40 ± 0.02 ✔ |
 | frozen cache | off | 5 + 0 (edge keeps generating until 5 live) | **0.000** | — the bias |
 
 No extra generation: all 10,000 draws were cache hits (`cache_hits[edge] == [10000, 5]`).
