@@ -32,7 +32,7 @@ from utils.utils import dotdict
 from utils.gen_models import OpenAIModel
 from mcts.mcts import SEARCH_HORIZONS
 from mcts.emotion_mcts import (
-	EmotionAwareMultiObjectiveQ, AFF_POOL_KEYS, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
+	EmotionAwareMultiObjectiveQ, AFF_POOL_KEYS, CACHE_DRAWS, EMO_SIGNALS, EMO_VALENCE_TABLES, check_emo_signal_flags
 )
 from runners._common import (
 	TASKS, make_backbone_model, make_emotion_classifier, build_agents, load_dialogs, replay_root_is_terminal,
@@ -190,6 +190,11 @@ def main(cmd_args):
 		"emo_centre": cmd_args.emo_centre,
 		"emo_constraint_tau": cmd_args.emo_constraint_tau,
 		"emo_constraint_m_warm": cmd_args.emo_constraint_m_warm,
+		"cache_ended_children": cmd_args.cache_ended_children,
+		"cache_fresh_depth1": cmd_args.cache_fresh_depth1,
+		"cache_draw": cmd_args.cache_draw,
+		"cache_bucket_tau": cmd_args.cache_bucket_tau,
+		"cache_kernel_h": cmd_args.cache_kernel_h,
 	})
 	# Emotion-aware planner: the parallel multi-objective Q (EmotionAwareMultiObjectiveQ),
 	# which scores actions by Q + beta_emo*Q_emo + cpuct*P*sqrt(N)/(1+Nsa). beta_emo weights
@@ -286,6 +291,9 @@ def main(cmd_args):
 				emo_centre=cmd_args.emo_centre,
 				emo_constraint_tau=cmd_args.emo_constraint_tau,
 				emo_constraint_m_warm=cmd_args.emo_constraint_m_warm,
+				cache_draw=cmd_args.cache_draw,
+				cache_bucket_tau=cmd_args.cache_bucket_tau,
+				cache_kernel_h=cmd_args.cache_kernel_h,
 			)
 			for _ in tqdm(range(args.num_MCTS_sims)):
 				dialog_planner.search(state)
@@ -467,6 +475,25 @@ if __name__ == "__main__":
 							 'term: run with --beta_emo 0.0 for it; beta > 0 adds beta*Q_emo inside the mask.')
 	parser.add_argument('--emo_constraint_m_warm', '--emo-constraint-m-warm', type=int, default=3,
 						help='[emomcts --emo_constraint_tau] visits before an action can be masked.')
+	# Cache fixes (analysis/phase1/p_depth.md). All default to the frozen cache.
+	parser.add_argument('--cache_ended_children', '--cache-ended-children', action='store_true',
+						help='file a generated reply that ends the search under its node at generation time, so '
+							 'the cache can serve it. DEFAULT off: only a non-terminal re-entry fills the pool, so a '
+							 'reply that ends the episode is never served (analysis/phase1/p_depth.md).')
+	parser.add_argument('--cache_fresh_depth1', '--cache-fresh-depth1', action='store_true',
+						help='never serve the search root\'s outgoing edges from the cache: every depth-1 visit '
+							 'generates, and the depth-1 child keeps every reply in its pool. Deeper edges still '
+							 'cache. DEFAULT off.')
+	parser.add_argument('--cache_draw', '--cache-draw', choices=list(CACHE_DRAWS), default='uniform',
+						help='how a cache hit picks among the cached replies. "uniform" (DEFAULT, unchanged); '
+							 '"bucket": only replies generated under a parent on the current parent\'s side of '
+							 '--cache_bucket_tau (uniform on a bucket miss); "kernel": weight '
+							 'exp(-(nu_now - nu_gen)^2 / h^2); "bucket_kernel": the kernel within the bucket. '
+							 'Generates nothing extra.')
+	parser.add_argument('--cache_bucket_tau', '--cache-bucket-tau', type=float, default=None,
+						help='[--cache_draw bucket*] parent nu threshold of the bucket draw. No default: required.')
+	parser.add_argument('--cache_kernel_h', '--cache-kernel-h', type=float, default=None,
+						help='[--cache_draw *kernel] bandwidth h of the kernel draw. No default: required.')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)
 

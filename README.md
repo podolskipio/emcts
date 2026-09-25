@@ -102,6 +102,35 @@ The three selection arms are compared at **matched dose** (equal rate of changin
 action), not at equal β: `β` 0.70 / 1.03 / 1.11 for Bias / CenteredBias / Momentum, all ≈15.2 %.
 [`analysis/thu/momentum.md`](analysis/thu/momentum.md) §3.
 
+### Realization-cache fixes
+
+The open-loop tree keys a node by its system-act prefix and caches up to `--max_realizations` (R)
+user replies per node. Once a child's pool is full, every later visit **replays** a cached reply
+instead of generating. [`analysis/phase1/p_depth.md`](analysis/phase1/p_depth.md) found three problems
+with this:
+- The draw ignores which parent a reply was written for, so at depth ≥ 2 about 74 % of served replies
+  were generated under a different parent realization.
+- Depth-1 edges replay the same R replies on every visit, because the root pool holds one state.
+- Replies that end the episode never enter the pool, so the cache never serves one.
+
+The fixes below all default **off**, so the frozen grid is bit-identical (the golden fingerprints in
+`tests/test_wed_arms.py` still pass). They are not part of the frozen grid.
+
+| fix | flags | what it changes |
+|---|---|---|
+| **Ended children** | `--cache_ended_children` | a generated reply that ends the search is filed under its node when it is generated, so the cache can serve it. It sits in a separate table and is never sampled as a parent, so nothing is searched past the end of an episode. This fixes a bug: without the flag, only a non-terminal re-entry adds to the pool |
+| **Fresh depth 1** | `--cache_fresh_depth1` | the root's outgoing edges always generate, and their child pools keep every reply (uncapped). Deeper edges still cache |
+| **Bucket draw** | `--cache_draw bucket --cache_bucket_tau τ` | a cache hit draws only among replies whose generating parent's ν was on the same side of τ as the current parent's. If that side has no replies (a bucket miss), it draws uniformly |
+| **Kernel draw** | `--cache_draw kernel --cache_kernel_h h` | a cache hit weights reply *j* by `exp(−(ν_now − ν_gen,j)² / h²)` |
+| **Both** | `--cache_draw bucket_kernel` (needs τ and h) | the kernel weights within the matching bucket |
+
+The first two flags apply to `--algo gdpzero` and `--algo emomcts`. `--cache_draw` needs a parent ν, so
+it applies to `emomcts` only. None of the draws generates more than the default: the rule for when to use
+the cache is unchanged. τ and h have no defaults because neither is fitted (0.263 is the frozen generic
+τ_med). When `--cache_draw` is not `uniform`, each `sim_steps` record also logs
+`child_generating_parent_nu`, `cache_draw_bucket_miss`, `cache_draw_prob` and `cache_draw_prob_uniform`,
+so the new mismatch rate can be measured directly. Tests: `tests/test_cache_fixes.py`.
+
 ## Results
 
 > ⚠ **These are pre-freeze numbers and are not the paper's results.** They were produced under
@@ -172,7 +201,7 @@ data/
   p4g_personas/  full_dialog.csv · full_info.csv   real persuadee surveys (--p4g_persona)
   esc/  esc-{train,valid,test}.txt   ·   cb/  cb-{train,valid,test}.txt
 tests/        bit-identity + arm acceptance (test_wed_arms, test_thu_arms, test_search_horizon,
-              test_emo_channel_freeze) and the stub end-to-end regression driver
+              test_emo_channel_freeze, test_cache_fixes) and the stub end-to-end regression driver
 analysis/     see analysis/README.md -- what is current, what is the record
 PREREG.md     the grid's pre-registration (append-only, timestamped entries)
 ```

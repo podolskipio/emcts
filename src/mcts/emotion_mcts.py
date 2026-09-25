@@ -87,7 +87,7 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 			return
 
 		self.realizations[hashable_state].append(state.copy())
-		if len(self.realizations[hashable_state]) > self.max_realizations:
+		if len(self.realizations[hashable_state]) > self.max_realizations and hashable_state not in self._uncapped_pools:
 			# should never happen
 			logger.warning(f"len(self.realizations[hashable_state])={len(self.realizations[hashable_state])}")
 			self.realizations[hashable_state].pop(0)
@@ -107,16 +107,19 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 		self.emotions_count[next_state_hash][emotion] += 1
 
 	def _get_next_state(self, state: EmotionAwareDialogSession, best_action: int):
-		prefetch_state = self._get_hash_for_next_action(self._to_string_rep(state), best_action)
-		if prefetch_state in self.realizations and len(self.realizations[prefetch_state]) == self.max_realizations:
-			# use the cached realization
+		parent_key = self._to_string_rep(state)
+		prefetch_state = self._get_hash_for_next_action(parent_key, best_action)
+		if self._serves_from_cache(parent_key, prefetch_state):
+			# use a cached realization
 			self._record_cache(prefetch_state, True)
-			return self._sample_realization(prefetch_state)
+			children = self._cached_children(prefetch_state)
+			return children[np.random.randint(len(children))]
 
 		# otherwise, generate a new realization
 		self._record_cache(prefetch_state, False)
 		next_state, emotion = self.game.get_next_state(state, best_action)
 		self.update_emotions(state, best_action, emotion)
+		self._file_generated_child(parent_key, prefetch_state, next_state)
 		return next_state
 
 	def _update_realizations_Vs(self, state: EmotionAwareDialogSession, v: float):
@@ -149,6 +152,8 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 
 	def search(self, state: EmotionAwareDialogSession):
 		hashable_state = self._to_string_rep(state)
+		if self._sim_root_key is None:
+			self._sim_root_key = hashable_state
 
 		# check everytime since state is stochastic, does not map to hashable_state
 		terminated_v = self.game.get_dialog_ended(state)
@@ -276,6 +281,16 @@ EMO_SIGNALS = ("level", "delta")
 # --aff_pool_key choices. `affect` is AffPool as built (K0 bucket x act); `act` is ActPool, the
 # control with the affective bucket removed from the key (every step pools under bucket 0).
 AFF_POOL_KEYS = ("affect", "act")
+
+# --cache_draw choices: how a cache hit picks among the child's cached replies. Every reply is tagged
+# with the nu of the parent realization it was generated from; nu_now is the parent sampled this step.
+#   uniform       -- DEFAULT, the frozen draw: uniform over the pool, blind to the parent's affect.
+#   bucket        -- only replies whose generating parent sat on nu_now's side of --cache_bucket_tau;
+#                    uniform over the whole pool when that side has none (a bucket miss).
+#   kernel        -- weight w_j = exp(-(nu_now - nu_gen_j)^2 / h^2), h = --cache_kernel_h.
+#   bucket_kernel -- the kernel weights within the matching bucket.
+# None of them generates more than uniform does: the hit/miss rule is unchanged.
+CACHE_DRAWS = ("uniform", "bucket", "kernel", "bucket_kernel")
 
 # z_delta = nu(d_s') - nu(d_parent) lives in [-2, +2] because nu lives in [-1, +1].
 # Dividing by this keeps Q_emo in [-1, +1] under BOTH settings, so beta_emo means the
@@ -457,7 +472,10 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 	             aff_pool_key: str = "affect",
 	             emo_centre: bool = False,
 	             emo_constraint_tau=None,
-	             emo_constraint_m_warm: int = 3) -> None:
+	             emo_constraint_m_warm: int = 3,
+	             cache_draw: str = "uniform",
+	             cache_bucket_tau=None,
+	             cache_kernel_h=None) -> None:
 		super().__init__(game, player, configs, emotion_classifier)
 		# The four knobs below are constructor arguments, not configs entries: every caller
 		# passes them explicitly (see runners/emomcts.py and runners/rollout.py), and the
@@ -505,6 +523,20 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 		self.emo_constraint_m_warm = int(emo_constraint_m_warm)
 		# The last get_action_prob call's root decision under Constrain, for the turn log.
 		self.root_decision: dict = {}
+		# Affect-aware cache draw (--cache_draw, DEFAULT uniform = off); see CACHE_DRAWS. tau and h have
+		# no default: neither is fitted, so a run that uses one has to name it.
+		if cache_draw not in CACHE_DRAWS:
+			raise ValueError(f"cache_draw must be one of {CACHE_DRAWS}, got {cache_draw!r}")
+		if cache_draw in ("bucket", "bucket_kernel") and cache_bucket_tau is None:
+			raise ValueError(f"cache_draw {cache_draw!r} needs cache_bucket_tau")
+		if cache_draw in ("kernel", "bucket_kernel") and not (cache_kernel_h and cache_kernel_h > 0):
+			raise ValueError(f"cache_draw {cache_draw!r} needs cache_kernel_h > 0, got {cache_kernel_h!r}")
+		self.cache_draw = cache_draw
+		self.cache_bucket_tau = None if cache_bucket_tau is None else float(cache_bucket_tau)
+		self.cache_kernel_h = None if cache_kernel_h is None else float(cache_kernel_h)
+		# realization content id -> nu of the parent realization it was generated from. Filled on
+		# every generation; read only by a non-uniform cache draw.
+		self.generating_parent_nu: dict = {}
 		# Parallel value table, same shape as self.Q. Initialised lazily in _init_node.
 		self.Q_emo: dict = {}
 		# Welford sum-of-squared-deviations for the SAME edges as Q_emo. sigma_emo is
@@ -521,9 +553,8 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 		# aggregates afterwards. Write-only: nothing in selection or backup reads it, and
 		# filling it takes no random draws. runners/_common.build_simlog_step_records ships it.
 		self.sim_steps: list = []
-		# The tree key of the first search() call, i.e. the search root, and the index of the
-		# simulation currently descending from it (incremented on every root entry).
-		self._sim_root_key = None
+		# The index of the simulation currently descending from the search root (OpenLoopMCTS's
+		# _sim_root_key), incremented on every root entry.
 		self._sim_index = -1
 
 	def _emotion_quality(self, dist) -> float:
@@ -615,6 +646,34 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 		if beta == 0.0:
 			return q, 0.0
 		return (1.0 - beta) * q + beta * self.Q_pool[key], beta
+
+	def _draw_cached_child(self, prefetch_key: str, parent_nu: float):
+		"""(reply, draw diagnostics) for a cache hit on ``prefetch_key``; see CACHE_DRAWS.
+		Under uniform this is the frozen draw -- one randint over the pool -- and diagnostics are None."""
+		children = self._cached_children(prefetch_key)
+		if self.cache_draw == "uniform":
+			return children[np.random.randint(len(children))], None
+		gen_nu = np.array([self.generating_parent_nu[_realization_id(c)] for c in children])
+		weights = np.ones(len(children))
+		bucket_miss = False
+		if self.cache_draw in ("bucket", "bucket_kernel"):
+			same = (gen_nu < self.cache_bucket_tau) == (parent_nu < self.cache_bucket_tau)
+			if same.any():
+				weights = weights * same
+			else:
+				bucket_miss = True
+		if self.cache_draw in ("kernel", "bucket_kernel"):
+			weights = weights * np.exp(-((parent_nu - gen_nu) ** 2) / self.cache_kernel_h ** 2)
+		if weights.sum() <= 0.0:
+			# every kernel weight underflowed: nothing in the pool is closer than any other
+			weights = np.ones(len(children))
+		p = weights / weights.sum()
+		i = int(np.random.choice(len(children), p=p))
+		return children[i], {
+			"cache_draw_bucket_miss": bucket_miss,
+			"cache_draw_prob": float(p[i]),
+			"cache_draw_prob_uniform": 1.0 / len(children),
+		}
 
 	def _expanded_emo_mean(self, hashable_state: str):
 		"""CenteredBias mu: mean Q_emo over the siblings with N > 0, or None if there are none."""
@@ -735,10 +794,20 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 			if uct > best_uct and (feasible is actions or a in feasible):
 				best_uct, best_action = uct, a
 
+		# Transition: EmotionAwareOpenLoopMCTS._get_next_state, inlined so the cache draw can see the
+		# parent's nu. With every cache flag off this is that method exactly.
 		prefetch_key = self._get_hash_for_next_action(hashable_state, best_action)
-		from_cache = (prefetch_key in self.realizations
-					  and len(self.realizations[prefetch_key]) == self.max_realizations)
-		next_state = self._get_next_state(state, best_action)
+		from_cache = self._serves_from_cache(hashable_state, prefetch_key)
+		cache_draw_info = None
+		if from_cache:
+			self._record_cache(prefetch_key, True)
+			next_state, cache_draw_info = self._draw_cached_child(prefetch_key, parent_nu)
+		else:
+			self._record_cache(prefetch_key, False)
+			next_state, emotion = self.game.get_next_state(state, best_action)
+			self.update_emotions(state, best_action, emotion)
+			self.generating_parent_nu[_realization_id(next_state)] = parent_nu
+			self._file_generated_child(hashable_state, prefetch_key, next_state)
 
 		# sim_steps record, filled before descending so the tape reads root -> leaf; z and v
 		# are added after the backup below. `state` is the realization _sample_realization
@@ -766,6 +835,10 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 		}
 		# Arm diagnostics, only on runs where that arm is on. Each counterfactual toggles its own
 		# term alone and holds the others as configured; none of them takes a random draw.
+		if self.cache_draw != "uniform":
+			step["child_generating_parent_nu"] = float(self.generating_parent_nu[step["child_realization_id"]])
+			if cache_draw_info is not None:
+				step.update(cache_draw_info)
 		if bucket is not None:
 			no_pool = self._argmax_uct(hashable_state, feasible, bucket=None, emo_mu=emo_mu)
 			step["aff_bucket"] = bucket

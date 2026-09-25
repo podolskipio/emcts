@@ -79,6 +79,8 @@ def main(cmd_args):
 		"Q_0": cmd_args.Q_0,
 		"max_realizations": cmd_args.max_realizations,
 		"search_horizon": cmd_args.search_horizon,
+		"cache_ended_children": cmd_args.cache_ended_children,
+		"cache_fresh_depth1": cmd_args.cache_fresh_depth1,
 	})
 	setup_output_dir(cmd_args, runner_name="runners/gdpzero.py",
 					 mcts_class="OpenLoopMCTS", mcts_args=args)
@@ -238,6 +240,14 @@ if __name__ == "__main__":
 						help='which get_dialog_ended values end a simulated branch. "legacy" (DEFAULT, unchanged, GDP-Zero): only success is terminal, so search keeps expanding past the turn limit and after a verbatim stall -- states no real episode reaches. "episode": any non-zero get_dialog_ended is terminal and its value (+1 donate / -1 turn limit or stall) is backed up, so search stops where the episode loop stops. See analysis/phase1/SEARCH_HORIZON_BUG.md.')
 	parser.add_argument('--Q_0', type=float, default=0.0, help='initial Q value for unitialized states. to control exploration')
 	parser.add_argument('--num_dialogs', type=int, default=20, help='number of dialogs to test MCTS on')
+	parser.add_argument('--cache_ended_children', '--cache-ended-children', action='store_true',
+						help='file a generated reply that ends the search under its node at generation time, so '
+							 'the cache can serve it. DEFAULT off: only a non-terminal re-entry fills the pool, so a '
+							 'reply that ends the episode is never served (analysis/phase1/p_depth.md).')
+	parser.add_argument('--cache_fresh_depth1', '--cache-fresh-depth1', action='store_true',
+						help='never serve the search root\'s outgoing edges from the cache: every depth-1 visit '
+							 'generates, and the depth-1 child keeps every reply in its pool. Deeper edges still '
+							 'cache. DEFAULT off.')
 	cmd_args = finalize_args(parser.parse_args())
 	print("saving to", cmd_args.output)
 

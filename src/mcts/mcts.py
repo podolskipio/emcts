@@ -181,6 +181,24 @@ class OpenLoopMCTS(MCTS):
 		# node -> [served_from_cache, freshly_generated] transitions INTO that node.
 		# The frozen subtree log reports cache_hit = served_from_cache > 0. Write-only.
 		self.cache_hits: dict = {}
+
+		# Cache fixes (analysis/phase1/p_depth.md). Both DEFAULT off, which is the frozen planner.
+		#   cache_ended_children: file a generated reply that ends the search under its node at generation
+		#     time. Otherwise only a non-terminal re-entry adds to the pool (search returns before it on a
+		#     terminal state), so the cache never holds, and never serves, a reply that ends the episode.
+		#   cache_fresh_depth1: never serve the search root's outgoing edges from the cache. The root pool
+		#     holds one state, so a cached depth-1 edge replays the same R replies on every visit; with this
+		#     on each visit generates, and the depth-1 child's pool keeps every reply instead of R.
+		has_get = hasattr(configs, "get")
+		self.cache_ended_children = bool(configs.get("cache_ended_children", False)) if has_get else False
+		self.cache_fresh_depth1 = bool(configs.get("cache_fresh_depth1", False)) if has_get else False
+		# node -> generated replies that end the search there. Served from the cache alongside
+		# self.realizations, never sampled as a parent: nothing is searched past them.
+		self.ended_realizations: dict = {}
+		# depth-1 nodes whose pool is not capped at max_realizations (cache_fresh_depth1)
+		self._uncapped_pools: set = set()
+		# tree key of the first search() call, i.e. the search root (a planner is built per turn)
+		self._sim_root_key = None
 		return
 
 	def _to_string_rep(self, state:DialogSession):
@@ -250,7 +268,7 @@ class OpenLoopMCTS(MCTS):
 			return
 		
 		self.realizations[hashable_state].append(state.copy())
-		if len(self.realizations[hashable_state]) > self.max_realizations:
+		if len(self.realizations[hashable_state]) > self.max_realizations and hashable_state not in self._uncapped_pools:
 			# should never happen
 			logger.warning(f"len(self.realizations[hashable_state])={len(self.realizations[hashable_state])}")
 			self.realizations[hashable_state].pop(0)
@@ -260,16 +278,42 @@ class OpenLoopMCTS(MCTS):
 		counts = self.cache_hits.setdefault(node, [0, 0])
 		counts[0 if hit else 1] += 1
 
+	def _cached_children(self, prefetch_state) -> list:
+		"""Every reply the cache can serve for this child node: its pool, plus the replies that ended
+		the search there (always empty unless --cache_ended_children)."""
+		return self.realizations.get(prefetch_state, []) + self.ended_realizations.get(prefetch_state, [])
+
+	def _serves_from_cache(self, parent_key, prefetch_state) -> bool:
+		"""The edge parent_key -> prefetch_state is served from the cache instead of generating.
+		With both cache flags off this is the frozen rule: the child's pool holds max_realizations."""
+		if self.cache_fresh_depth1 and parent_key == self._sim_root_key:
+			return False
+		return len(self._cached_children(prefetch_state)) >= self.max_realizations
+
+	def _file_generated_child(self, parent_key, prefetch_state, next_state):
+		"""Bookkeeping for a freshly generated reply, before search descends into it."""
+		if self.cache_fresh_depth1 and parent_key == self._sim_root_key:
+			self._uncapped_pools.add(prefetch_state)
+		# Non-terminal replies reach the pool through _init_node / _add_new_realizations when search
+		# enters them; a terminal one returns before that, so it is filed here or never.
+		if self.cache_ended_children and self._ends_search(self.game.get_dialog_ended(next_state)):
+			ended = self.ended_realizations.setdefault(prefetch_state, [])
+			if next_state not in ended:
+				ended.append(next_state.copy())
+
 	def _get_next_state(self, state, best_action):
-		prefetch_state = self._to_string_rep(state) + "__" + self.player.dialog_acts[best_action]
-		if prefetch_state in self.realizations and len(self.realizations[prefetch_state]) == self.max_realizations:
-			# use the cached realization
+		parent_key = self._to_string_rep(state)
+		prefetch_state = parent_key + "__" + self.player.dialog_acts[best_action]
+		if self._serves_from_cache(parent_key, prefetch_state):
+			# use a cached realization
 			self._record_cache(prefetch_state, True)
-			return self._sample_realization(prefetch_state)
-		
+			children = self._cached_children(prefetch_state)
+			return children[np.random.randint(len(children))]
+
 		# otherwise, generate a new realization
 		self._record_cache(prefetch_state, False)
 		next_state = self.game.get_next_state(state, best_action)
+		self._file_generated_child(parent_key, prefetch_state, next_state)
 		return next_state
 
 	def _update_realizations_Vs(self, state: DialogSession, v: float):
@@ -291,7 +335,9 @@ class OpenLoopMCTS(MCTS):
 
 	def search(self, state:DialogSession):
 		hashable_state = self._to_string_rep(state)
-		
+		if self._sim_root_key is None:
+			self._sim_root_key = hashable_state
+
 		# check everytime since state is stochastic, does not map to hashable_state
 		terminated_v = self.game.get_dialog_ended(state)
 		# check if it is terminal node (--search_horizon decides whether failure ends the branch)

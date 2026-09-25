@@ -1038,6 +1038,12 @@ _INERT_WHEN = [
 	 "--aff_pool_tau only applies to AffPool (--aff_pool --aff_pool_key affect); ActPool has no bucket"),
 	(("--aff_pool_bias", "--aff-pool-bias", "--aff_pool_key", "--aff-pool-key"), lambda a: getattr(a, "aff_pool", False),
 	 "AffPool/ActPool settings need --aff_pool"),
+	(("--cache_draw", "--cache-draw"), lambda a: getattr(a, "algo", "emomcts") == "emomcts",
+	 "--cache_draw reads the parent's nu, which only --algo emomcts has"),
+	(("--cache_bucket_tau", "--cache-bucket-tau"), lambda a: getattr(a, "cache_draw", "uniform") in ("bucket", "bucket_kernel"),
+	 "--cache_bucket_tau needs --cache_draw bucket or bucket_kernel"),
+	(("--cache_kernel_h", "--cache-kernel-h"), lambda a: getattr(a, "cache_draw", "uniform") in ("kernel", "bucket_kernel"),
+	 "--cache_kernel_h needs --cache_draw kernel or bucket_kernel"),
 ]
 
 
