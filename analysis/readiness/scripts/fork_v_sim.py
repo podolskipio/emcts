@@ -63,12 +63,12 @@ def auc(y, x):
 
 def cluster_boot(df, stat, seed):
 	rng = np.random.default_rng(seed)
-	groups = {c: g for c, g in df.groupby("cluster")}
-	keys = np.array(list(groups))
+	df = df.reset_index(drop=True)
+	idx = list(df.groupby("cluster").indices.values())
 	reps = []
 	for _ in range(B):
-		sub = pd.concat([groups[k] for k in rng.choice(keys, len(keys))], ignore_index=True)
-		reps.append(stat(sub))
+		pick = rng.integers(0, len(idx), len(idx))
+		reps.append(stat(df.iloc[np.concatenate([idx[i] for i in pick])].reset_index(drop=True)))
 	reps = [x for x in reps if np.isfinite(x)]
 	return {"value": stat(df), "ci": [float(np.percentile(reps, 2.5)), float(np.percentile(reps, 97.5))]}
 
