@@ -228,3 +228,32 @@ MODE-COLLAPSE CHECK (reported for every T, decisive below 0.5): share of prefixe
   contain <= 2 distinct strings; share of prefixes whose 10 replies all carry the same act.  If T* < 0.5 the program stops for a human call (brief, Phase 1 stop rule).
 PREDICTION: T* in {0.7, 0.9}; T 1.1 over-disperses (coverage above target, distinct-2 above human).
 ```
+
+---
+
+## Entry 8 — 2026-09-25T16:24:43+02:00 — DEVIATION from Entry 7's T* rule: the readiness program runs at T = 1.1
+
+Written after Phase 1D was measured (analysis/readiness/phase1.md) and before any Phase 2-4 run.
+Decision by the human, 2026-09-25.
+
+```
+RULE OUTCOME (Entry 7): T* = 0.9, mean rank 2.0 vs 2.4 for 1.1.
+WHY IT IS NOT USED:
+  1. Tie. Over 1,000 bootstrap resamples of the 30 prefixes, 0.9 wins 39.8 % and 1.1 wins 39.9 %.
+     0.9's lead rests on the two marginal rates (15 vs 17 donation replies, 34 vs 37 negative
+     replies out of 300). 1.1 is closer on both dispersion criteria, which are measured more tightly.
+  2. The rule's intent -- the temperature that best matches humans -- is met equally by 1.1.
+  3. The simulator is UNDER-dispersed at every temperature, 1.1 included (coverage of the real
+     reply 0.73 vs target 0.82; distinct-2 0.78 vs 0.85). Lowering T moves it further from humans
+     on dispersion. Entry 7's prediction "1.1 over-disperses" was wrong.
+  4. 1.1 keeps full comparability with the ~89 GPU-hours of the frozen grid, and removes the
+     temperature as an environment change: Phase 4 then differs from the frozen grid only in the
+     cache fixes and coupled seeds.
+CONSEQUENCES:
+  Simulator temperature 1.1 in every readiness run. tau stays 0.263 (the T = 1.1 median), so
+  Phase 4A's re-derivation of tau is not needed and the brief's "never use 0.263 at another T"
+  rule is not engaged. The brief's A1 conclusion is reported as: temperature is not the lever.
+NOTED, NOT ACTED ON: an under-dispersed simulator is a reason the persona prompt could add
+  realism (more varied replies), the opposite of the rationale it was introduced with. This
+  changes what A2 would test; it is not part of this program.
+```
