@@ -23,7 +23,8 @@ bootstrap, 1,000 replicates, clustered by dialogue (by run × dialogue for the g
 - **On human outcomes, `v` is weak.** At the same fixed turns it is 0.47–0.59, and pooled 0.53
   [0.48, 0.58]. The "no information" claim overstates it. At turn 4 the interval [0.51, 0.66] just
   excludes 0.5, so the right phrasing is "at most weakly informative".
-- **At matched turns the gap is about 0.1–0.2 AUC.** The intervals don't overlap from turn 2 onward.
+- **At matched turns the gap is about 0.1–0.2 AUC.** The intervals separate at turns 2, 3 and 5, and
+  overlap slightly at turns 4 and 6.
 
 | turn k | sim: n | sim: AUC of v | sim: McFadden | human: n | human: AUC of v | human: AUC of v_logit | human: McFadden |
 |---|---|---|---|---|---|---|---|
@@ -95,6 +96,6 @@ fails on human states (0.47–0.59). This is a sim-to-real finding, not proof th
 
 C1a's increment is 0.017 [0.001, 0.052]. The interval excludes zero, so `r` carries **statistically
 non-zero** information over `v` on human outcomes, **practically small**: under the pre-registered
-0.02, and not significant out of fold (log-loss gain +0.009 [−0.010, +0.027]). Much of that increment is
-`r` supplying signal `v` lacks on human data (r's own AUC 0.56 [0.49, 0.63]), not affect refining a
-good value.
+0.02, and not significant out of fold (log-loss gain +0.009 [−0.010, +0.027]). One reading, not tested: since
+`v` itself is near-uninformative on human data, the increment is `r` supplying some signal of its own
+(r's own AUC 0.56 [0.49, 0.63]) rather than affect refining a good value.
