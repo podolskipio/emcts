@@ -832,6 +832,10 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 			"parent_Ns": int(self.Ns[hashable_state]),
 			"siblings": siblings,
 			"selected_action": self.player.dialog_acts[best_action],
+			# the child ends the search (search returns on it before any node work). Write-only: a pure
+			# function of the state, no random draw. Tells an ended reply from a leaf expansion, which
+			# the log otherwise cannot (both return without a deeper step, both can carry v = +-1).
+			"child_ends_search": bool(self._ends_search(self.game.get_dialog_ended(next_state))),
 		}
 		# Arm diagnostics, only on runs where that arm is on. Each counterfactual toggles its own
 		# term alone and holds the others as configured; none of them takes a random draw.

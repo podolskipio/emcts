@@ -254,3 +254,22 @@ def test_inert_cache_flags_are_refused():
 	]:
 		with pytest.raises(SystemExit, match=why):
 			mod.finalize_args(parser.parse_args(bad), argv=bad)
+
+
+# ---------------------------------------------------------------------------
+# step log: child_ends_search (write-only, readiness Phase 2)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("ended_children", [False, True])
+def test_child_ends_search_marks_ended_replies_and_none_is_ever_a_parent(ended_children):
+	p, game, _ = emo_search(sims=200, user=SometimesDonateUser(), horizon="episode",
+							cfg={"cache_ended_children": ended_children})
+	assert all("child_ends_search" in s for s in p.sim_steps)
+	ended = {s["child_realization_id"] for s in p.sim_steps if s["child_ends_search"]}
+	assert ended, "no reply ended the search"
+	assert not ended & {s["parent_realization_id"] for s in p.sim_steps}
+	for s in p.sim_steps:
+		if s["child_ends_search"]:
+			assert s["v"] in (1.0, -1.0)
+	# served ended replies exist only with the fix
+	served_ended = [s for s in p.sim_steps if s["child_ends_search"] and s["child_from_cache"]]
+	assert bool(served_ended) is ended_children
