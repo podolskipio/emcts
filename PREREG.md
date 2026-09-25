@@ -165,3 +165,66 @@ CAUTION RECORDED: the cumulative SR on the n = 100 run went 1.00 (after 10) -> 0
   (after 100). The P1 horizon pilot (10 dialogs) is therefore not reported as a result;
   the legacy-vs-episode contrast is measured at n = 100 in B2.
 ```
+
+---
+
+## Entry 7 — 2026-09-25T12:26:34+02:00 — Readiness Phase 1 gates (C1a, C1b, C3, T*)
+
+Written before any Phase 1 measurement. Program: analysis/readiness (readiness brief). Environment for
+every call below is the frozen grid's (Vicuna-13B-AWQ on SGLang, top_p 0.9 / top_k 40, --p4g_persona
+ON, hf classifier, generic valence, --logit_scoring off) except where a temperature is named.
+Persona stays ON everywhere in this program (human decision, 2026-09-25): the frozen grid ran with
+it, and turning it off at T* would change two environment settings at once.
+
+```
+DATA (C1a, C1b): the 297 annotated P4G dialogues (non-eval by construction), PRE-DECISION cut as in
+  Entry 4 / trajvalue_gates.md: the prefix is every turn strictly before the first user decision act,
+  ending on a persuadee turn. Dialogues with no pre-decision turn are dropped (expected ~285).
+  One prefix per dialogue. Outcome: `donated` (analysis/thu/user_turns.parquet).
+v: the value estimator exactly as today -- P4GChatSystemPlanner.heuristic, 10 samples at T 1.1,
+  with the dialogue's persona. Also recorded, as robustness only: v_logit (score_value_labels,
+  deterministic).
+r: a new judge prompt (observer framing, no persona): "how likely is it that this conversation is
+  lost for emotional reasons -- the Persuadee annoyed, shutting down, or disengaging", answered as
+  Rating: [0..10]; r = E[rating]/10 read off the logits (score_labels over "0".."10"),
+  deterministic. Prompt text is fixed in analysis/readiness/scripts/phase1_c1.py at the commit
+  that precedes the run.
+
+C1a: corr(r, v) (Pearson) and incremental McFadden R2 of r over v in logit(donated).
+  C1b: incremental McFadden R2 of r over n_turns (persuadee turns in the prefix).
+  Both: 1000-replicate bootstrap over dialogue_id (one prefix per dialogue, so the cluster is the row).
+  PASS (each): 95% CI excludes 0 AND point >= 0.02.
+  Also reported, not gating: 5-fold out-of-fold log-loss gain (a nested in-sample increment
+  cannot be negative), and the same with v_logit in place of v.
+  "r ~ 1 - v" reading: corr(r, v) <= -0.7 AND C1a fails.
+  C1 PASSES (licenses 3C) iff C1a OR C1b passes.
+PREDICTION: r is mostly a restatement of v: corr(r, v) <= -0.5, and both C1a and C1b FAIL.
+
+C3 (value-estimator noise): 20 states = persuadee-ending prefixes of dialogues played in the frozen
+  A_NoEmo_s20_seed1 run (20 dialogues, one random turn each, seed 20260925). heuristic() called 20
+  times per state, current configuration. Report per-state sd, its distribution, pooled within-state
+  sd, between-state sd of the state means, and noise share = within var / (within + between var).
+  LARGE iff noise share >= 0.10 OR median per-state sd >= 0.10.  LARGE => Phase 3B is built.
+PREDICTION: LARGE (10 samples of a 5-label reward at T 1.1).
+
+T* (1D): 30 prefixes, one per dialogue, from the annotated 297 excluding P4G_BAD_DIALOGS (seed
+  20260925), each cut after a persuader turn at a uniformly random turn t in [1, n-1], so the real
+  human's next reply exists. Simulator = PersuadeeChatModel as built by build_agents (persona ON),
+  10 replies per prefix per T in {0.3, 0.5, 0.7, 0.9, 1.1}; nothing else changes.
+  Per prefix x T: sd of nu over the 10; modal-act share (share of the 10 replies carrying the most
+  common user act); coverage = the human's nu inside [min, max] of the 10 simulated nu.
+  Per T: donation rate (share of replies tagged [donate]); negative-affect rate (argmax of the hf
+  distribution in {sadness, fear, anger, disgust}); mean reply length (words); distinct-2 over the
+  30 replies with the same sample index, averaged over the 10 indices.
+  Human targets: donation rate, negative-affect rate and mean length over ALL annotated persuadee
+  turns (no decision cut: the simulator is asked at every turn, before and after a decision); distinct-2 over the 30 real next replies;
+  coverage target 9/11 = 0.818 (the probability an exchangeable 11th draw lands inside the range
+  of 10).
+SELECTION RULE for T*: for each of the 5 criteria (donation rate, negative-affect rate, length,
+  distinct-2, coverage) rank the temperatures by |value - human target|; T* = lowest mean rank.
+  Tie -> smaller coverage gap; still tied -> the higher T (less risk of collapse).
+  Whether any method separates at T plays no part.
+MODE-COLLAPSE CHECK (reported for every T, decisive below 0.5): share of prefixes whose 10 replies
+  contain <= 2 distinct strings; share of prefixes whose 10 replies all carry the same act.  If T* < 0.5 the program stops for a human call (brief, Phase 1 stop rule).
+PREDICTION: T* in {0.7, 0.9}; T 1.1 over-disperses (coverage above target, distinct-2 above human).
+```
