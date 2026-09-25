@@ -69,6 +69,13 @@ visit count of the parent nodes at that depth.
 
 ## §7.2 Primary estimator: within-prefix bucket contrast (depth ≥ 2)
 
+> ⚠ **Revised by [`p_depth.md`](p_depth.md) (2026-09-22).** The "all steps" column labels each row
+> with the parent realization sampled on that visit, which for 31 % of depth-≥2 rows is not the
+> parent that generated the child. Re-labelling with `generating_bucket_med` (all 25,328 rows, no
+> data discarded) gives Δ **−0.080**, std **−0.398**, and discordance **0.279** — the effect is
+> larger than reported here, but the **discordance rate is smaller** and falls below §7.7's 0.30 bar.
+> The mismatched rows alone carry no signal (std +0.04).
+
 Bucket 1 = `parent_nu < τ_med` (the less positive parent). Δ = mean z (bucket 1) − mean z (bucket 0),
 computed on discordant edges only.
 
@@ -225,6 +232,10 @@ Note on the brief's premise: Q ∈ [−1, +1] here, not [0, 1], and with HF + so
 ν ∈ [−0.14, +0.54]. So the maximum possible |β·ΔQ_emo| is 0.48, and the observed p90 is 0.22.
 
 ## §7.7 NodeKey gate components (D1, median split). Not applied.
+
+> ⚠ **Read with [`p_depth.md`](p_depth.md) §3.** On the causal label the within-prefix and ω²
+> components get stronger while **discordance drops to 0.279**, under its own bar. The marginal pass
+> recorded below is partly manufactured by the realization cache.
 
 | component | proposed threshold | all steps | fresh steps |
 |---|---|---|---|

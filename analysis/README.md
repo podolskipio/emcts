@@ -24,6 +24,7 @@ Frozen in one line: `--search_horizon episode`, `--emo_valence_table generic`,
 | file | scope | read with |
 |---|---|---|
 | [`phase1_report.md`](phase1_report.md), [`phase1/`](phase1/) | P-VAR / P-RELABEL gate readings, the search-horizon bug and its pilot | gate numbers are on **legacy** trees under the `soft` table; banner at the top |
+| [`phase1/p_depth.md`](phase1/p_depth.md) | why the depth split cannot test the cache; the cache's measured effect on every affect statistic; ν spread inside a node's R-realization pool | same banner as P-VAR; **revises `p_var.md` §7.7's discordance reading** (0.308 → 0.279 on the causal label) |
 | [`wed/wednesday_report.md`](wed/wednesday_report.md), [`wed/`](wed/) | the Wednesday arms: AffPool gate, bucket selection, key geometry, momentum, Qwen | τ and the valence table moved at the freeze; banner at the top |
 | [`W5_COST_TABLE.md`](W5_COST_TABLE.md) | per-role cost accounting and the SGLang migration | costs measured under **legacy**; episode costs are in `thu/p1_pilot.md` §D |
 | [`calib/`](calib/) | server/worker calibration, persona penalty, SR anomaly | |

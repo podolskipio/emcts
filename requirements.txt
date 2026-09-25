@@ -1,17 +1,26 @@
+# Runners + grid driver (src/runners/*, scripts/run_grid.py) -- the ".local_env" environment.
+# Pinned to the versions the Sep 17 freeze was validated on: torch/transformers run the HF emotion
+# classifier, so a different version can change the emotion labels.
+#
+#   python3 -m venv .local_env && .local_env/bin/pip install -r requirements.txt
+#   .local_env/bin/python -c "import nltk; nltk.download('punkt')"
+#
+# The SGLang server needs its own environment (sglang pins an older torch/transformers):
+# see requirements-sglang.txt.
+
 # Core
-numpy
-tqdm
-nltk          # used for sentence truncation; run: python -c "import nltk; nltk.download('punkt')"
+numpy==2.5.3
+tqdm==4.70.1
+nltk==3.10.3          # sentence truncation
+pandas==3.0.6         # emotion_mining corpus builders
 
 # LLM backends
-openai        # NOTE: utils/gen_models.py mixes openai<1.0 (Engine/Completion/ChatCompletion)
-              # and openai>=1.0 (openai.chat.completions) call styles -- pick the variant that
-              # matches the backend you actually use, or update gen_models.py accordingly.
-tenacity      # exponential-backoff retries around the OpenAI API
-requests      # HTTP for the OpenAI/HF inference API and the Ollama backend
-datasets      # optional: only needed when --data uses an hf:<repo> spec (runners/hf_loaders.py)
+openai==3.16.0        # client for the SGLang / OpenAI-compatible server
+tenacity==9.1.4       # exponential-backoff retries around API calls
+requests==2.34.2      # HTTP for the HF inference API and the Ollama backend
+datasets==5.0.1       # only for --data hf:<repo> specs (utils/hf_loaders.py)
 
-# Local 🤗 Transformers backend + policy-network paths (optional if you only use API/Ollama LLMs)
-torch
-transformers
-datasets
+# HF emotion classifier (--emotion_classifier hf) and the local Transformers backend
+torch==2.14.0
+transformers==5.17.0
+safetensors==0.8.0
