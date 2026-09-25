@@ -11,7 +11,7 @@ generic valence); only 1D changes the simulator temperature. Scripts: `scripts/p
 | **C1a** incremental R² of r over v | **0.017** [0.001, 0.052] | **FAIL** (below 0.02) |
 | **C1b** incremental R² of r over n_turns | **0.0097** [0.0002, 0.040] | **FAIL** (below 0.02) |
 | **C3** value-estimator noise share | **0.014**, median per-state sd **0.00** | **not LARGE** → 3B is not built |
-| **T\*** | **0.9** by the rule; bootstrap winner 0.9 in 39.8 %, 1.1 in 39.9 % | chosen, **but indistinguishable from 1.1** |
+| **T\*** | **0.9** by the rule; bootstrap winner 0.9 in 39.8 %, 1.1 in 39.9 % | tie → **program runs at 1.1**, declared deviation (PREREG Entry 8) |
 
 **C1 fails → 3C (emotion-aware value) is not built. C3 not large → 3B is not built.**
 T\* ≥ 0.5, so no stop.
@@ -44,14 +44,22 @@ What it means:
 - **r is not a restatement of v.** They correlate at only −0.41, well short of the −0.7 that
   pre-registration took to mean "r ≈ 1 − v". The PREREG prediction (corr ≤ −0.5) was wrong on this half.
 - **But r does not clear the bar either.** Both increments sit under 0.02 and neither holds up out of
-  fold. C1b's 0.0097 is **below** the mined trajectory features' 0.0125 on the same corpus. So an LLM
+  fold. C1a's interval [0.001, 0.052] does exclude zero: r's information over v is **statistically
+  non-zero, practically small**. That matters less than it seems, because v itself is near-uninformative
+  on these prefixes (next point). C1b's 0.0097 is **below** the mined trajectory features' 0.0125 on the same corpus. So an LLM
   asked directly about emotional risk finds no more than the classifier features did.
-- **The finding that matters more: today's value estimator does not predict human donation at all.**
-  On real pre-decision prefixes, `v` alone has McFadden R² 0.002 and out-of-fold AUC 0.50 (0.46 for
-  v_logit). Turn count alone reaches 0.097. The value estimator scores how the *simulated* persuadee
-  would answer "would you donate?" at this moment. That does not track what the human later did. Any
-  affect term added to `v` would be refining a quantity that carries no outcome signal on human
-  data. This bounds C2 more tightly than the gate does.
+- **The finding that matters more: today's value estimator barely predicts human donation.**
+  On these prefixes `v` alone has McFadden R² 0.002 and AUC 0.47 [0.41, 0.54]. **Superseded in
+  detail by `value_fork.md`:**
+  - **Turn count leaked.** The 0.097 for `n_turns` is not a baseline. At the decision cut, turn count
+    *is* the decision's timing (AUC 0.71).
+  - **Fixed-turn cuts give the same picture.** On human prefixes cut at fixed turns, `v` reaches
+    0.47–0.59, pooled 0.53 [0.48, 0.58]: at most weakly informative.
+  - **The same `v` does predict simulated success.** On the grid's own dialogues it reaches AUC 0.65
+    [0.63, 0.67], and 0.67–0.72 at turns 3–6.
+
+  So this is a **sim-to-real gap**: `v` and the simulator agree with each other far more than either
+  agrees with humans. It is not a value that predicts nothing.
 
 ## 1C — where is the value estimator's noise? (C3)
 
@@ -115,9 +123,17 @@ Rank on |gap to human| (1 = closest) and the pre-registered mean rank:
 3. **Collapse below 0.5 is real.** At 0.3, 73 % of prefixes get a single act on all 10 replies and
    coverage is 0.37. The brief's warning holds.
 
-Rule 6 is followed: T\* is chosen by realism alone, and whether methods separate played no part. But
-the evidence for moving off the frozen 1.1 is thin. Phase 4 runs at T\* = 0.9 as the brief requires, and
-the report treats "T = 0.9 vs 1.1" as a change whose realism gain is not established.
+Rule 6 is followed: T\* is chosen by realism alone, and whether methods separate played no part.
+
+**Decision (human, 2026-09-25; PREREG Entry 8): the program runs at T = 1.1, a declared deviation from
+the rule's 0.9.**
+- The two tie, and the rule's intent (best match to humans) is met equally by 1.1.
+- Lowering T makes the simulator less realistic on dispersion.
+- Staying at 1.1 keeps full comparability with the frozen grid. The temperature stops being an
+  environment change, and τ stays 0.263.
+
+Temperature is not the lever. The under-dispersion is also a new reason to revisit the persona prompt
+(A2), which could make replies more human-like. That is not part of this program.
 
 ## Consequences for Phase 3
 
