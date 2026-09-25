@@ -51,20 +51,22 @@ def annotate(df):
 	of them this row's parent generated)."""
 	df = df.reset_index(drop=True).copy()
 	ends = df["child_ends_search"].astype(bool) if "child_ends_search" in df else pd.Series(False, index=df.index)
-	gen_parent, pool_n, pool_ended, pool_same_parent = [], [], [], []
+	gen_parent, pool_n, pool_ended, pool_same_parent, pool_parents = [], [], [], [], []
 	edges = {}  # edge_key -> {child_id: (generating parent id, ended)}
 	for i, r in enumerate(df.itertuples(index=False)):
 		e = edges.setdefault(r.edge_key, {})
 		if not r.child_from_cache:
 			e.setdefault(r.child_realization_id, (r.parent_realization_id, bool(ends.iat[i])))
-			pool_n.append(np.nan); pool_ended.append(np.nan); pool_same_parent.append(np.nan)
+			pool_n.append(np.nan); pool_ended.append(np.nan); pool_same_parent.append(np.nan); pool_parents.append(np.nan)
 		else:
 			pool_n.append(len(e))
 			pool_ended.append(sum(x[1] for x in e.values()))
 			pool_same_parent.append(sum(x[0] == r.parent_realization_id for x in e.values()))
+			pool_parents.append(len({x[0] for x in e.values()}))
 		gen_parent.append(e.get(r.child_realization_id, (None, None))[0])
 	df["generating_parent_id"] = gen_parent
 	df["pool_n"], df["pool_ended"], df["pool_same_parent"] = pool_n, pool_ended, pool_same_parent
+	df["pool_distinct_parents"] = pool_parents
 	df["ends"] = ends.to_numpy()
 	return df
 
@@ -91,6 +93,18 @@ def mismatch_block(df):
 		"uniform_counterfactual_mismatch": boot(c2, lambda d: float((1 - d.pool_same_parent / d.pool_n).mean())),
 		"bucket_mismatch": float(((c2.generating_parent_nu < TAU) != (c2.parent_nu < TAU)).mean()),
 		"median_abs_nu_gap": float(np.abs(c2.generating_parent_nu - c2.parent_nu).median()),
+		"floor_parent_absent_from_pool": boot(c2, lambda d: float((d.pool_same_parent == 0).mean()), SEED + 3),
+		# why exact-parent mismatch moves: it is bounded below by how many distinct parents fed the pool
+		"by_depth": {("2" if k == 2 else "3+"): {
+			"rows": int(len(g)),
+			"exact_parent_mismatch": float((g.generating_parent_id != g.parent_realization_id).mean()),
+			"uniform_counterfactual_mismatch": float((1 - g.pool_same_parent / g.pool_n).mean()),
+			"bucket_mismatch": float(((g.generating_parent_nu < TAU) != (g.parent_nu < TAU)).mean()),
+			"mean_distinct_generating_parents_in_pool": float(g.pool_distinct_parents.mean()),
+			# no draw rule can match a parent that generated nothing in the pool: the floor on exact mismatch
+			"floor_parent_absent_from_pool": float((g.pool_same_parent == 0).mean()),
+			"mean_pool_size": float(g.pool_n.mean())}
+			for k, g in c2.assign(dd=np.minimum(c2.depth, 3)).groupby("dd")},
 	}
 
 
