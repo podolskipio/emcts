@@ -30,12 +30,18 @@ def done(tag):
 
 
 def compare(base_fmt, ret_fmt):
-	seeds = [k for k in range(1, 6) if done(base_fmt.format(k)) and done(ret_fmt.format(k))]
+	return compare_pairs([(k, base_fmt.format(k), ret_fmt.format(k)) for k in range(1, 6)])
+
+
+def compare_pairs(pairs):
+	"""pairs: [(seed, base tag, other tag)]; the difference is other - base. Unfinished pairs are skipped."""
+	pairs = [(k, bt, rt) for k, bt, rt in pairs if done(bt) and done(rt)]
+	seeds = [k for k, _, _ in pairs]
 	if not seeds:
 		return {"seeds_done": []}
 	per_seed, S, T = {}, [], []
-	for k in seeds:
-		b, r = G.load(G.READY, base_fmt.format(k)), G.load(G.READY, ret_fmt.format(k))
+	for k, base_tag, ret_tag in pairs:
+		b, r = G.load(G.READY, base_tag), G.load(G.READY, ret_tag)
 		ids = sorted(set(b) & set(r))
 		sb = np.array([b[d]["success"] for d in ids], float)
 		sr = np.array([r[d]["success"] for d in ids], float)
