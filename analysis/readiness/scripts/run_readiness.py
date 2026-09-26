@@ -36,6 +36,18 @@ def make(tag, phase, arm, extra, n_dialogues, n_sims=20, seed=1, description="",
 			"n_dialogues": n_dialogues, "expected_hours": hours, "argv": argv}
 
 
+COUPLING_DIR = os.path.join(REPO, "analysis", "readiness", "coupling")
+
+
+def coupled(store):
+	return ["--coupled_seeds", "--coupling_store", os.path.join(COUPLING_DIR, store + ".sqlite")]
+
+
+# Arm fixes from Phase 3 on: NoEmo stays affect-free (#6, #5); the pooling arms add the #1+#2 draw, which
+# reads the parent's nu (brief v2 Phase 5: "AffPool/ActPool ± all fixes").
+NOEMO_FIXES = FIXES_ALL
+POOL_FIXES = FIXES_ALL + DRAW
+
 PHASES = {
 	2: [
 		make("P2_NoEmo_fixes_n25", 2, "NoEmo", FIXES_ALL, 25, hours=1.0,
@@ -44,6 +56,16 @@ PHASES = {
 		make("P2_AffPool_fixes_n25", 2, "AffPool", FIXES_ALL + DRAW, 25, hours=1.2,
 			 description="Phase 2 mechanical verification: AffPool with #6, #5 and the #1+#2 bucket_kernel "
 						 "draw (tau 0.263, h 0.2). Decision-level only, no SR."),
+	],
+	# 3A acceptance (PREREG Entry 10): same arm + seed twice -> identical dialogues; NoEmo vs ActPool on the
+	# same store -> identical up to the first differing act. Run in this order.
+	3: [
+		make("P3A_NoEmo_a", 3, "NoEmo", NOEMO_FIXES + coupled("p3a_seed1"), 5, hours=0.3,
+			 description="3A acceptance: NoEmo, coupled, first run (records the store)."),
+		make("P3A_NoEmo_b", 3, "NoEmo", NOEMO_FIXES + coupled("p3a_seed1"), 5, hours=0.3,
+			 description="3A acceptance: NoEmo, coupled, identical re-run on the same store and seed."),
+		make("P3A_ActPool", 3, "ActPool", POOL_FIXES + coupled("p3a_seed1"), 5, hours=0.3,
+			 description="3A acceptance: ActPool on the same store and seed as P3A_NoEmo_a."),
 	],
 }
 
