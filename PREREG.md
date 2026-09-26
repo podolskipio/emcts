@@ -299,3 +299,45 @@ PREDICTIONS: every check passes except possibly the mismatch band. With h = 0.2 
   different parent with nu 0.1 away keeps weight exp(-0.25) = 0.78, so exact-parent mismatch should
   fall well below 0.737 but land ABOVE 0.35 (predicted 0.40-0.60); the bucket invariant holds at 1.000.
 ```
+
+---
+
+## Entry 10 — 2026-09-26T09:59:54+02:00 — Phase 2 acceptance; Phase 3 pre-registration (3B node-level spread, 3A coupling)
+
+```
+PHASE 2 ACCEPTANCE (human decision, 2026-09-26; amends Entry 9's #1+#2 checks):
+  Fix #1 + #2 is accepted as verified on MOOD: bucket mismatch 0.27 -> 0.084, bucket invariant 1.000,
+  median |nu_gen - nu_now| 0.119 -> 0.047. The exact-parent band (0.20-0.35) is withdrawn: with #5 on,
+  61 % of cached depth>=2 draws have a parent absent from the pool, a floor no draw rule can beat
+  (analysis/readiness/phase2.md §3). The bucket-hit band is withdrawn as mis-anchored (0.92 observed,
+  on the favourable side). #5 and #1+#2 run together wherever the brief specifies both.
+
+3B -- NODE-LEVEL EMOTIONAL SPREAD (zero GPU):
+  DATA, primary: frozen grid A_NoEmo_s20_seed{1,2,3} (current environment: episode horizon, generic nu,
+    beta 0 so nu never steered selection), pooled; cluster = run x dialogue.
+    Secondary (reported, not gating): phase1 D1 (beta 0.7) and D2 (beta 0) -- legacy horizon, soft table.
+  UNIT: an edge (tree, prefix, action) = a node. Its realizations = the distinct child replies generated
+    there, each with child_nu. Kept: >= 2 distinct realizations and >= 2 visits.
+  FEATURES: mean_nu and spread = sd (ddof 1) of nu over the node's distinct realizations; controls: depth
+    fixed effects and number of realizations. OUTCOME: the node's Q = mean backup_value over its visits.
+  STEP 2: OLS  Q ~ depth FE + n_real + mean_nu   vs   + spread.  Incremental R2, 1000 cluster-bootstrap
+    replicates. PASS-2: lower 95 % bound > 0.
+    Reported, not gating: the same within parent (all variables demeaned among sibling nodes), which is
+    the contrast that matters for choosing between actions.
+  STEP 3: distribution of spread across nodes (quantiles, CV). Discrimination: variance of spread among
+    SIBLING nodes (same parent, >= 2 kept siblings), against a permutation null that shuffles the
+    realizations' nu across the siblings of each parent (counts preserved), 200 permutations.
+    PASS-3: observed / null-mean ratio >= 1.2 AND permutation p < 0.05.
+  3B PASSES iff PASS-2 AND PASS-3 on the primary data.
+  PREDICTION: FAIL. Spread is estimated from 2-4 replies, so sibling differences are mostly sampling
+    noise (ratio near 1); step 2 may show a small positive increment, partly mechanical (success replies
+    are both high-nu and high-return).
+
+3A -- COUPLED SEEDS, ACCEPTANCE (--coupled_seeds, default off):
+  (0) flag off: golden fingerprints and every existing test unchanged.
+  (i) same arm, same seed, run twice (NoEmo, 5 dialogues, s20, --num_workers 10, all Phase 2 fixes):
+      the played dialogues are identical (every turn's act and utterance).
+  (ii) NoEmo vs ActPool, same seed, same 5 dialogues: the played dialogues are identical up to the first
+      turn at which the chosen system act differs (acts AND utterances).
+  Any failure -> stop and ask (brief v2 §4).
+```
