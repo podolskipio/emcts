@@ -199,6 +199,10 @@ class OpenLoopMCTS(MCTS):
 		self._uncapped_pools: set = set()
 		# tree key of the first search() call, i.e. the search root (a planner is built per turn)
 		self._sim_root_key = None
+		# Source of every tree draw (realization sampling, cache draws). DEFAULT the numpy module itself,
+		# so the calls are exactly np.random.randint / np.random.choice on the global stream. Under
+		# --coupled_seeds the runner swaps in a RandomState per (seed, dialogue, turn) (utils/coupling.py).
+		self.rng = np.random
 		return
 
 	def _to_string_rep(self, state:DialogSession):
@@ -257,7 +261,7 @@ class OpenLoopMCTS(MCTS):
 		return v
 
 	def _sample_realization(self, hashable_state):
-		rand_i = np.random.randint(len(self.realizations[hashable_state]))
+		rand_i = self.rng.randint(len(self.realizations[hashable_state]))
 		return self.realizations[hashable_state][rand_i]
 
 	def _add_new_realizations(self, state):
@@ -308,7 +312,7 @@ class OpenLoopMCTS(MCTS):
 			# use a cached realization
 			self._record_cache(prefetch_state, True)
 			children = self._cached_children(prefetch_state)
-			return children[np.random.randint(len(children))]
+			return children[self.rng.randint(len(children))]
 
 		# otherwise, generate a new realization
 		self._record_cache(prefetch_state, False)

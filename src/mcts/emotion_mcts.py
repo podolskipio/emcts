@@ -76,7 +76,7 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 		return v
 
 	def _sample_realization(self, hashable_state):
-		rand_i = np.random.randint(len(self.realizations[hashable_state]))
+		rand_i = self.rng.randint(len(self.realizations[hashable_state]))
 		return self.realizations[hashable_state][rand_i]
 
 	def _add_new_realizations(self, state: EmotionAwareDialogSession):
@@ -113,7 +113,7 @@ class EmotionAwareOpenLoopMCTS(OpenLoopMCTS):
 			# use a cached realization
 			self._record_cache(prefetch_state, True)
 			children = self._cached_children(prefetch_state)
-			return children[np.random.randint(len(children))]
+			return children[self.rng.randint(len(children))]
 
 		# otherwise, generate a new realization
 		self._record_cache(prefetch_state, False)
@@ -652,7 +652,7 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 		Under uniform this is the frozen draw -- one randint over the pool -- and diagnostics are None."""
 		children = self._cached_children(prefetch_key)
 		if self.cache_draw == "uniform":
-			return children[np.random.randint(len(children))], None
+			return children[self.rng.randint(len(children))], None
 		gen_nu = np.array([self.generating_parent_nu[_realization_id(c)] for c in children])
 		weights = np.ones(len(children))
 		bucket_miss = False
@@ -668,7 +668,7 @@ class EmotionAwareMultiObjectiveQ(EmotionAwareOpenLoopMCTS):
 			# every kernel weight underflowed: nothing in the pool is closer than any other
 			weights = np.ones(len(children))
 		p = weights / weights.sum()
-		i = int(np.random.choice(len(children), p=p))
+		i = int(self.rng.choice(len(children), p=p))
 		return children[i], {
 			"cache_draw_bucket_miss": bucket_miss,
 			"cache_draw_prob": float(p[i]),
