@@ -7,9 +7,10 @@ batch-invariant matmul needs 106,496 B of shared memory against a 101,376 B limi
 Even where it runs, a seed alone would not remove batch-dependent numerics. So coupling is done on the
 client: every LLM call inside a coupled dialogue is keyed by
 
-    (--seed, dialogue id, the exact request: messages + sampling parameters, occurrence index k)
+    (--seed, dialogue id, scope, the exact request: messages + sampling parameters, occurrence index k)
 
-where k counts how many times this dialogue has already sent that exact request. The first arm to make a
+where k counts how many times this dialogue has already sent that exact request within the scope, and the
+scope is ("search", turn) or ("episode", turn) as set by the runner (see scope()). The first arm to make a
 call stores the reply; every later call with the same key -- the same arm re-run, or another arm that
 reached the same prompt -- gets that reply back. Each distinct key is still one independent draw from the
 model, so each arm's own distribution is unchanged; only the draws are shared.
@@ -66,6 +67,7 @@ class _Dialogue:
 		self.lock = threading.Lock()
 		self.hits = 0
 		self.misses = 0
+		self.scope = None
 
 
 @contextlib.contextmanager
@@ -80,6 +82,23 @@ def dialogue(store: "ReplyStore | None", seed, dlg_id):
 		yield _CTX.get()
 	finally:
 		_CTX.reset(token)
+
+
+@contextlib.contextmanager
+def scope(label):
+	"""Part of the key for every call inside the block. The runner scopes each turn's search apart from the
+	turn it then executes: otherwise the executed turn's request would carry an occurrence index equal to
+	however many times this arm's search had sent the same prompt, which differs between arms, and two arms
+	choosing the same act would still get different executed utterances. No-op when uncoupled."""
+	ctx = _CTX.get()
+	if ctx is None:
+		yield
+		return
+	prev, ctx.scope = ctx.scope, label
+	try:
+		yield
+	finally:
+		ctx.scope = prev
 
 
 def current():
@@ -101,7 +120,7 @@ def call(request: dict, generate):
 	ctx = _CTX.get()
 	if ctx is None:
 		return generate()
-	base = _digest(ctx.seed, ctx.dlg_id, request)
+	base = _digest(ctx.seed, ctx.dlg_id, ctx.scope, request)
 	with ctx.lock:
 		k = ctx.counts.get(base, 0)
 		ctx.counts[base] = k + 1

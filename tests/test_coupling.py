@@ -131,3 +131,18 @@ def test_runner_flags_default_off_and_store_needs_the_flag():
 	bad = ["--coupling_store", "/tmp/x.sqlite"]
 	with pytest.raises(SystemExit, match="coupling_store needs --coupled_seeds"):
 		mod.finalize_args(parser.parse_args(bad), argv=bad)
+
+
+def test_scope_separates_search_from_the_executed_turn(tmp_path):
+	"""Two arms search the same prompt a different number of times; the executed turn must still match."""
+	store = coupling.ReplyStore(str(tmp_path / "s.sqlite"))
+
+	def arm(n_search):
+		gen = counter_generator()
+		with coupling.dialogue(store, 1, "d1"):
+			with coupling.scope(("search", 1)):
+				for _ in range(n_search):
+					coupling.call({"m": "p"}, gen)
+			with coupling.scope(("episode", 1)):
+				return coupling.call({"m": "p"}, gen)
+	assert arm(3) == arm(7)

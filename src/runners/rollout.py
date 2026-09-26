@@ -155,7 +155,8 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
 	greeting_idx = int(np.nonzero(valid0)[0][0]) if valid0.sum() > 0 else 0
 	# EmotionAwarePersuasionGame.get_next_state returns (state, emotion); base returns state.
 	# Normalize to the state so both shapes work.
-	state = game.state_of(game.get_next_state(state, greeting_idx))
+	with coupling.scope(("episode", 0)):
+		state = game.state_of(game.get_next_state(state, greeting_idx))
 	simlog_records.append(_simlog_turn_record(game, None, state, dlg_id=dlg_id, turn=0, planned=False,
 											  valence_table=configs.emo_valence_table))
 	# this turn's system-utterance / user-simulator / emotion-classifier calls are already in the
@@ -164,14 +165,18 @@ def rollout_one(game, planner, algo, configs, emotion_classifier, max_turns, sce
 	role_profiler.mark_turn()
 	# then plan turn by turn until the game ends or we hit the limit
 	while game.get_dialog_ended(state) == 0.0 and len(state) < max_turns:
-		action, dp = pick_action(algo, state, game=game, planner=planner,
-							  configs=configs, emotion_classifier=emotion_classifier)
+		# --coupled_seeds: a turn's search and the turn it then plays are separate key scopes
+		# (utils/coupling.scope); no-ops otherwise
+		with coupling.scope(("search", len(state))):
+			action, dp = pick_action(algo, state, game=game, planner=planner,
+								  configs=configs, emotion_classifier=emotion_classifier)
 		if dp is not None:
 			subtree_records += build_subtree_records(
 				dp, dlg_id=dlg_id, turn=len(state), root_state=state, seed=seed)
 			simlog_records += build_simlog_step_records(dp, dlg_id=dlg_id, turn=len(state))
 		root_state, turn = state, len(state)
-		state = game.state_of(game.get_next_state(state, action))
+		with coupling.scope(("episode", turn)):
+			state = game.state_of(game.get_next_state(state, action))
 		simlog_records.append(_simlog_turn_record(game, root_state, state, dlg_id=dlg_id, turn=turn, planned=True,
 												  valence_table=configs.emo_valence_table, planner_used=dp))
 		role_profiler.mark_turn()  # denominator for the per-role calls/turn (--profile_roles)
