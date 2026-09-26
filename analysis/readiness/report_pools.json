@@ -1,0 +1,191 @@
+{
+ "tau": 0.263,
+ "git_head": "0065c4b19b2a40f0dac20cadb2b8f09774e432da",
+ "NoEmo": {
+  "before": {
+   "tag": "F_NoEmo_s20_seed1",
+   "dialogues": 100,
+   "pools": {
+    "served_pool_edges": 1025,
+    "served_pool_sd_median": 0.1910211727614805,
+    "served_pool_sd_share_of_global": 0.7070105166084728,
+    "served_pool_straddling_tau": 0.568780487804878,
+    "global_nu_sd": 0.2701815153723716,
+    "never_served": 284
+   },
+   "depth1": {
+    "depth1_rows": 11172,
+    "depth1_cache_hits": 4484,
+    "depth1_edges": 2020,
+    "generations_per_depth1_edge_mean": 3.3108910891089107,
+    "visits_per_depth1_edge_mean": 5.53069306930693,
+    "generations_per_depth1_edge_median": 3.0,
+    "visits_per_edge_by_depth": {
+     "1": 5.53069306930693,
+     "2": 2.939661798616449,
+     "3": 3.241152263374486,
+     "4": 2.9415584415584415
+    }
+   },
+   "exact_parent_mismatch": {
+    "value": 0.7546419098143236,
+    "ci": [
+     0.7397428424697833,
+     0.7687768309735465
+    ]
+   },
+   "bucket_mismatch": 0.28216180371352784,
+   "median_abs_nu_gap": 0.1132583929758627,
+   "floor": {
+    "value": 0.25862068965517243,
+    "ci": [
+     0.23627774713324387,
+     0.28197397927621404
+    ]
+   },
+   "draw": {}
+  },
+  "after": {
+   "tag": "P4_NoEmo_seed1",
+   "dialogues": 100,
+   "pools": {
+    "served_pool_edges": 592,
+    "served_pool_sd_median": 0.19779823619825054,
+    "served_pool_sd_share_of_global": 0.7127661231877668,
+    "served_pool_straddling_tau": 0.6266891891891891,
+    "global_nu_sd": 0.27750790864417074,
+    "never_served": 0
+   },
+   "depth1": {
+    "depth1_rows": 10659,
+    "depth1_cache_hits": 0,
+    "depth1_edges": 1866,
+    "generations_per_depth1_edge_mean": 5.712218649517685,
+    "visits_per_depth1_edge_mean": 5.712218649517685,
+    "generations_per_depth1_edge_median": 3.0,
+    "visits_per_edge_by_depth": {
+     "1": 5.712218649517685,
+     "2": 3.0673620165145588,
+     "3": 3.226833976833977,
+     "4": 2.5287128712871287
+    }
+   },
+   "exact_parent_mismatch": {
+    "value": 0.8405929304446979,
+    "ci": [
+     0.8295819465697838,
+     0.8524624058094312
+    ]
+   },
+   "bucket_mismatch": 0.34526795895096923,
+   "median_abs_nu_gap": 0.1677723240594329,
+   "floor": {
+    "value": 0.5746864310148233,
+    "ci": [
+     0.5563389251948369,
+     0.59512562986958
+    ]
+   },
+   "draw": {}
+  }
+ },
+ "ActPool": {
+  "before": {
+   "tag": "F_ActPool_s20_seed1",
+   "dialogues": 100,
+   "pools": {
+    "served_pool_edges": 755,
+    "served_pool_sd_median": 0.20354355559541748,
+    "served_pool_sd_share_of_global": 0.7358399074798222,
+    "served_pool_straddling_tau": 0.5801324503311258,
+    "global_nu_sd": 0.2766139122469366,
+    "never_served": 53
+   },
+   "depth1": {
+    "depth1_rows": 9937,
+    "depth1_cache_hits": 3625,
+    "depth1_edges": 1862,
+    "generations_per_depth1_edge_mean": 3.3899033297529537,
+    "visits_per_depth1_edge_mean": 5.336734693877551,
+    "generations_per_depth1_edge_median": 3.0,
+    "visits_per_edge_by_depth": {
+     "1": 5.336734693877551,
+     "2": 2.694387546087669,
+     "3": 2.2025955299206923,
+     "4": 1.8246268656716418
+    }
+   },
+   "exact_parent_mismatch": {
+    "value": 0.7248677248677249,
+    "ci": [
+     0.7008428390367554,
+     0.7486434072089047
+    ]
+   },
+   "bucket_mismatch": 0.23885109599395313,
+   "median_abs_nu_gap": 0.09705910898808312,
+   "floor": {
+    "value": 0.2668178382464097,
+    "ci": [
+     0.24113630048750917,
+     0.2911319455987478
+    ]
+   },
+   "draw": {}
+  },
+  "after": {
+   "tag": "P4_ActPool_seed1",
+   "dialogues": 100,
+   "pools": {
+    "served_pool_edges": 398,
+    "served_pool_sd_median": 0.18360421045556896,
+    "served_pool_sd_share_of_global": 0.6673363546442531,
+    "served_pool_straddling_tau": 0.5452261306532663,
+    "global_nu_sd": 0.2751299388648556,
+    "never_served": 0
+   },
+   "depth1": {
+    "depth1_rows": 10716,
+    "depth1_cache_hits": 0,
+    "depth1_edges": 2008,
+    "generations_per_depth1_edge_mean": 5.336653386454183,
+    "visits_per_depth1_edge_mean": 5.336653386454183,
+    "generations_per_depth1_edge_median": 3.0,
+    "visits_per_edge_by_depth": {
+     "1": 5.336653386454183,
+     "2": 2.62911877394636,
+     "3": 2.174835405998537,
+     "4": 1.7412451361867705
+    }
+   },
+   "exact_parent_mismatch": {
+    "value": 0.7445742904841403,
+    "ci": [
+     0.722194383405058,
+     0.7666410002668564
+    ]
+   },
+   "bucket_mismatch": 0.09432387312186978,
+   "median_abs_nu_gap": 0.04690013116779956,
+   "floor": {
+    "value": 0.6097662771285476,
+    "ci": [
+     0.5842885063841522,
+     0.6353458239026756
+    ]
+   },
+   "draw": {
+    "cached_rows": 2396,
+    "bucket_hit_rate": {
+     "value": 0.9056761268781303,
+     "ci": [
+      0.8842030749344408,
+      0.9238109082849775
+     ]
+    },
+    "bucket_invariant_share": 1.0,
+    "logged_vs_joined_generating_nu_max_abs_diff": 0.0
+   }
+  }
+ }
+}
