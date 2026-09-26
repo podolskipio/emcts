@@ -26,8 +26,12 @@ FIXES_ALL = ["--cache_ended_children", "--cache_fresh_depth1"]
 DRAW = ["--cache_draw", "bucket_kernel", "--cache_bucket_tau", "0.263", "--cache_kernel_h", "0.2"]
 
 
-def make(tag, phase, arm, extra, n_dialogues, n_sims=20, seed=1, description="", hours=1.0):
-	shared = rg.set_arg(rg.SHARED_ARGS, "--max_conv", str(n_dialogues))
+GDPZERO_SHARED = rg.set_arg(rg.set_arg(rg.set_arg(rg.SHARED_ARGS, "--game", "p4g"), "--algo", "gdpzero"),
+							"--llm_prior_topk", "0")  # frozen B1_GDPZero_plain's planner
+
+
+def make(tag, phase, arm, extra, n_dialogues, n_sims=20, seed=1, description="", hours=1.0, shared=rg.SHARED_ARGS):
+	shared = rg.set_arg(shared, "--max_conv", str(n_dialogues))
 	argv = (shared + ["--sglang_model", rg.VICUNA, "--num_mcts_sims", str(n_sims), "--seed", str(seed)]
 			+ rg.ARM_ARGS[arm] + extra
 			+ ["--output", os.path.join(rg.RUNS_DIR, tag, tag + ".pkl")])
@@ -76,6 +80,18 @@ PHASES = {
 		make("P4_NoEmo_seed2", 4, "NoEmo", NOEMO_FIXES + coupled("p4"), 100, seed=2, hours=2.8,
 			 description="Phase 4: coupled NoEmo, seed 2 -- seed spread under coupling."),
 	],
+	# Phase 5, "limited" scope (PREREG Entry 12): retention (#6) alone, +- on NoEmo and on GDP-Zero, s20,
+	# 5 coupled seeds, run seed by seed so finished pairs are usable as they come.
+	5: [r for k in range(1, 6) for r in (
+		make(f"P5_NoEmo_base_s{k}", 5, "NoEmo", coupled("p5"), 100, seed=k, hours=2.9,
+			 description=f"Phase 5: NoEmo, no cache fix, coupled seed {k}."),
+		make(f"P5_NoEmo_ret_s{k}", 5, "NoEmo", ["--cache_ended_children"] + coupled("p5"), 100, seed=k, hours=2.9,
+			 description=f"Phase 5: NoEmo + retention (#6) alone, coupled seed {k}."),
+		make(f"P5_GDPZero_base_s{k}", 5, "NoEmo", coupled("p5"), 100, seed=k, hours=2.9, shared=GDPZERO_SHARED,
+			 description=f"Phase 5: GDP-Zero (B1 planner), no cache fix, coupled seed {k}."),
+		make(f"P5_GDPZero_ret_s{k}", 5, "NoEmo", ["--cache_ended_children"] + coupled("p5"), 100, seed=k, hours=2.9,
+			 shared=GDPZERO_SHARED, description=f"Phase 5: GDP-Zero + retention (#6) alone, coupled seed {k}."),
+	)],
 }
 
 

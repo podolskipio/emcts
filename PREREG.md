@@ -373,3 +373,33 @@ GATE (point estimate of corr, brief v2):  >= 0.6 -> Phase 5 in full, 3 seeds.
 PREDICTION: corr < 0.3. In 3A the two arms diverged at turn 1-2 in 5/5 dialogues and shared 11.9 % of
   their LLM calls; coupling removes noise only before the first divergence.
 ```
+
+---
+
+## Entry 12 — 2026-09-26T20:52:41+02:00 — Readiness Phase 5 (brief v2, "limited" scope): coupled retention comparisons
+
+Written after Phase 4 (corr 0.39 -> gate "limited") and before any Phase 5 run.
+
+```
+SCOPE (human decision, 2026-09-26): the gate's two comparisons, both at num_mcts_sims 20, 5 coupled seeds.
+  s20 instead of the brief's s50 for GDP-Zero: s50 was chosen to match the frozen B1 run, which Rule 10
+  rules out as a paired baseline; s20 is a published GDP-Zero budget and costs ~2.5x less (~58 GPU-h total).
+RUNS (one store coupling/p5.sqlite; T 1.1, persona ON, episode horizon, R 4, the 100 eval dialogues;
+  seeds 1-5; run seed by seed: NoEmo-, NoEmo+, GDPZero-, GDPZero+):
+  P5_NoEmo_base_s{k}    emomcts NoEmo, top-K 5, no cache fix
+  P5_NoEmo_ret_s{k}     the same + --cache_ended_children (retention alone)
+  P5_GDPZero_base_s{k}  --game p4g --algo gdpzero --llm_prior_topk 0 (as frozen B1_GDPZero_plain), no cache fix
+  P5_GDPZero_ret_s{k}   the same + --cache_ended_children
+  The AffPool/ActPool comparison and its "gap closes" prediction are not run under this gate.
+MEASURES per comparison (retention minus base):
+  SR difference, pooled over the 5 seeds as the mean of the per-seed paired differences; 95 % CI by
+    bootstrap over dialogues, each dialogue carrying its 5 seed pairs (1000 replicates). Same for AvgT.
+  Per-seed coupled correlation (phi) between the two arms; per-seed SR; first-divergence turns.
+  Decision level (NoEmo only; GDP-Zero logs no simulation steps): the Q shift on success-reachable
+    edges (scripts/phase5_decision.py) in the retention runs.
+READING: a difference whose CI contains 0 is "not detected at this resolution" (Rule 9), stated with
+  the detectable difference implied by the measured correlations.
+PREDICTIONS: Q on success-reachable edges rises +0.12 to +0.15 in the NoEmo retention runs (as in
+  Phase 4). SR difference small and positive, NOT detected (|diff| < 0.05, CI containing 0) for both
+  planners; AvgT not detectably different.
+```
