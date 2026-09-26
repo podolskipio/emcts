@@ -1,0 +1,308 @@
+{
+ "git_head": "aad18c6bf304a3d6a06effcd6bff6289158a7cc7",
+ "P2_NoEmo_fixes_n25": {
+  "edges_with_cache_hits": 176,
+  "all": {
+   "shift": {
+    "value": 0.08079668657898104,
+    "ci": [
+     0.062314831218552094,
+     0.09985739751566489
+    ],
+    "edges": 176
+   },
+   "q_fixed": 0.615633596201778,
+   "q_frozen": 0.5348369096227971,
+   "share_hits_ended": 0.2139302931916568
+  },
+  "success_reachable": {
+   "shift": {
+    "value": 0.14510425344796593,
+    "ci": [
+     0.11879577943497342,
+     0.1719619748697638
+    ],
+    "edges": 98
+   },
+   "q_fixed": 0.6689564365539756,
+   "q_frozen": 0.5238521831060097,
+   "share_hits_ended": 0.3842013428748123
+  },
+  "success_only_reachable": {
+   "shift": {
+    "value": 0.14510425344796593,
+    "ci": [
+     0.11879577943497342,
+     0.1719619748697638
+    ],
+    "edges": 98
+   },
+   "q_fixed": 0.6689564365539756,
+   "q_frozen": 0.5238521831060097,
+   "share_hits_ended": 0.3842013428748123
+  },
+  "failure_only_reachable": {
+   "shift": null,
+   "q_fixed": null,
+   "q_frozen": null,
+   "share_hits_ended": null
+  },
+  "neither": {
+   "shift": {
+    "value": 0.0,
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "edges": 78
+   },
+   "q_fixed": 0.5486382326823505,
+   "q_frozen": 0.5486382326823505,
+   "share_hits_ended": 0.0
+  }
+ },
+ "P2_AffPool_fixes_n25": {
+  "edges_with_cache_hits": 117,
+  "all": {
+   "shift": {
+    "value": 0.06506269886124713,
+    "ci": [
+     0.04646047813505543,
+     0.08674152556054672
+    ],
+    "edges": 117
+   },
+   "q_fixed": 0.7035510365563156,
+   "q_frozen": 0.6384883376950683,
+   "share_hits_ended": 0.16136992162633187
+  },
+  "success_reachable": {
+   "shift": {
+    "value": 0.12083072645660183,
+    "ci": [
+     0.09035895886615744,
+     0.1562784646922843
+    ],
+    "edges": 63
+   },
+   "q_fixed": 0.7193229116303347,
+   "q_frozen": 0.5984921851737327,
+   "share_hits_ended": 0.2996869973060449
+  },
+  "success_only_reachable": {
+   "shift": {
+    "value": 0.12083072645660183,
+    "ci": [
+     0.09035895886615744,
+     0.1562784646922843
+    ],
+    "edges": 63
+   },
+   "q_fixed": 0.7193229116303347,
+   "q_frozen": 0.5984921851737327,
+   "share_hits_ended": 0.2996869973060449
+  },
+  "failure_only_reachable": {
+   "shift": null,
+   "q_fixed": null,
+   "q_frozen": null,
+   "share_hits_ended": null
+  },
+  "neither": {
+   "shift": {
+    "value": 0.0,
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "edges": 54
+   },
+   "q_fixed": 0.6851505156366268,
+   "q_frozen": 0.6851505156366268,
+   "share_hits_ended": 0.0
+  }
+ },
+ "P4_NoEmo_seed1": {
+  "edges_with_cache_hits": 659,
+  "all": {
+   "shift": {
+    "value": 0.08648007856891637,
+    "ci": [
+     0.07365346939779818,
+     0.09881555033162136
+    ],
+    "edges": 659
+   },
+   "q_fixed": 0.6382943181517224,
+   "q_frozen": 0.5518142395828061,
+   "share_hits_ended": 0.22657266860605255
+  },
+  "success_reachable": {
+   "shift": {
+    "value": 0.15116809489898117,
+    "ci": [
+     0.13085302529206203,
+     0.17266690455705844
+    ],
+    "edges": 377
+   },
+   "q_fixed": 0.6966207258224345,
+   "q_frozen": 0.5454526309234532,
+   "share_hits_ended": 0.3960514286774234
+  },
+  "success_only_reachable": {
+   "shift": {
+    "value": 0.15116809489898117,
+    "ci": [
+     0.13085302529206203,
+     0.17266690455705844
+    ],
+    "edges": 377
+   },
+   "q_fixed": 0.6966207258224345,
+   "q_frozen": 0.5454526309234532,
+   "share_hits_ended": 0.3960514286774234
+  },
+  "failure_only_reachable": {
+   "shift": null,
+   "q_fixed": null,
+   "q_frozen": null,
+   "share_hits_ended": null
+  },
+  "neither": {
+   "shift": {
+    "value": 0.0,
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "edges": 282
+   },
+   "q_fixed": 0.5603189433578983,
+   "q_frozen": 0.5603189433578983,
+   "share_hits_ended": 0.0
+  }
+ },
+ "P4_ActPool_seed1": {
+  "edges_with_cache_hits": 486,
+  "all": {
+   "shift": {
+    "value": 0.060492425594322836,
+    "ci": [
+     0.0481890521710509,
+     0.07185632551840379
+    ],
+    "edges": 486
+   },
+   "q_fixed": 0.6312830760239831,
+   "q_frozen": 0.5707906504296604,
+   "share_hits_ended": 0.15426614423528004
+  },
+  "success_reachable": {
+   "shift": {
+    "value": 0.12048901163459384,
+    "ci": [
+     0.09983998947776687,
+     0.14278494890124213
+    ],
+    "edges": 244
+   },
+   "q_fixed": 0.7038206890646319,
+   "q_frozen": 0.5833316774300381,
+   "share_hits_ended": 0.30726781187846763
+  },
+  "success_only_reachable": {
+   "shift": {
+    "value": 0.11994461342001284,
+    "ci": [
+     0.09970341068932652,
+     0.1423557356186476
+    ],
+    "edges": 243
+   },
+   "q_fixed": 0.7074258039258947,
+   "q_frozen": 0.5874811905058818,
+   "share_hits_ended": 0.3052401074006012
+  },
+  "failure_only_reachable": {
+   "shift": null,
+   "q_fixed": null,
+   "q_frozen": null,
+   "share_hits_ended": null
+  },
+  "neither": {
+   "shift": {
+    "value": 0.0,
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "edges": 242
+   },
+   "q_fixed": 0.5581459785780398,
+   "q_frozen": 0.5581459785780398,
+   "share_hits_ended": 0.0
+  }
+ },
+ "P4_NoEmo_seed2": {
+  "edges_with_cache_hits": 658,
+  "all": {
+   "shift": {
+    "value": 0.07574591493158786,
+    "ci": [
+     0.06765916065587964,
+     0.08428437029818263
+    ],
+    "edges": 658
+   },
+   "q_fixed": 0.6520992932357025,
+   "q_frozen": 0.5763533783041147,
+   "share_hits_ended": 0.222211101124475
+  },
+  "success_reachable": {
+   "shift": {
+    "value": 0.13326420327536045,
+    "ci": [
+     0.11968368067102714,
+     0.14817041038808296
+    ],
+    "edges": 374
+   },
+   "q_fixed": 0.7066391611865818,
+   "q_frozen": 0.5733749579112213,
+   "share_hits_ended": 0.39094894262006563
+  },
+  "success_only_reachable": {
+   "shift": {
+    "value": 0.13326420327536045,
+    "ci": [
+     0.11968368067102714,
+     0.14817041038808296
+    ],
+    "edges": 374
+   },
+   "q_fixed": 0.7066391611865818,
+   "q_frozen": 0.5733749579112213,
+   "share_hits_ended": 0.39094894262006563
+  },
+  "failure_only_reachable": {
+   "shift": null,
+   "q_fixed": null,
+   "q_frozen": null,
+   "share_hits_ended": null
+  },
+  "neither": {
+   "shift": {
+    "value": 0.0,
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "edges": 284
+   },
+   "q_fixed": 0.5802756643144744,
+   "q_frozen": 0.5802756643144744,
+   "share_hits_ended": 0.0
+  }
+ }
+}
