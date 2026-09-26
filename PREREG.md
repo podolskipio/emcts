@@ -341,3 +341,35 @@ PHASE 2 ACCEPTANCE (human decision, 2026-09-26; amends Entry 9's #1+#2 checks):
       turn at which the chosen system act differs (acts AND utterances).
   Any failure -> stop and ask (brief v2 §4).
 ```
+
+---
+
+## Entry 11 — 2026-09-26T10:35:10+02:00 — Readiness Phase 4 (brief v2): does coupling make comparisons resolvable?
+
+Written after Phase 3 (3B FAIL, so the verdict is RED whatever this shows; 3A passed) and before any Phase 4 run.
+
+```
+RUNS (coupled, one shared store analysis/readiness/coupling/p4.sqlite; T 1.1, persona ON, episode
+  horizon, R 4, top-K 5, s20, the 100 eval dialogues):
+  P4_NoEmo_seed1    NoEmo   + #6 #5                     --seed 1
+  P4_ActPool_seed1  ActPool + #6 #5 + bucket_kernel draw --seed 1   (coupled with P4_NoEmo_seed1)
+  P4_NoEmo_seed2    NoEmo   + #6 #5                     --seed 2
+  NoEmo stays affect-free (no nu-reading draw); ActPool carries every fix, as in brief Phase 5.
+  The three may run concurrently: a key is written once, and whichever run writes it first, both get
+  the stored reply, so the coupling does not depend on the order.
+
+MEASURES (dialogue-level; bootstrap over dialogues, 1000 replicates):
+  R1  corr = phi (Pearson on per-dialogue success) between P4_NoEmo_seed1 and P4_ActPool_seed1. Also
+      Cohen's kappa, and both for the frozen uncoupled pair A_NoEmo_s20_seed1 / A_ActPool_s20_seed1 on the
+      same dialogues.
+  first divergence: the turn of the first differing system act per dialogue; share never diverging.
+  NoEmo seed spread: SR(seed1) - SR(seed2), with its CI.
+  Implied detectable difference at n = 100, 80 % power, two-sided 0.05, SR p:
+      2.80 * sqrt(2 p (1 - p) (1 - corr) / 100).
+  SR and AvgT per run with Wilson intervals -- reported, never read as an effect.
+GATE (point estimate of corr, brief v2):  >= 0.6 -> Phase 5 in full, 3 seeds.
+  0.3-0.6 -> Phase 5 on NoEmo +- #6 and GDP-Zero +- #6 only, 5 seeds.  < 0.3 -> skip Phase 5's SR
+  comparisons; decision-level results only.
+PREDICTION: corr < 0.3. In 3A the two arms diverged at turn 1-2 in 5/5 dialogues and shared 11.9 % of
+  their LLM calls; coupling removes noise only before the first divergence.
+```

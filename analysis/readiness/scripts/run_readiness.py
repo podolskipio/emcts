@@ -67,6 +67,15 @@ PHASES = {
 		make("P3A_ActPool", 3, "ActPool", POOL_FIXES + coupled("p3a_seed1"), 5, hours=0.3,
 			 description="3A acceptance: ActPool on the same store and seed as P3A_NoEmo_a."),
 	],
+	# Phase 4 (PREREG Entry 11): the gate. One store; may run concurrently (--only TAG per process).
+	4: [
+		make("P4_NoEmo_seed1", 4, "NoEmo", NOEMO_FIXES + coupled("p4"), 100, seed=1, hours=2.8,
+			 description="Phase 4: coupled NoEmo, seed 1, all NoEmo fixes."),
+		make("P4_ActPool_seed1", 4, "ActPool", POOL_FIXES + coupled("p4"), 100, seed=1, hours=3.0,
+			 description="Phase 4: coupled ActPool, seed 1 -- correlation against P4_NoEmo_seed1."),
+		make("P4_NoEmo_seed2", 4, "NoEmo", NOEMO_FIXES + coupled("p4"), 100, seed=2, hours=2.8,
+			 description="Phase 4: coupled NoEmo, seed 2 -- seed spread under coupling."),
+	],
 }
 
 
@@ -75,8 +84,9 @@ def main():
 	ap.add_argument("--phase", type=int, required=True, choices=sorted(PHASES))
 	ap.add_argument("--dry_run", action="store_true")
 	ap.add_argument("--continue", dest="resume", action="store_true")
+	ap.add_argument("--only", nargs="+", help="run only these tags of the phase (e.g. one per process)")
 	a = ap.parse_args()
-	runs = PHASES[a.phase]
+	runs = [r for r in PHASES[a.phase] if not a.only or r["tag"] in a.only]
 	if a.dry_run:
 		for r in runs:
 			print(f"{r['tag']}  ~{r['expected_hours']} h\n    cd src && python3 runners/rollout.py {' '.join(r['argv'])}\n")
