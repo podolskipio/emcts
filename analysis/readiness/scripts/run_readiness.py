@@ -92,12 +92,19 @@ PHASES = {
 		make(f"P5_GDPZero_ret_s{k}", 5, "NoEmo", ["--cache_ended_children"] + coupled("p5"), 100, seed=k, hours=2.9,
 			 shared=GDPZERO_SHARED, description=f"Phase 5: GDP-Zero + retention (#6) alone, coupled seed {k}."),
 	)],
+	# 5b (PREREG Entry 13): the direct affect test replacing Entry 12 -- AffPool vs ActPool, all fixes, coupled on
+	# the Phase 4 store; seed 1's ActPool is P4_ActPool_seed1.
+	"5b": [r for k in range(1, 6) for r in (
+		[make(f"P5b_AffPool_s{k}", "5b", "AffPool", POOL_FIXES + coupled("p4"), 100, seed=k, hours=3.0,
+			  description=f"5b: AffPool, all fixes, coupled seed {k}.")]
+		+ ([] if k == 1 else [make(f"P5b_ActPool_s{k}", "5b", "ActPool", POOL_FIXES + coupled("p4"), 100, seed=k,
+								   hours=2.5, description=f"5b: ActPool, all fixes, coupled seed {k}.")]))],
 }
 
 
 def main():
 	ap = argparse.ArgumentParser()
-	ap.add_argument("--phase", type=int, required=True, choices=sorted(PHASES))
+	ap.add_argument("--phase", required=True, type=lambda x: int(x) if x.isdigit() else x, choices=list(PHASES))
 	ap.add_argument("--dry_run", action="store_true")
 	ap.add_argument("--continue", dest="resume", action="store_true")
 	ap.add_argument("--only", nargs="+", help="run only these tags of the phase (e.g. one per process)")

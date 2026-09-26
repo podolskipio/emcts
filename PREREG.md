@@ -403,3 +403,36 @@ PREDICTIONS: Q on success-reachable edges rises +0.12 to +0.15 in the NoEmo rete
   Phase 4). SR difference small and positive, NOT detected (|diff| < 0.05, CI containing 0) for both
   planners; AvgT not detectably different.
 ```
+
+---
+
+## Entry 13 — 2026-09-26T21:12:37+02:00 — Phase 5 replaced by the direct affect test: AffPool vs ActPool on the fixed planner
+
+Written before any run of this comparison. DEVIATION from brief v2's Phase 4 gate, by human decision
+(2026-09-26): the "limited" scope (NoEmo +- #6, GDP-Zero +- #6; Entry 12) is stopped after 5 dialogues of its
+first run (archived, unread: runs/_interrupted/P5_NoEmo_base_s1_stopped_for_affpool). It answers a
+correctness question with no affect in it. The question this program exists for -- does affect work in
+the fixed open loop -- is tested directly instead, with the brief's own Phase 5 AffPool/ActPool comparison.
+Entry 12's comparisons can resume later from scratch.
+
+```
+RUNS (store coupling/p4.sqlite; T 1.1, persona ON, episode horizon, R 4, top-K 5, s20, 100 eval dialogues;
+  every run carries all fixes: #6 #5 + bucket_kernel draw, tau 0.263, h 0.2):
+  P5b_AffPool_s{1..5}   AffPool (affect-keyed pooling, bias 0.25, tau 0.263)
+  P5b_ActPool_s{2..5}   ActPool (act-keyed pooling)
+  seed 1's ActPool is the existing P4_ActPool_seed1: same arguments, same store, same planner code.
+PRIMARY (SR): AffPool - ActPool, mean of per-seed paired differences over 5 coupled seeds; 95 % CI by
+  bootstrap over dialogues carrying all seed pairs. AvgT the same. Per-seed coupled correlation.
+DECISION LEVEL (the brief's "does the gap close"): on each run's own logs, pooling homogeneity of the task
+  return (backup_value) under two keyings of the same steps, with the Wednesday estimator
+  (analysis/wed/scripts/lib.affpool_block: cells with >= 3 prefixes, visit-weighted median noise-corrected
+  between/within ratio; lower = more homogeneous) and the evidence multiplier:
+    affect key (tree, parent-nu bucket at 0.263, act)  vs  act key (tree, act).
+  gap = ratio(act key) - ratio(affect key): > 0 means the affective key buys homogeneity.
+  BEFORE: frozen A_AffPool_s20_seed1 (unfixed cache). AFTER: P5b_AffPool_s1..5 pooled.
+  "Gap closes" (brief): the affective key's advantage grows after the fixes, with the after-gap's CI above
+  the before-gap's point estimate.
+READING: Rule 9 -- a CI containing 0 is "not detected at this resolution".
+PREDICTIONS: SR difference not detected (|diff| < 0.06, CI containing 0). Homogeneity gap not detectably
+  different from before (overlapping CIs): four measurements put the affective signal near 1 % of variance.
+```
