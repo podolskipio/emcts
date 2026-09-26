@@ -1,0 +1,148 @@
+{
+ "git_head": "98f2fc9cea889ef025001f1f7d5bbb4e57bdc90b",
+ "primary_NoEmo_s20_seeds123": {
+  "distribution": {
+   "nodes": 10650,
+   "n_real_median": 4.0,
+   "spread_quantiles": {
+    "0.1": 0.010871333798409412,
+    "0.25": 0.05690548465940375,
+    "0.5": 0.1588699877456404,
+    "0.75": 0.24170618548983133,
+    "0.9": 0.32776076574320506
+   },
+   "spread_mean": 0.16616673121493583,
+   "spread_sd": 0.12705502495773818,
+   "spread_cv": 0.764623724789971,
+   "global_nu_sd": 0.25528745521540075,
+   "median_spread_over_global_sd": 0.6223180360021711,
+   "corr_spread_mean_nu": -0.5793112649606121
+  },
+  "step2_incremental_r2": {
+   "rows": 10650,
+   "increment": 0.007925484804693794,
+   "ci": [
+    0.004565729136390198,
+    0.012227885200894564
+   ],
+   "std_coef_spread": 0.11188741661842086,
+   "PASS": true
+  },
+  "step2_within_parent": {
+   "rows": 5358,
+   "increment": 0.0017586485428519039,
+   "ci": [
+    8.965866314896986e-05,
+    0.005096384346429656
+   ],
+   "std_coef_spread": 0.04792678848047611,
+   "PASS": true
+  },
+  "step3_discrimination": {
+   "parents_with_ge2_kept_siblings": 2063,
+   "observed_sibling_var_of_spread": 0.014966401189558944,
+   "null_mean": 0.014453203543927894,
+   "null_q95": 0.014955811280954459,
+   "ratio": 1.03550753603319,
+   "perm_p": 0.04975124378109453,
+   "PASS": false
+  },
+  "PASS": false
+ },
+ "secondary_D1": {
+  "distribution": {
+   "nodes": 3342,
+   "n_real_median": 4.0,
+   "spread_quantiles": {
+    "0.1": 0.007913044657760231,
+    "0.25": 0.056451103610418045,
+    "0.5": 0.14514124726983546,
+    "0.75": 0.21472660171794322,
+    "0.9": 0.2612982586847002
+   },
+   "spread_mean": 0.14112015295122537,
+   "spread_sd": 0.09467705613506204,
+   "spread_cv": 0.6708967794825504,
+   "global_nu_sd": 0.20005936694250176,
+   "median_spread_over_global_sd": 0.7254908854707608,
+   "corr_spread_mean_nu": -0.4472336027174937
+  },
+  "step2_incremental_r2": {
+   "rows": 3342,
+   "increment": 0.004223228191587269,
+   "ci": [
+    0.0006436658603393764,
+    0.012000653987620928
+   ],
+   "std_coef_spread": 0.07412614786444181,
+   "PASS": true
+  },
+  "step2_within_parent": {
+   "rows": 1391,
+   "increment": 0.002714301538039088,
+   "ci": [
+    4.69875122680874e-06,
+    0.02051142379185432
+   ],
+   "std_coef_spread": 0.05261535493524984,
+   "PASS": true
+  },
+  "step3_discrimination": {
+   "parents_with_ge2_kept_siblings": 570,
+   "observed_sibling_var_of_spread": 0.0062387988866850885,
+   "null_mean": 0.006644657042335358,
+   "null_q95": 0.007073844900342209,
+   "ratio": 0.9389196232304526,
+   "perm_p": 0.9701492537313433,
+   "PASS": false
+  }
+ },
+ "secondary_D2": {
+  "distribution": {
+   "nodes": 2871,
+   "n_real_median": 4.0,
+   "spread_quantiles": {
+    "0.1": 0.010147743484382023,
+    "0.25": 0.059922198447954364,
+    "0.5": 0.1534772543013411,
+    "0.75": 0.21747587139038876,
+    "0.9": 0.260884429814427
+   },
+   "spread_mean": 0.14482830117663478,
+   "spread_sd": 0.0936586000155725,
+   "spread_cv": 0.6466871409431576,
+   "global_nu_sd": 0.20425593074091827,
+   "median_spread_over_global_sd": 0.7513968076452785,
+   "corr_spread_mean_nu": -0.40924235170640044
+  },
+  "step2_incremental_r2": {
+   "rows": 2871,
+   "increment": 0.007291928895528543,
+   "ci": [
+    0.0018663578263971414,
+    0.013331630635723617
+   ],
+   "std_coef_spread": 0.09524641298067192,
+   "PASS": true
+  },
+  "step2_within_parent": {
+   "rows": 1524,
+   "increment": 0.0072840928261026505,
+   "ci": [
+    0.0017541297233986675,
+    0.018725291663013382
+   ],
+   "std_coef_spread": 0.08821116278896653,
+   "PASS": true
+  },
+  "step3_discrimination": {
+   "parents_with_ge2_kept_siblings": 591,
+   "observed_sibling_var_of_spread": 0.007498859959175799,
+   "null_mean": 0.006453922977890497,
+   "null_q95": 0.006848994933982441,
+   "ratio": 1.1619072593312612,
+   "perm_p": 0.004975124378109453,
+   "PASS": false
+  }
+ }
+}
