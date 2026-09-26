@@ -44,7 +44,7 @@ from mcts.mcts import OpenLoopMCTS, SEARCH_HORIZONS
 from mcts.emotion_mcts import (
 	EmotionAwareMultiObjectiveQ, AFF_POOL_KEYS, CACHE_DRAWS, EMO_SIGNALS, EMO_VALENCE_TABLES, EMOTION_VALENCE_TABLES, check_emo_signal_flags,
 )
-from utils import role_profiler
+from utils import role_profiler, coupling
 from runners._common import (
 	make_backbone_model, make_emotion_classifier, build_agents, load_dialogs,
 	load_p4g_personas, apply_seed, dump_emotion_records, add_common_args, finalize_args,
@@ -84,6 +84,8 @@ def pick_action(algo, state, *, game, planner, configs, emotion_classifier) -> "
 	if algo == "gdpzero":
 		# open-loop MCTS over LLM rollouts (as in runners/gdpzero.py)
 		dp = OpenLoopMCTS(game, planner, configs)
+		if coupling.active():
+			dp.rng = coupling.planner_rng(turn=len(state))  # --coupled_seeds: this turn's own draw stream
 		for _ in tqdm(range(configs.num_MCTS_sims), leave=False, desc="gdpzero"):
 			dp.search(state)
 		return int(np.argmax(np.asarray(dp.get_action_prob(state)))), dp
@@ -109,6 +111,8 @@ def pick_action(algo, state, *, game, planner, configs, emotion_classifier) -> "
 			cache_bucket_tau=configs.cache_bucket_tau,
 			cache_kernel_h=configs.cache_kernel_h,
 		)
+		if coupling.active():
+			dp.rng = coupling.planner_rng(turn=len(state))  # --coupled_seeds: this turn's own draw stream
 		for _ in tqdm(range(configs.num_MCTS_sims), leave=False, desc="emomcts"):
 			dp.search(state)
 		return int(np.argmax(np.asarray(dp.get_action_prob(state)))), dp
@@ -336,6 +340,12 @@ def main(cmd_args):
 	# share only the backbone model (an HTTP client) and the emotion classifier.
 	# Results carry their scenario index and are re-sorted on every dump, so the output pickle is
 	# in scenario order regardless of which dialog finishes first.
+	if cmd_args.coupled_seeds:
+		missing = [need for need, ok in (("--llm sglang", cmd_args.llm == "sglang"), ("--seed", cmd_args.seed is not None),
+										 ("--coupling_store", bool(cmd_args.coupling_store))) if not ok]
+		if missing:
+			raise SystemExit(f"--coupled_seeds needs {', '.join(missing)}")
+	reply_store = coupling.ReplyStore(cmd_args.coupling_store) if cmd_args.coupled_seeds else None
 	finished = []            # (scenario index, episode), guarded by results_lock
 	results_lock = Lock()
 	first_error = []         # first worker exception, re-raised after the pool drains (--raise_errors)
@@ -353,9 +363,12 @@ def main(cmd_args):
 		game, _system, _user, planner = build_agents(
 			cmd_args.game, backbone_model, family, persona=persona, **agent_kwargs)
 		try:
-			state, subtree_records, simlog_records = rollout_one(game, planner, cmd_args.algo, configs,
-								 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
-								 dlg_id=did, seed=cmd_args.seed)
+			# --coupled_seeds: every LLM call and tree draw of this episode is shared with any run that uses
+			# the same store and seed (utils/coupling.py); reply_store is None otherwise, a no-op
+			with coupling.dialogue(reply_store, cmd_args.seed, did) as coupled:
+				state, subtree_records, simlog_records = rollout_one(game, planner, cmd_args.algo, configs,
+									 emotion_classifier, cmd_args.max_turns, dialog["scenario"],
+									 dlg_id=did, seed=cmd_args.seed)
 			# one gzipped NDJSON per dialogue, written once the episode is done so
 			# concurrent workers never share a file.
 			subtree_log_path = write_subtree_ndjson(subtree_records, cmd_args.output, did)
@@ -365,6 +378,8 @@ def main(cmd_args):
 			episode = make_episode(cmd_args.game, did, game, state, algo=cmd_args.algo,
 								   subtree_log_path=subtree_log_path)
 			episode["persona"] = persona
+			if coupled is not None:
+				episode["coupling"] = {"store_hits": coupled.hits, "store_misses": coupled.misses}
 		except Exception as e:
 			logger.exception(f"rollout {did} failed: {e}")
 			with results_lock:
@@ -498,6 +513,14 @@ if __name__ == "__main__":
 							 'term: run with --beta_emo 0.0 for it; beta > 0 adds beta*Q_emo inside the mask.')
 	parser.add_argument('--emo_constraint_m_warm', '--emo-constraint-m-warm', type=int, default=3,
 						help='[emomcts --emo_constraint_tau] visits before an action can be masked.')
+	# Coupled seeds (utils/coupling.py). DEFAULT off.
+	parser.add_argument('--coupled_seeds', '--coupled-seeds', action='store_true',
+						help='common random numbers across arms: every LLM call is keyed by (seed, dialogue, exact '
+							 'request, occurrence) in --coupling_store, so any run with the same store and seed that '
+							 'sends the same request gets the same reply; tree draws use a RandomState per (seed, '
+							 'dialogue, turn). Needs --llm sglang, --seed and --coupling_store. DEFAULT off.')
+	parser.add_argument('--coupling_store', '--coupling-store', type=str, default=None,
+						help='[--coupled_seeds] sqlite file shared by the runs being coupled.')
 	# Cache fixes (analysis/phase1/p_depth.md). All default to the frozen cache.
 	parser.add_argument('--cache_ended_children', '--cache-ended-children', action='store_true',
 						help='[--algo gdpzero|emomcts] file a generated reply that ends the search under its node at generation time, so '
