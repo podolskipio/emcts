@@ -18,7 +18,7 @@ from functools import lru_cache
 from multiprocessing.pool import ThreadPool
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed  # for exponential backoff
 from utils.utils import hashabledict
-from utils import role_profiler
+from utils import role_profiler, coupling
 
 logger = logging.getLogger(__name__)
 
@@ -801,6 +801,13 @@ class SGLangChatModel(GenerationModel):
         # mid-conversation "new conversation" separators must be flattened first -- see
         # GenerationModel._normalize_chat_messages.
         hashable_messages = [hashabledict(m) for m in self._normalize_chat_messages(messages)]
+        # --coupled_seeds: the request below is shared with every arm that sends it (utils/coupling.py);
+        # a pass-through outside a coupled dialogue
+        request = {"messages": hashable_messages, "parameters": {k: v for k, v in parameters.items()}}
+        return coupling.call(request, lambda: self._chat_request(hashable_messages, from_cache, parameters))
+
+    def _chat_request(self, hashable_messages, from_cache, parameters):
+        parameters = dict(parameters)
         parameters["messages"] = hashable_messages
         t0 = time.monotonic()
         if from_cache:
@@ -833,10 +840,11 @@ class SGLangChatModel(GenerationModel):
         if len(messages_list) == 0:
             return []
         active_role = role_profiler.current_role()  # ContextVars do not cross thread boundaries
+        active_coupling = coupling.current()
 
         def _one(messages):
             with role_profiler.role(active_role):
-                return self.chat_generate(messages, **dict(gen_args))
+                return coupling.run_in(active_coupling, self.chat_generate, messages, **dict(gen_args))
 
         pool = ThreadPool(processes=len(messages_list))
         results = [pool.apply_async(_one, args=(messages,)) for messages in messages_list]
