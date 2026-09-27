@@ -1,0 +1,219 @@
+{
+ "git_head": "bbf6cdaeb46e7aa60f1ee333a2a1845d048f2a7c",
+ "SR": {
+  "seeds_done": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "dialogues": 100,
+  "per_seed": {
+   "1": {
+    "n": 100,
+    "SR_base": 0.7,
+    "SR_ret": 0.69,
+    "AvgT_base": 6.64,
+    "AvgT_ret": 6.54,
+    "SR_diff": -0.010000000000000009,
+    "phi": 0.4104915418747521,
+    "divergence": {
+     "n": 100,
+     "share_never_diverge": 0.38,
+     "first_divergence_turn_hist": {
+      "1": 25,
+      "2": 13,
+      "3": 11,
+      "4": 5,
+      "5": 2,
+      "6": 4,
+      "7": 2
+     },
+     "median_first_divergence_turn": 2.0
+    }
+   },
+   "2": {
+    "n": 100,
+    "SR_base": 0.77,
+    "SR_ret": 0.72,
+    "AvgT_base": 6.35,
+    "AvgT_ret": 6.41,
+    "SR_diff": -0.050000000000000044,
+    "phi": 0.40009880202694814,
+    "divergence": {
+     "n": 100,
+     "share_never_diverge": 0.39,
+     "first_divergence_turn_hist": {
+      "1": 23,
+      "2": 17,
+      "3": 8,
+      "4": 3,
+      "5": 4,
+      "6": 3,
+      "7": 3
+     },
+     "median_first_divergence_turn": 2.0
+    }
+   },
+   "3": {
+    "n": 100,
+    "SR_base": 0.72,
+    "SR_ret": 0.71,
+    "AvgT_base": 6.42,
+    "AvgT_ret": 6.54,
+    "SR_diff": -0.010000000000000009,
+    "phi": 0.3867699998536065,
+    "divergence": {
+     "n": 100,
+     "share_never_diverge": 0.47,
+     "first_divergence_turn_hist": {
+      "1": 24,
+      "2": 12,
+      "3": 5,
+      "4": 6,
+      "6": 4,
+      "7": 1,
+      "8": 1
+     },
+     "median_first_divergence_turn": 2.0
+    }
+   },
+   "4": {
+    "n": 100,
+    "SR_base": 0.78,
+    "SR_ret": 0.74,
+    "AvgT_base": 6.19,
+    "AvgT_ret": 6.6,
+    "SR_diff": -0.040000000000000036,
+    "phi": 0.3456196834771014,
+    "divergence": {
+     "n": 100,
+     "share_never_diverge": 0.39,
+     "first_divergence_turn_hist": {
+      "1": 30,
+      "2": 12,
+      "3": 7,
+      "4": 7,
+      "5": 1,
+      "6": 2,
+      "7": 2
+     },
+     "median_first_divergence_turn": 2.0
+    }
+   },
+   "5": {
+    "n": 100,
+    "SR_base": 0.75,
+    "SR_ret": 0.73,
+    "AvgT_base": 6.45,
+    "AvgT_ret": 6.48,
+    "SR_diff": -0.020000000000000018,
+    "phi": 0.37713258540975386,
+    "divergence": {
+     "n": 100,
+     "share_never_diverge": 0.5,
+     "first_divergence_turn_hist": {
+      "1": 16,
+      "2": 13,
+      "3": 10,
+      "4": 5,
+      "5": 3,
+      "6": 3
+     },
+     "median_first_divergence_turn": 2.0
+    }
+   }
+  },
+  "SR_diff_pooled": {
+   "value": -0.026,
+   "ci": [
+    -0.06805,
+    0.01804999999999995
+   ]
+  },
+  "AvgT_diff_pooled": {
+   "value": 0.104,
+   "ci": [
+    -0.09405,
+    0.30204999999999993
+   ]
+  },
+  "mean_phi": 0.3840225225284324,
+  "SR_mean": 0.7310000000000001,
+  "detectable_difference_pooled": 0.06163185962826198,
+  "detected": false
+ },
+ "homogeneity_before": {
+  "affect_key": {
+   "ratio_nc": {
+    "value": -0.032917046815864236,
+    "ci": [
+     -0.0827960562756176,
+     0.03586412755988827
+    ]
+   },
+   "evidence_multiplier": 1.4285714285714286,
+   "cells_ge3": 1199
+  },
+  "act_key": {
+   "ratio_nc": {
+    "value": -0.028611270895431407,
+    "ci": [
+     -0.06628197602967463,
+     0.01704748832984545
+    ]
+   },
+   "evidence_multiplier": 3.0,
+   "cells_ge3": 1238
+  },
+  "gap": {
+   "value": 0.0043057759204328284,
+   "ci": [
+    -0.041081254780201935,
+    0.042295918298546106
+   ]
+  },
+  "dialogues": 100
+ },
+ "homogeneity_after": {
+  "affect_key": {
+   "ratio_nc": {
+    "value": -0.01995991742386558,
+    "ci": [
+     -0.04814794679424448,
+     0.00388955616476328
+    ]
+   },
+   "evidence_multiplier": 1.3333333333333333,
+   "cells_ge3": 5308
+  },
+  "act_key": {
+   "ratio_nc": {
+    "value": 0.0011057071248589247,
+    "ci": [
+     -0.02563352826510724,
+     0.0341495240240943
+    ]
+   },
+   "evidence_multiplier": 2.75,
+   "cells_ge3": 5683
+  },
+  "gap": {
+   "value": 0.021065624548724505,
+   "ci": [
+    0.0025932658684625683,
+    0.04341755314812898
+   ]
+  },
+  "dialogues": 499
+ },
+ "after_runs": [
+  "P5b_AffPool_s1",
+  "P5b_AffPool_s2",
+  "P5b_AffPool_s3",
+  "P5b_AffPool_s4",
+  "P5b_AffPool_s5"
+ ],
+ "gap_closes": false
+}
